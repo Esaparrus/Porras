@@ -4,7 +4,7 @@ import { logoutAction } from "@/app/actions";
 
 export function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#153a66_0,#06111f_36%,#030712_100%)] text-white">
+    <main className="grass-shell min-h-screen text-white">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
         {children}
       </div>

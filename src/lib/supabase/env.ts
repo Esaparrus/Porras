@@ -1,11 +1,12 @@
 const SUPABASE_ENV_HELP =
   "Create .env.local in the project root with values from Supabase Project Settings > API.";
 
-function requireEnv(name: string) {
-  const value = process.env[name];
+function requireEnv(name: string, fallbackNames: string[] = []) {
+  const keys = [name, ...fallbackNames];
+  const value = keys.map((key) => process.env[key]).find(Boolean);
 
   if (!value) {
-    throw new Error(`Missing ${name}. ${SUPABASE_ENV_HELP}`);
+    throw new Error(`Missing ${keys.join(" or ")}. ${SUPABASE_ENV_HELP}`);
   }
 
   return value;
@@ -14,7 +15,10 @@ function requireEnv(name: string) {
 export function getSupabasePublicEnv() {
   return {
     url: requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
-    anonKey: requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    anonKey: requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", [
+      "SUPABASE_ANON_KEY",
+      "SUPABASE_PUBLISHABLE_KEY",
+    ]),
   };
 }
 
