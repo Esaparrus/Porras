@@ -10,6 +10,15 @@ import { countPayments } from "@/lib/admin";
 import { STATUS_LABELS } from "@/lib/constants";
 import { requireAdmin } from "@/lib/data";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { League, LeagueMember, Profile } from "@/lib/types";
+
+type AdminLeagueProfile = Pick<Profile, "display_name" | "username">;
+type AdminLeagueMember = Pick<LeagueMember, "user_id" | "payment_status"> & {
+  profiles?: AdminLeagueProfile | AdminLeagueProfile[] | null;
+};
+type AdminLeagueRow = League & {
+  league_members?: AdminLeagueMember[] | null;
+};
 
 export default async function AdminLeaguesPage() {
   await requireAdmin();
@@ -20,8 +29,8 @@ export default async function AdminLeaguesPage() {
     .select("*, league_members(user_id, payment_status, profiles(display_name, username))")
     .order("created_at", { ascending: false });
 
-  const normalizedLeagues = (leagues ?? []).map((league) => {
-    const members = (league.league_members ?? []).map((member) => {
+  const normalizedLeagues = ((leagues ?? []) as AdminLeagueRow[]).map((league) => {
+    const members = (league.league_members ?? []).map((member: AdminLeagueMember) => {
       const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
 
       return {
