@@ -16,6 +16,8 @@ create table if not exists public.player_selection_requests (
 
 alter table public.player_selection_requests enable row level security;
 
+drop policy if exists "player selection requests own" on public.player_selection_requests;
+
 create policy "player selection requests own" on public.player_selection_requests
 for all using (public.is_admin() or user_id = auth.uid())
 with check (public.is_admin() or user_id = auth.uid());

@@ -148,8 +148,7 @@ on conflict (team_id, name) do update set
   is_active = true;
 
 update public.players
-set is_active = false
-where scorer_rank is null;
+set is_active = true;
 
 delete from public.matches
 where match_number is null;
