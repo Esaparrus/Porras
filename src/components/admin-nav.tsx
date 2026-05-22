@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, ClipboardList, Home, LogOut, Settings, Users } from "lucide-react";
+import { BarChart3, ClipboardList, Home, LogOut, Settings, Trophy, Users } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { cn } from "@/lib/utils";
 
@@ -66,9 +66,11 @@ export function AdminNav({ leagueId }: AdminNavProps) {
   const pathname = usePathname();
   const leagueItems: NavItem[] = leagueId
     ? [
-        { href: `/admin/leagues/${leagueId}`, label: "Resumen liga", icon: BarChart3, exact: true },
-        { href: `/admin/leagues/${leagueId}/ranking`, label: "Ranking", icon: Users },
+        { href: `/admin/leagues/${leagueId}`, label: "Resumen", icon: BarChart3, exact: true },
+        { href: `/admin/leagues/${leagueId}/users`, label: "Usuarios", icon: Users },
         { href: `/admin/leagues/${leagueId}/settings`, label: "Ajustes", icon: Settings },
+        { href: `/admin/leagues/${leagueId}/ranking`, label: "Ranking", icon: Trophy },
+        { href: `/admin/leagues/${leagueId}/logs`, label: "Logs", icon: ClipboardList },
       ]
     : [];
 
