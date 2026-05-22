@@ -18,6 +18,14 @@ const client = new pg.Client({
   ssl: { rejectUnauthorized: false },
 });
 
+const SQL_FILES = [
+  "add-username-login.sql",
+  "migrate-world-cup-2026.sql",
+  "league-economy-and-payments.sql",
+  "player-selection-requests.sql",
+  "seed.sql",
+];
+
 async function runSqlFile(filePath) {
   const sql = await readFile(filePath, "utf8");
   await client.query(sql);
@@ -27,12 +35,20 @@ async function runSqlFile(filePath) {
 await client.connect();
 
 try {
-  await runSqlFile(join(process.cwd(), "supabase", "schema.sql"));
-  await runSqlFile(join(process.cwd(), "supabase", "add-username-login.sql"));
-  await runSqlFile(join(process.cwd(), "supabase", "migrate-world-cup-2026.sql"));
-  await runSqlFile(join(process.cwd(), "supabase", "league-economy-and-payments.sql"));
-  await runSqlFile(join(process.cwd(), "supabase", "player-selection-requests.sql"));
-  await runSqlFile(join(process.cwd(), "supabase", "seed.sql"));
+  for (const fileName of SQL_FILES) {
+    await runSqlFile(join(process.cwd(), "supabase", fileName));
+  }
+
+  const { rows } = await client.query(`
+    select
+      (select count(*) from public.leagues) as leagues,
+      (select count(*) from public.profiles) as profiles,
+      (select count(*) from public.teams) as teams,
+      (select count(*) from public.matches) as matches,
+      (select count(*) from public.players where is_active) as active_players
+  `);
+
+  console.log(rows[0]);
 } finally {
   await client.end();
 }

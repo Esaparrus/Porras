@@ -23,6 +23,7 @@ Rellena `.env.local`:
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+POSTGRES_URL_NON_POOLING=
 ADMIN_EMAIL=admin@porra.local
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=1234
@@ -31,10 +32,12 @@ ADMIN_PASSWORD=1234
 ## Configurar Supabase
 
 1. Crea un proyecto en Supabase.
-2. Copia `Project URL`, `anon key` y `service_role key` en `.env.local`.
-3. Abre el SQL editor de Supabase.
-4. Ejecuta `supabase/schema.sql`.
-5. Ejecuta `supabase/seed.sql`.
+2. Copia `Project URL`, `anon key`, `service_role key` y `POSTGRES_URL_NON_POOLING` en `.env.local`.
+3. Ejecuta:
+
+```bash
+npm run setup-db
+```
 
 El seed incluye equipos, grupos de ejemplo, partidos de grupo y jugadores estrella. La estructura queda preparada para cargar los 104 partidos reales cuando quieras.
 
@@ -161,8 +164,16 @@ Todo se puede cambiar por liga desde `/admin/leagues/[leagueId]/settings`. Al gu
 2. Importa el repo en Vercel.
 3. Añade las variables de entorno.
 4. Despliega.
-5. Ejecuta el schema y seed en Supabase.
+5. Sincroniza la base de producción con:
+
+```bash
+npm run sync-production-db
+```
+
 6. Crea el admin con `npm run create-admin` apuntando a producción.
+7. Entra en `/admin` y crea la primera liga.
+
+`sync-production-db` aplica las migraciones idempotentes necesarias para una base existente, añade los datos del Mundial 2026 y evita que producción se quede desalineada con el código.
 
 ## Notas de implementación
 

@@ -9,6 +9,7 @@
     "lint": "eslint",
     "create-admin": "node scripts/create-admin.mjs",
     "setup-db": "node scripts/setup-db.mjs",
+    "sync-production-db": "node scripts/sync-production-db.mjs",
     "apply-schema-migration": "node scripts/apply-schema-migration.mjs",
     "apply-world-cup-data": "node scripts/apply-world-cup-data.mjs"
   },
