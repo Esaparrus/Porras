@@ -28,6 +28,7 @@ await client.connect();
 
 try {
   await runSqlFile(join(process.cwd(), "supabase", "schema.sql"));
+  await runSqlFile(join(process.cwd(), "supabase", "migrate-world-cup-2026.sql"));
   await runSqlFile(join(process.cwd(), "supabase", "seed.sql"));
 } finally {
   await client.end();

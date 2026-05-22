@@ -17,7 +17,7 @@ export default function Home() {
       <section className="grid flex-1 items-center gap-7 py-8 lg:grid-cols-[1.05fr_0.95fr] lg:py-12">
         <div className="relative">
           <div className="mb-5 flex flex-wrap gap-2">
-            <span className="badge border-black bg-[#f2e94e] text-black shadow-[5px_5px_0_#000]">
+            <span className="badge border-black bg-[#27e7ff] text-black shadow-[5px_5px_0_#000]">
               Mundial 2026
             </span>
             <span className="badge border-black bg-white text-black shadow-[5px_5px_0_#000]">
@@ -28,8 +28,8 @@ export default function Home() {
             La porra del Mundial de 2026.
           </h1>
           <p className="mt-5 max-w-2xl border-4 border-black bg-white p-4 text-lg font-black leading-8 text-black shadow-[8px_8px_0_#000]">
-            Apuestas, gritos, rankings y esa persona que jura que Canada llega
-            a semis. Todo sobre cesped, sin Excel pocho y con pique del bueno.
+            Apuestas, gritos, rankings y esa persona que jura que Canadá llega
+            a semis. Todo sobre césped, sin Excel pocho y con pique del bueno.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link href="/admin" className="btn-primary brutal-btn">
@@ -41,7 +41,7 @@ export default function Home() {
               className="btn-secondary brutal-btn !bg-[#ff4d2d] !text-white hover:!bg-[#ff6b50]"
             >
               <Flame className="h-5 w-5" />
-              Unirme con codigo
+              Unirme con código
             </Link>
           </div>
         </div>
@@ -54,18 +54,18 @@ export default function Home() {
             <div className="border-4 border-white bg-black p-5">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-black uppercase text-[#f2e94e]">
+                  <p className="text-sm font-black uppercase text-[#27e7ff]">
                     Marcador social
                   </p>
-                  <h2 className="text-4xl font-black uppercase">Harazuri FC</h2>
+                  <h2 className="text-4xl font-black uppercase">Arazuri FC</h2>
                 </div>
-                <div className="grid h-16 w-16 place-items-center border-4 border-black bg-[#f2e94e] text-black shadow-[5px_5px_0_#fff]">
+                <div className="grid h-16 w-16 place-items-center border-4 border-black bg-[#27e7ff] text-black shadow-[5px_5px_0_#fff]">
                   <Trophy className="h-9 w-9" />
                 </div>
               </div>
 
               <div className="mt-5 grid grid-cols-2 gap-3">
-                <ScoreTile label="Pique" value="99" tone="bg-[#f2e94e]" />
+                <ScoreTile label="Pique" value="99" tone="bg-[#27e7ff]" />
                 <ScoreTile label="Drama" value="VAR" tone="bg-[#ff4d2d]" />
               </div>
 
@@ -90,9 +90,9 @@ export default function Home() {
             <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-2 border-4 border-black bg-white p-3 text-black">
               <div>
                 <p className="text-xs font-black uppercase">Final inventada</p>
-                <p className="font-black">Espana</p>
+                <p className="font-black">España</p>
               </div>
-              <div className="flex items-center gap-2 border-4 border-black bg-[#f2e94e] px-4 py-2 font-black">
+              <div className="flex items-center gap-2 border-4 border-black bg-[#27e7ff] px-4 py-2 font-black">
                 <Goal className="h-5 w-5" />
                 3 - 2
               </div>
@@ -114,12 +114,12 @@ export default function Home() {
         <Feature
           icon={<Smartphone />}
           title="Mobile-first"
-          text="Botones grandes y vistas rapidas para actualizar en un minuto."
+          text="Botones grandes y vistas rápidas para actualizar en un minuto."
         />
         <Feature
           icon={<Crown />}
           title="Ranking vivo"
-          text="Puntos configurables y recalculo automatico de la clasificacion."
+          text="Puntos configurables y recálculo automático de la clasificación."
         />
       </section>
     </Shell>

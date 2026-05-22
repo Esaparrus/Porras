@@ -73,7 +73,7 @@ Abre `http://localhost:3000`.
 ## Flujo de uso
 
 1. Entra en `/admin` con el usuario admin.
-2. Crea una liga, por ejemplo `Harazuri`.
+2. Crea una liga, por ejemplo `Arazuri`.
 3. Copia el código generado, por ejemplo `HARAZURI-2026`.
 4. Pasa el código a tus amigos.
 5. Cada usuario se registra con usuario, contraseña y código.

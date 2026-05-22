@@ -1,11 +1,13 @@
 export type Role = "admin" | "player";
 export type LeagueStatus = "open" | "locked" | "in_progress" | "finished";
+export type LeaguePaymentStatus = "paid" | "pending";
 export type Stage =
   | "group"
   | "round_32"
   | "round_16"
   | "quarter_final"
   | "semi_final"
+  | "third_place"
   | "final";
 export type KnockoutRound =
   | "round_32"
@@ -34,8 +36,21 @@ export type League = {
   lock_scorers: boolean;
   lock_awards: boolean;
   lock_knockouts: boolean;
+  entry_price: number;
+  pot_total_override: number | null;
+  prize_first_percentage: number;
+  prize_second_percentage: number;
+  prize_third_percentage: number;
   created_at: string;
   updated_at: string;
+};
+
+export type LeagueMember = {
+  id: string;
+  league_id: string;
+  user_id: string;
+  payment_status: LeaguePaymentStatus;
+  joined_at: string;
 };
 
 export type Team = {
@@ -43,6 +58,7 @@ export type Team = {
   name: string;
   short_name: string;
   flag_emoji: string;
+  flag_code: string | null;
   group_letter: string | null;
   fifa_ranking: number | null;
   manual_order: number | null;
@@ -56,16 +72,50 @@ export type Player = {
   position: string | null;
   is_star: boolean;
   is_active: boolean;
+  scorer_rank?: number | null;
   teams?: Team;
+};
+
+export type MatchScorer = {
+  id: string;
+  match_id: string;
+  player_id: string;
+  goals: number;
+  created_at: string;
+  players?: Player;
+};
+
+export type PlayerSelectionRequestStatus = "pending" | "approved" | "rejected";
+
+export type PlayerSelectionRequest = {
+  id: string;
+  league_id: string;
+  user_id: string;
+  field_key: string;
+  player_name: string;
+  team_id: string | null;
+  status: PlayerSelectionRequestStatus;
+  resolved_player_id: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  created_at: string;
+  teams?: Team | null;
+  profiles?: Profile | null;
+  resolved_player?: Player | null;
 };
 
 export type Match = {
   id: string;
+  match_number: number | null;
   stage: Stage;
   group_letter: string | null;
-  home_team_id: string;
-  away_team_id: string;
+  home_team_id: string | null;
+  away_team_id: string | null;
+  home_placeholder: string | null;
+  away_placeholder: string | null;
+  winner_team_id: string | null;
   match_date: string | null;
+  venue: string | null;
   home_score: number | null;
   away_score: number | null;
   is_finished: boolean;

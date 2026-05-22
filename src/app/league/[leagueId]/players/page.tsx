@@ -49,7 +49,7 @@ export default async function PlayersPage({
               className="glass rounded-2xl p-5"
             >
               <div className="text-xl font-black">{profile?.display_name}</div>
-              <div className="mt-2 text-[#d6b25e]">
+              <div className="mt-2 text-[#ff2bd6]">
                 {member.scores?.[0]?.total_points ?? 0} puntos
               </div>
             </Link>

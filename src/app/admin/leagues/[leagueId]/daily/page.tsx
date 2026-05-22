@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { quickGoalAction, recalculateLeagueScoresAction, updateMatchResultAction } from "@/app/actions";
 import { AdminLayout } from "@/components/layouts";
-import { ScorerQuickCounter, TeamBadge } from "@/components/ui";
+import { MatchTeamLabel, ScorerQuickCounter } from "@/components/ui";
 import { requireAdmin } from "@/lib/data";
 
 export default async function DailyPage({
@@ -16,6 +16,8 @@ export default async function DailyPage({
       .from("matches")
       .select("*, home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)")
       .eq("is_finished", false)
+      .order("match_date", { ascending: true, nullsFirst: false })
+      .order("match_number", { ascending: true, nullsFirst: false })
       .limit(8),
     supabase
       .from("scorer_predictions")
@@ -37,7 +39,12 @@ export default async function DailyPage({
   return (
     <AdminLayout leagueId={leagueId}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-black">Vista diaria</h1>
+        <div>
+          <h1 className="text-3xl font-black">Vista rápida</h1>
+          <p className="mt-1 text-sm text-slate-300">
+            Panel corto para meter resultados y goles sin dar tantas vueltas.
+          </p>
+        </div>
         <form action={recalculateLeagueScoresAction}>
           <input type="hidden" name="league_id" value={leagueId} />
           <button className="btn-primary">Recalcular ranking</button>
@@ -56,7 +63,19 @@ export default async function DailyPage({
                 <input type="hidden" name="league_id" value={leagueId} />
                 <input type="hidden" name="match_id" value={match.id} />
                 <div className="font-bold">
-                  <TeamBadge team={match.home_team} /> vs <TeamBadge team={match.away_team} />
+                  <MatchTeamLabel team={match.home_team} placeholder={match.home_placeholder} /> vs{" "}
+                  <MatchTeamLabel team={match.away_team} placeholder={match.away_placeholder} />
+                </div>
+                <div className="mt-2 text-xs font-semibold text-slate-400">
+                  {match.match_number ? `Partido ${match.match_number}` : "Partido"}
+                  {match.match_date
+                    ? ` · ${new Intl.DateTimeFormat("es-ES", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                        timeZone: "Europe/Madrid",
+                      }).format(new Date(match.match_date))}`
+                    : ""}
+                  {match.venue ? ` · ${match.venue}` : ""}
                 </div>
                 <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
                   <input name="home_score" type="number" min="0" className="field text-center" />

@@ -1,6 +1,8 @@
+import Image from "next/image";
 import Link from "next/link";
-import { LogOut, Shield, Trophy } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { logoutAction } from "@/app/actions";
+import { AdminNav } from "@/components/admin-nav";
 
 export function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -12,20 +14,35 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
+function BrandLogo({ label }: { label: string }) {
+  return (
+    <span className="flex items-center gap-3 font-black">
+      <span className="grid h-11 w-20 place-items-center border-4 border-black bg-black p-1 shadow-[5px_5px_0_#000]">
+        <Image
+          src="/world-cup-logo.png"
+          alt=""
+          width={96}
+          height={40}
+          unoptimized
+          className="h-full w-full object-contain"
+        />
+      </span>
+      {label}
+    </span>
+  );
+}
+
 export function PublicHeader() {
   return (
-    <header className="flex items-center justify-between gap-4 py-4">
-      <Link href="/" className="flex items-center gap-3 font-black">
-        <span className="rounded-2xl bg-[#d6b25e] p-2 text-[#08111f]">
-          <Trophy className="h-5 w-5" />
-        </span>
-        Porra Mundial 2026
+    <header className="flex flex-wrap items-center justify-between gap-4 py-4">
+      <Link href="/">
+        <BrandLogo label="Porra Mundial 2026" />
       </Link>
-      <div className="flex gap-2">
-        <Link href="/login" className="btn-secondary py-2">
+      <div className="flex w-full gap-2 sm:w-auto">
+        <Link href="/login" className="btn-secondary flex-1 py-2 sm:flex-none">
           Entrar
         </Link>
-        <Link href="/register" className="btn-primary py-2">
+        <Link href="/register" className="btn-primary flex-1 py-2 sm:flex-none">
           Registrarse
         </Link>
       </div>
@@ -43,9 +60,8 @@ export function UserLayout({
   return (
     <Shell>
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <Link href="/dashboard" className="flex items-center gap-3 font-black">
-          <Trophy className="h-6 w-6 text-[#d6b25e]" />
-          Mi porra
+        <Link href="/dashboard">
+          <BrandLogo label="Mi porra" />
         </Link>
         <nav className="flex flex-wrap gap-2">
           {leagueId ? (
@@ -64,6 +80,12 @@ export function UserLayout({
                 className="btn-secondary py-2"
               >
                 Ranking
+              </Link>
+              <Link
+                href={`/league/${leagueId}/profile`}
+                className="btn-secondary py-2"
+              >
+                Perfil
               </Link>
             </>
           ) : null}
@@ -87,41 +109,13 @@ export function AdminLayout({
   children: React.ReactNode;
   leagueId?: string;
 }) {
-  const base = leagueId ? `/admin/leagues/${leagueId}` : "/admin";
   return (
     <Shell>
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <Link href="/admin" className="flex items-center gap-3 font-black">
-          <Shield className="h-6 w-6 text-[#d6b25e]" />
-          Panel admin
+      <header className="mb-6 flex flex-col gap-4">
+        <Link href="/admin">
+          <BrandLogo label="Panel admin" />
         </Link>
-        <nav className="flex flex-wrap gap-2">
-          <Link href="/admin/leagues" className="btn-secondary py-2">
-            Ligas
-          </Link>
-          {leagueId ? (
-            <>
-              <Link href={base} className="btn-secondary py-2">
-                Resumen
-              </Link>
-              <Link href={`${base}/daily`} className="btn-secondary py-2">
-                Diario
-              </Link>
-              <Link href={`${base}/ranking`} className="btn-secondary py-2">
-                Ranking
-              </Link>
-              <Link href={`${base}/settings`} className="btn-secondary py-2">
-                Ajustes
-              </Link>
-            </>
-          ) : null}
-          <form action={logoutAction}>
-            <button className="btn-secondary py-2">
-              <LogOut className="h-4 w-4" />
-              Salir
-            </button>
-          </form>
-        </nav>
+        <AdminNav leagueId={leagueId} />
       </header>
       {children}
     </Shell>

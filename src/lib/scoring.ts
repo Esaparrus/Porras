@@ -87,8 +87,8 @@ export function calculatePredictedGroupStandings(
       .map((match) => {
         const prediction = predictionByMatchId.get(match.id);
         return {
-          home_team_id: match.home_team_id,
-          away_team_id: match.away_team_id,
+          home_team_id: match.home_team_id ?? "",
+          away_team_id: match.away_team_id ?? "",
           home_score: prediction?.predicted_home_score ?? null,
           away_score: prediction?.predicted_away_score ?? null,
           is_finished: true,
@@ -125,16 +125,25 @@ export function calculateGroupPredictionPoints(
   predictedGroups: StandingRow[][],
   realGroups: StandingRow[][],
   settings: PointSettings,
+  completedGroups?: boolean[],
 ) {
   let points = 0;
-  const realBestThirds = new Set(
-    calculateBestThirdPlacedTeams(realGroups).map((row) => row.team.id),
-  );
-  const predictedBestThirds = new Set(
-    calculateBestThirdPlacedTeams(predictedGroups).map((row) => row.team.id),
-  );
+  const allGroupsCompleted = completedGroups
+    ? completedGroups.every(Boolean)
+    : true;
+
+  const realBestThirds = allGroupsCompleted
+    ? new Set(calculateBestThirdPlacedTeams(realGroups).map((row) => row.team.id))
+    : new Set<string>();
+  const predictedBestThirds = allGroupsCompleted
+    ? new Set(
+        calculateBestThirdPlacedTeams(predictedGroups).map((row) => row.team.id),
+      )
+    : new Set<string>();
 
   realGroups.forEach((realGroup, index) => {
+    if (completedGroups && !completedGroups[index]) return;
+
     const predictedGroup = predictedGroups[index] ?? [];
     realGroup.forEach((realRow, position) => {
       const predictedRow = predictedGroup[position];
@@ -155,9 +164,11 @@ export function calculateGroupPredictionPoints(
     });
   });
 
-  predictedBestThirds.forEach((teamId) => {
-    if (realBestThirds.has(teamId)) points += settings.best_third_team_points;
-  });
+  if (allGroupsCompleted) {
+    predictedBestThirds.forEach((teamId) => {
+      if (realBestThirds.has(teamId)) points += settings.best_third_team_points;
+    });
+  }
 
   return points;
 }
@@ -217,9 +228,10 @@ export function calculateLiveKnockoutMatchPoints(
   const values = roundValues[match.stage];
   if (!values) return 0;
   const realWinner =
-    (match.home_score ?? 0) > (match.away_score ?? 0)
+    match.winner_team_id ??
+    ((match.home_score ?? 0) > (match.away_score ?? 0)
       ? match.home_team_id
-      : match.away_team_id;
+      : match.away_team_id);
   let total =
     prediction.predicted_winner_team_id === realWinner ? values.winner : 0;
   const exact = calculateMatchPredictionPoints(prediction, match, {
@@ -320,8 +332,24 @@ export function withDefaultSettings(
 function calculateStandings(
   groupTeams: Team[],
   playedMatches: Array<{
-    home_team_id: string;
-    away_team_id: string;
+    home_team_id: string | null;
+    away_team_id: string | null;
+    home_score: number | null;
+    away_score: number | null;
+    is_finished?: boolean;
+  }>,
+) {
+  return sortStandingRows(
+    calculateStandingsTable(groupTeams, playedMatches),
+    playedMatches,
+  );
+}
+
+function calculateStandingsTable(
+  groupTeams: Team[],
+  playedMatches: Array<{
+    home_team_id: string | null;
+    away_team_id: string | null;
     home_score: number | null;
     away_score: number | null;
     is_finished?: boolean;
@@ -344,6 +372,7 @@ function calculateStandings(
 
   playedMatches.forEach((match) => {
     if (match.home_score === null || match.away_score === null) return;
+    if (!match.home_team_id || !match.away_team_id) return;
     const home = rows.get(match.home_team_id);
     const away = rows.get(match.away_team_id);
     if (!home || !away) return;
@@ -373,7 +402,106 @@ function calculateStandings(
     }
   });
 
-  return Array.from(rows.values()).sort(compareStandingRows);
+  return Array.from(rows.values());
+}
+
+function sortStandingRows(
+  rows: StandingRow[],
+  playedMatches: Array<{
+    home_team_id: string | null;
+    away_team_id: string | null;
+    home_score: number | null;
+    away_score: number | null;
+    is_finished?: boolean;
+  }>,
+) {
+  const ordered = rows
+    .slice()
+    .sort((left, right) => right.points - left.points || left.team.name.localeCompare(right.team.name));
+
+  return ordered.flatMap((row, index) => {
+    if (index > 0 && ordered[index - 1]?.points === row.points) return [];
+
+    const tiedRows = ordered.filter((candidate) => candidate.points === row.points);
+    return tiedRows.length > 1 ? breakTieGroup(tiedRows, playedMatches) : [row];
+  });
+}
+
+function breakTieGroup(
+  tiedRows: StandingRow[],
+  playedMatches: Array<{
+    home_team_id: string | null;
+    away_team_id: string | null;
+    home_score: number | null;
+    away_score: number | null;
+    is_finished?: boolean;
+  }>,
+): StandingRow[] {
+  const tiedTeamIds = new Set(tiedRows.map((row) => row.team.id));
+  const headToHeadMatches = playedMatches.filter(
+    (match) =>
+      match.home_team_id &&
+      match.away_team_id &&
+      tiedTeamIds.has(match.home_team_id) &&
+      tiedTeamIds.has(match.away_team_id),
+  );
+  const headToHeadRows = new Map(
+    calculateStandingsTable(
+      tiedRows.map((row) => row.team),
+      headToHeadMatches,
+    ).map((row) => [row.team.id, row]),
+  );
+  const ordered = tiedRows
+    .slice()
+    .sort((left, right) => compareHeadToHeadRows(left, right, headToHeadRows));
+  const groups = splitStandingGroups(ordered, (left, right) =>
+    compareHeadToHeadRows(left, right, headToHeadRows),
+  );
+
+  if (groups.length > 1) {
+    return groups.flatMap((group) =>
+      group.length === tiedRows.length ? sortByOverallFallback(group) : breakTieGroup(group, playedMatches),
+    );
+  }
+
+  return sortByOverallFallback(tiedRows);
+}
+
+function compareHeadToHeadRows(
+  left: StandingRow,
+  right: StandingRow,
+  headToHeadRows: Map<string, StandingRow>,
+) {
+  const leftRow = headToHeadRows.get(left.team.id);
+  const rightRow = headToHeadRows.get(right.team.id);
+
+  if (!leftRow || !rightRow) return 0;
+
+  return (
+    rightRow.points - leftRow.points ||
+    rightRow.goalDifference - leftRow.goalDifference ||
+    rightRow.goalsFor - leftRow.goalsFor
+  );
+}
+
+function splitStandingGroups(
+  rows: StandingRow[],
+  compare: (left: StandingRow, right: StandingRow) => number,
+) {
+  return rows.reduce<StandingRow[][]>((groups, row) => {
+    const lastGroup = groups.at(-1);
+    if (!lastGroup?.length || compare(lastGroup[0], row) !== 0) {
+      groups.push([row]);
+      return groups;
+    }
+
+    lastGroup.push(row);
+    return groups;
+  }, []);
+}
+
+function sortByOverallFallback(rows: StandingRow[]) {
+  return rows.slice().sort(compareStandingRows);
 }
 
 function compareStandingRows(a: StandingRow, b: StandingRow) {
@@ -381,7 +509,7 @@ function compareStandingRows(a: StandingRow, b: StandingRow) {
     b.points - a.points ||
     b.goalDifference - a.goalDifference ||
     b.goalsFor - a.goalsFor ||
-    (a.team.fifa_ranking ?? 999) - (b.team.fifa_ranking ?? 999) ||
+    (a.team.fair_play_points ?? 0) - (b.team.fair_play_points ?? 0) ||
     (a.team.manual_order ?? 999) - (b.team.manual_order ?? 999) ||
     a.team.name.localeCompare(b.team.name)
   );

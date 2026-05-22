@@ -38,6 +38,7 @@ export const STAGE_LABELS: Record<string, string> = {
   round_16: "Octavos",
   quarter_final: "Cuartos",
   semi_final: "Semifinales",
+  third_place: "Tercer puesto",
   final: "Final",
 };
 

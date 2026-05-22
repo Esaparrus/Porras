@@ -1,6 +1,6 @@
 import { saveFinalAwardsAction } from "@/app/actions";
 import { AdminLayout } from "@/components/layouts";
-import { PlayerSearchCombobox } from "@/components/ui";
+import { PlayerPicker } from "@/components/player-picker";
 import { requireAdmin } from "@/lib/data";
 
 export default async function AdminAwardsPage({
@@ -10,9 +10,10 @@ export default async function AdminAwardsPage({
 }) {
   const { leagueId } = await params;
   const { supabase } = await requireAdmin();
-  const [{ data: players }, { data: awards }] = await Promise.all([
+  const [{ data: players }, { data: awards }, { data: teams }] = await Promise.all([
     supabase.from("players").select("*, teams(*)").eq("is_active", true).order("name"),
     supabase.from("final_awards").select("*").eq("league_id", leagueId).maybeSingle(),
+    supabase.from("teams").select("*").order("name"),
   ]);
 
   return (
@@ -23,19 +24,19 @@ export default async function AdminAwardsPage({
         <div className="mt-6 grid gap-4">
           <label>
             <span className="label">Pichichi</span>
-            <PlayerSearchCombobox name="top_scorer_player_id" players={players ?? []} defaultValue={awards?.top_scorer_player_id} />
+            <PlayerPicker name="top_scorer_player_id" players={players ?? []} teams={teams ?? []} defaultValue={awards?.top_scorer_player_id} />
           </label>
           <label>
             <span className="label">Mejor jugador</span>
-            <PlayerSearchCombobox name="best_player_id" players={players ?? []} defaultValue={awards?.best_player_id} />
+            <PlayerPicker name="best_player_id" players={players ?? []} teams={teams ?? []} defaultValue={awards?.best_player_id} />
           </label>
           <label>
             <span className="label">Mejor portero</span>
-            <PlayerSearchCombobox name="best_goalkeeper_id" players={players ?? []} defaultValue={awards?.best_goalkeeper_id} />
+            <PlayerPicker name="best_goalkeeper_id" players={players ?? []} teams={teams ?? []} defaultValue={awards?.best_goalkeeper_id} />
           </label>
           <label>
             <span className="label">Mejor joven</span>
-            <PlayerSearchCombobox name="best_young_player_id" players={players ?? []} defaultValue={awards?.best_young_player_id} />
+            <PlayerPicker name="best_young_player_id" players={players ?? []} teams={teams ?? []} defaultValue={awards?.best_young_player_id} />
           </label>
           <button className="btn-primary">Guardar premios finales</button>
         </div>

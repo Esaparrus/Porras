@@ -32,7 +32,7 @@ export default async function AdminPredictionsPage({
                   {(member.match_predictions ?? []).slice(0, 6).map((prediction) => (
                     <div key={prediction.id} className="rounded-2xl bg-white/5 p-3">
                       <MatchCard match={prediction.matches} />
-                      <p className="mt-2 text-center text-sm font-bold text-[#d6b25e]">
+                      <p className="mt-2 text-center text-sm font-bold text-[#ff2bd6]">
                         {prediction.predicted_home_score} - {prediction.predicted_away_score}
                       </p>
                     </div>

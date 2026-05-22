@@ -1,5 +1,6 @@
 import { updateLeagueLocksAction, updateLeagueSettingsAction } from "@/app/actions";
 import { AdminLayout } from "@/components/layouts";
+import { calculateLeaguePot, calculatePrizeBreakdown, formatCurrency } from "@/lib/league-insights";
 import { DEFAULT_POINT_SETTINGS, STATUS_LABELS } from "@/lib/constants";
 import { requireAdmin } from "@/lib/data";
 
@@ -94,15 +95,23 @@ export default async function SettingsPage({
 }) {
   const { leagueId } = await params;
   const { supabase } = await requireAdmin();
-  const [{ data: settings }, { data: league }] = await Promise.all([
+  const [{ data: settings }, { data: league }, { count: memberCount }] = await Promise.all([
     supabase
       .from("league_point_settings")
       .select("*")
       .eq("league_id", leagueId)
       .single(),
     supabase.from("leagues").select("*").eq("id", leagueId).single(),
+    supabase
+      .from("league_members")
+      .select("*", { count: "exact", head: true })
+      .eq("league_id", leagueId),
   ]);
   const values = { ...DEFAULT_POINT_SETTINGS, ...(settings ?? {}) } as Record<string, number>;
+  const totalPot = league ? calculateLeaguePot(league, memberCount ?? 0) : 0;
+  const prizes = league
+    ? calculatePrizeBreakdown(league, totalPot)
+    : { first: 0, second: 0, third: 0, remainder: 0 };
 
   return (
     <AdminLayout leagueId={leagueId}>
@@ -143,6 +152,83 @@ export default async function SettingsPage({
 
         <form action={updateLeagueSettingsAction} className="space-y-5">
           <input type="hidden" name="league_id" value={leagueId} />
+          <section className="glass rounded-3xl p-5">
+            <h2 className="text-xl font-black">Bote y premios</h2>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <label>
+                <span className="label">Precio por jugador</span>
+                <input
+                  name="entry_price"
+                  type="number"
+                  min="0"
+                  defaultValue={league?.entry_price ?? 0}
+                  className="field mt-2"
+                />
+              </label>
+              <label>
+                <span className="label">Bote total manual</span>
+                <input
+                  name="pot_total_override"
+                  type="number"
+                  min="0"
+                  defaultValue={league?.pot_total_override ?? ""}
+                  className="field mt-2"
+                />
+              </label>
+              <label>
+                <span className="label">% primer puesto</span>
+                <input
+                  name="prize_first_percentage"
+                  type="number"
+                  min="0"
+                  defaultValue={league?.prize_first_percentage ?? 60}
+                  className="field mt-2"
+                />
+              </label>
+              <label>
+                <span className="label">% segundo puesto</span>
+                <input
+                  name="prize_second_percentage"
+                  type="number"
+                  min="0"
+                  defaultValue={league?.prize_second_percentage ?? 30}
+                  className="field mt-2"
+                />
+              </label>
+              <label className="md:col-span-2">
+                <span className="label">% tercer puesto</span>
+                <input
+                  name="prize_third_percentage"
+                  type="number"
+                  min="0"
+                  defaultValue={league?.prize_third_percentage ?? 10}
+                  className="field mt-2"
+                />
+              </label>
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl bg-white/5 p-4">
+                <div className="text-sm text-slate-300">Jugadores</div>
+                <div className="mt-1 text-2xl font-black">{memberCount ?? 0}</div>
+              </div>
+              <div className="rounded-2xl bg-white/5 p-4">
+                <div className="text-sm text-slate-300">Bote actual</div>
+                <div className="mt-1 text-2xl font-black text-[#27e7ff]">
+                  {formatCurrency(totalPot)}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-white/5 p-4">
+                <div className="text-sm text-slate-300">Top 3</div>
+                <div className="mt-1 text-sm font-black text-white">
+                  {formatCurrency(prizes.first)} / {formatCurrency(prizes.second)} / {formatCurrency(prizes.third)}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-white/5 p-4">
+                <div className="text-sm text-slate-300">Sin repartir</div>
+                <div className="mt-1 text-2xl font-black">{formatCurrency(prizes.remainder)}</div>
+              </div>
+            </div>
+          </section>
           {groups.map(([title, keys]) => (
             <section key={title} className="glass rounded-3xl p-5">
               <h2 className="text-xl font-black">{title}</h2>
@@ -162,7 +248,7 @@ export default async function SettingsPage({
             </section>
           ))}
           <button className="btn-primary w-full">
-            Puntuación actualizada correctamente
+            Guardar puntos y bote
           </button>
         </form>
       </div>

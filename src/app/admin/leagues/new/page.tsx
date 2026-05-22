@@ -13,7 +13,7 @@ export default function NewLeaguePage() {
           <div className="mt-6 space-y-4">
             <label>
               <span className="label">Nombre de liga</span>
-              <input name="name" required className="field mt-2" placeholder="Harazuri" />
+              <input name="name" required className="field mt-2" placeholder="Arazuri" />
             </label>
             <label>
               <span className="label">Código opcional</span>

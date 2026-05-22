@@ -40,7 +40,7 @@ export default async function LoginPage({
           </div>
           <p className="mt-5 text-center text-sm text-slate-300">
             ¿No tienes cuenta?{" "}
-            <Link className="font-bold text-[#d6b25e]" href="/register">
+            <Link className="font-bold text-[#ff2bd6]" href="/register">
               Únete con código
             </Link>
           </p>

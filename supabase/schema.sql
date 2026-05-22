@@ -2,7 +2,8 @@ create extension if not exists "pgcrypto";
 
 create type public.user_role as enum ('admin', 'player');
 create type public.league_status as enum ('open', 'locked', 'in_progress', 'finished');
-create type public.match_stage as enum ('group', 'round_32', 'round_16', 'quarter_final', 'semi_final', 'final');
+create type public.league_payment_status as enum ('paid', 'pending');
+create type public.match_stage as enum ('group', 'round_32', 'round_16', 'quarter_final', 'semi_final', 'third_place', 'final');
 create type public.knockout_round as enum ('round_32', 'round_16', 'quarter_final', 'semi_final', 'final', 'champion');
 
 create table public.profiles (
@@ -24,6 +25,11 @@ create table public.leagues (
   lock_scorers boolean not null default false,
   lock_awards boolean not null default false,
   lock_knockouts boolean not null default false,
+  entry_price int not null default 0,
+  pot_total_override int,
+  prize_first_percentage int not null default 60,
+  prize_second_percentage int not null default 30,
+  prize_third_percentage int not null default 10,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -32,6 +38,7 @@ create table public.league_members (
   id uuid primary key default gen_random_uuid(),
   league_id uuid not null references public.leagues(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
+  payment_status public.league_payment_status not null default 'pending',
   joined_at timestamptz not null default now(),
   unique (league_id, user_id)
 );
@@ -41,10 +48,12 @@ create table public.teams (
   name text not null,
   short_name text not null,
   flag_emoji text not null,
+  flag_code text,
   group_letter text,
   fifa_ranking int,
   fair_play_points int default 0,
-  manual_order int
+  manual_order int,
+  unique (short_name)
 );
 
 create table public.players (
@@ -54,16 +63,23 @@ create table public.players (
   position text,
   is_star boolean not null default false,
   is_active boolean not null default true,
-  created_at timestamptz not null default now()
+  scorer_rank int,
+  created_at timestamptz not null default now(),
+  unique (team_id, name)
 );
 
 create table public.matches (
   id uuid primary key default gen_random_uuid(),
+  match_number int unique,
   stage public.match_stage not null,
   group_letter text,
   home_team_id uuid references public.teams(id),
   away_team_id uuid references public.teams(id),
+  home_placeholder text,
+  away_placeholder text,
+  winner_team_id uuid references public.teams(id),
   match_date timestamptz,
+  venue text,
   home_score int,
   away_score int,
   is_finished boolean not null default false,
@@ -123,6 +139,22 @@ create table public.award_predictions (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (league_id, user_id)
+);
+
+create table public.player_selection_requests (
+  id uuid primary key default gen_random_uuid(),
+  league_id uuid not null references public.leagues(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  field_key text not null,
+  player_name text not null,
+  team_id uuid references public.teams(id) on delete set null,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  resolved_player_id uuid references public.players(id) on delete set null,
+  reviewed_at timestamptz,
+  reviewed_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (league_id, user_id, field_key)
 );
 
 create table public.match_scorers (
@@ -275,6 +307,7 @@ alter table public.final_awards enable row level security;
 alter table public.league_point_settings enable row level security;
 alter table public.scores enable row level security;
 alter table public.admin_logs enable row level security;
+alter table public.player_selection_requests enable row level security;
 
 create policy "profiles self or admin read" on public.profiles
 for select using (id = auth.uid() or public.is_admin());
@@ -330,6 +363,10 @@ for all using (public.is_admin() or user_id = auth.uid())
 with check (public.is_admin() or user_id = auth.uid());
 
 create policy "award predictions own" on public.award_predictions
+for all using (public.is_admin() or user_id = auth.uid())
+with check (public.is_admin() or user_id = auth.uid());
+
+create policy "player selection requests own" on public.player_selection_requests
 for all using (public.is_admin() or user_id = auth.uid())
 with check (public.is_admin() or user_id = auth.uid());
 

@@ -58,7 +58,7 @@ export default async function RegisterPage({
           </div>
           <p className="mt-5 text-center text-sm text-slate-300">
             ¿Ya tienes cuenta?{" "}
-            <Link className="font-bold text-[#d6b25e]" href="/login">
+            <Link className="font-bold text-[#ff2bd6]" href="/login">
               Entrar
             </Link>
           </p>

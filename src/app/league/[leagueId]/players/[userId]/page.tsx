@@ -56,7 +56,7 @@ export default async function PlayerDetailPage({
           {(matchPredictions ?? []).map((prediction) => (
             <div key={prediction.id} className="glass rounded-2xl p-4">
               <MatchCard match={prediction.matches} />
-              <div className="mt-3 text-center font-black text-[#d6b25e]">
+              <div className="mt-3 text-center font-black text-[#ff2bd6]">
                 Apostó {prediction.predicted_home_score} - {prediction.predicted_away_score}
               </div>
             </div>
