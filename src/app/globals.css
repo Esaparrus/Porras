@@ -146,6 +146,52 @@ select.field option {
   outline-offset: 4px;
 }
 
+.mobile-action-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.nav-action-button {
+  min-width: 136px;
+  white-space: nowrap;
+}
+
+.stage-tabs {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  padding: 4px 0 8px;
+  width: 100%;
+}
+
+.stage-tab {
+  align-items: center;
+  display: inline-flex;
+  font-size: 13px;
+  justify-content: center;
+  line-height: 1.05;
+  min-height: 48px;
+  min-width: 0;
+  overflow: visible;
+  padding: 10px 12px;
+  position: relative;
+  text-align: center;
+  white-space: normal;
+  word-break: normal;
+}
+
+.stage-tab::before {
+  background: #27e7ff;
+  border-radius: 999px;
+  content: "";
+  height: 3px;
+  left: 18px;
+  position: absolute;
+  right: 18px;
+  top: 6px;
+}
+
 .badge {
   @apply inline-flex items-center rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-200;
 }
@@ -784,6 +830,38 @@ select.field option {
 .brutal-btn:active {
   box-shadow: 3px 3px 0 #000;
   transform: translate(4px, 4px);
+}
+
+@media (max-width: 640px) {
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger {
+    box-shadow: 4px 4px 0 #000;
+    min-height: 44px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .mobile-action-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .mobile-action-grid .nav-action-button {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .stage-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stage-tab {
+    font-size: 12px;
+    min-height: 46px;
+    padding: 10px 8px;
+  }
 }
 
 .bracket-shell {

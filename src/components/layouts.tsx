@@ -64,34 +64,34 @@ export function UserLayout({
         <Link href="/dashboard">
           <BrandLogo label="Mi porra" />
         </Link>
-        <nav className="flex flex-wrap gap-2">
+        <nav className="mobile-action-grid">
           {leagueId ? (
             <>
-              <Link href={`/league/${leagueId}`} className="btn-secondary py-2">
+              <Link href={`/league/${leagueId}`} className="btn-secondary nav-action-button py-2">
                 Liga
               </Link>
               <Link
                 href={`/league/${leagueId}/predictions`}
-                className="btn-secondary py-2"
+                className="btn-secondary nav-action-button py-2"
               >
                 Apuestas
               </Link>
               <Link
                 href={`/league/${leagueId}/ranking`}
-                className="btn-secondary py-2"
+                className="btn-secondary nav-action-button py-2"
               >
                 Ranking
               </Link>
               <Link
                 href={`/league/${leagueId}/profile`}
-                className="btn-secondary py-2"
+                className="btn-secondary nav-action-button py-2"
               >
                 Perfil
               </Link>
             </>
           ) : null}
-          <form action={logoutAction}>
-            <button className="btn-secondary py-2">
+          <form action={logoutAction} className="contents">
+            <button className="btn-secondary nav-action-button py-2">
               <LogOut className="h-4 w-4" />
               Salir
             </button>

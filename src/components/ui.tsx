@@ -155,10 +155,10 @@ export function StageTabs({
   active?: string;
 }) {
   return (
-    <nav className="flex gap-2 overflow-x-auto pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <nav className="stage-tabs">
       {items.map((item) => {
         const className = cn(
-          "brutal-btn relative inline-flex min-h-0 items-center justify-center overflow-hidden whitespace-nowrap px-4 py-2 text-sm font-black uppercase leading-none transition before:absolute before:left-3 before:right-3 before:top-1 before:h-[3px] before:rounded-full",
+          "stage-tab brutal-btn",
           active === item.label
             ? "bg-[#ff2bd6] text-white shadow-[4px_4px_0_#000] before:bg-white/80 hover:bg-[#ff64df] hover:shadow-[6px_6px_0_#000] hover:-translate-x-[1px] hover:-translate-y-[1px]"
             : "bg-[rgb(17_43_19_/_0.78)] text-white shadow-[4px_4px_0_#000] before:bg-[#27e7ff] hover:bg-[#27e7ff] hover:text-black hover:shadow-[6px_6px_0_#000] hover:-translate-x-[1px] hover:-translate-y-[1px]",
