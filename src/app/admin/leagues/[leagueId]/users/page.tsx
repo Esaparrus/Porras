@@ -6,6 +6,7 @@ import { AdminLayout } from "@/components/layouts";
 import { EmptyState, PaymentStatusChip, StatCard } from "@/components/ui";
 import { countPayments, formatAdminDate, getMemberScore } from "@/lib/admin";
 import { requireAdmin } from "@/lib/data";
+import type { Profile, Score } from "@/lib/types";
 
 export default async function AdminUsersPage({
   params,
@@ -14,19 +15,26 @@ export default async function AdminUsersPage({
 }) {
   const { leagueId } = await params;
   const { supabase } = await requireAdmin();
-  const { data: members } = await supabase
-    .from("league_members")
-    .select("*, profiles(*), scores(*)")
-    .eq("league_id", leagueId)
-    .order("joined_at", { ascending: false });
+  const [{ data: members }, { data: scores }] = await Promise.all([
+    supabase
+      .from("league_members")
+      .select("*, profiles(*)")
+      .eq("league_id", leagueId)
+      .order("joined_at", { ascending: false }),
+    supabase.from("scores").select("*").eq("league_id", leagueId),
+  ]);
+
+  const scoreByUserId = new Map(
+    ((scores ?? []) as Score[]).map((score) => [score.user_id, score]),
+  );
 
   const normalizedMembers = (members ?? []).map((member) => {
     const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
-    const score = Array.isArray(member.scores) ? member.scores[0] : member.scores;
+    const score = scoreByUserId.get(member.user_id);
 
     return {
       ...member,
-      profile,
+      profile: profile as Profile | null,
       scoreSummary: getMemberScore(score),
     };
   });
