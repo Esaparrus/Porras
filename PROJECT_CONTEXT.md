@@ -69,7 +69,7 @@ npm run create-admin
 
 1. Admin entra en `/admin`.
 2. Admin crea liga en `/admin/leagues/new`.
-3. Se genera código tipo `HARAZURI-2026`.
+3. Se genera código tipo `ARAZURI-2026`.
 4. Usuarios se registran en `/register` con código.
 5. Si el código existe, se crea usuario y se añade a `league_members`.
 6. Usuario entra en `/league/[leagueId]`.
@@ -691,4 +691,3 @@ http://localhost:3001
 ```
 
 El puerto 3000 estaba ocupado en ese momento.
-

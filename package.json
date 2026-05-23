@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "create-admin": "node scripts/create-admin.mjs",
+    "seed-demo": "node scripts/seed-demo-leagues.mjs",
     "setup-db": "node scripts/setup-db.mjs",
     "sync-production-db": "node scripts/sync-production-db.mjs",
     "apply-schema-migration": "node scripts/apply-schema-migration.mjs",

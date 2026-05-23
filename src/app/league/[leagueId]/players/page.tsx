@@ -10,15 +10,22 @@ export default async function PlayersPage({
 }) {
   const { leagueId } = await params;
   const { supabase } = await requireUser();
-  const [{ data: league }, { data: members }] = await Promise.all([
+  const [{ data: league }, { data: members }, { count: finishedMatches }] = await Promise.all([
     supabase.from("leagues").select("*").eq("id", leagueId).single(),
     supabase
       .from("league_members")
       .select("user_id, profiles(*), scores(*)")
       .eq("league_id", leagueId),
+    supabase
+      .from("matches")
+      .select("id", { count: "exact", head: true })
+      .eq("is_finished", true),
   ]);
 
-  const visible = league?.predictions_visible || league?.status !== "open";
+  const visible =
+    league?.predictions_visible ||
+    league?.status !== "open" ||
+    (finishedMatches ?? 0) > 0;
   type MemberRow = {
     user_id: string;
     profiles: { display_name?: string } | Array<{ display_name?: string }> | null;
@@ -33,7 +40,7 @@ export default async function PlayersPage({
         <div className="mt-6">
           <EmptyState
             title="Apuestas ocultas"
-            text="Se podrán ver cuando el admin bloquee la liga o active la visibilidad."
+            text="Se podran ver cuando empiece el Mundial, el admin bloquee la liga o active la visibilidad."
           />
         </div>
       ) : (

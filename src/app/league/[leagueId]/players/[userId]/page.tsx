@@ -10,11 +10,18 @@ export default async function PlayerDetailPage({
 }) {
   const { leagueId, userId } = await params;
   const { supabase } = await requireUser();
-  const [{ data: league }, { data: profile }] = await Promise.all([
+  const [{ data: league }, { data: profile }, { count: finishedMatches }] = await Promise.all([
     supabase.from("leagues").select("*").eq("id", leagueId).single(),
     supabase.from("profiles").select("*").eq("id", userId).single(),
+    supabase
+      .from("matches")
+      .select("id", { count: "exact", head: true })
+      .eq("is_finished", true),
   ]);
-  const visible = league?.predictions_visible || league?.status !== "open";
+  const visible =
+    league?.predictions_visible ||
+    league?.status !== "open" ||
+    (finishedMatches ?? 0) > 0;
   if (!visible) notFound();
 
   const [
