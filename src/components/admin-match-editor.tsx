@@ -13,10 +13,15 @@ type LeaderboardEntry = {
   goals: number;
 };
 
+type AdminScorerPlayer = Player & {
+  pickCount?: number;
+  captainCount?: number;
+};
+
 type AdminMatchEditorProps = {
   match: Match;
-  homePlayers: Player[];
-  awayPlayers: Player[];
+  homePlayers: AdminScorerPlayer[];
+  awayPlayers: AdminScorerPlayer[];
   homeScorerIds: string[];
   awayScorerIds: string[];
   leaderboard: LeaderboardEntry[];
@@ -44,7 +49,7 @@ function InlineScorerPicker({
 }: {
   side: "home" | "away";
   index: number;
-  players: Player[];
+  players: AdminScorerPlayer[];
   value: string;
   onChange: (value: string) => void;
 }) {
@@ -67,7 +72,7 @@ function InlineScorerPicker({
       <input
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder="Buscar goleador"
+        placeholder="Buscar entre elegidos"
         className="field"
       />
       <input type="hidden" name={`${side}_scorer_player_id`} value={value} />
@@ -87,11 +92,16 @@ function InlineScorerPicker({
             <span className="font-semibold">
               {player.teams?.flag_emoji} {player.name}
             </span>
-            <span className="text-xs text-slate-300">{player.teams?.name}</span>
+            <span className="text-right text-xs text-slate-300">
+              {player.pickCount ?? 0} eleg.
+              {player.captainCount ? ` · ${player.captainCount} cap.` : ""}
+            </span>
           </button>
         ))}
         {!filteredPlayers.length ? (
-          <div className="px-3 py-3 text-sm text-slate-300">Sin coincidencias.</div>
+          <div className="px-3 py-3 text-sm text-slate-300">
+            Nadie eligió un goleador de esta selección.
+          </div>
         ) : null}
       </div>
     </div>
@@ -137,6 +147,9 @@ export function AdminMatchEditor({
     .filter((entry) => entry.goals > 0)
     .sort((left, right) => right.goals - left.goals || left.name.localeCompare(right.name))
     .slice(0, 10);
+  const hasRequiredScorers =
+    (!homePlayers.length || homeSelections.filter(Boolean).length === homeGoalCount) &&
+    (!awayPlayers.length || awaySelections.filter(Boolean).length === awayGoalCount);
 
   return (
     <form action={saveAdminMatchBundleAction} className="glass rounded-3xl p-5">
@@ -160,7 +173,7 @@ export function AdminMatchEditor({
         </span>
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-[1.4fr_1fr]">
+      <div className="mt-4 grid items-start gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.9fr)]">
         <div className="grid gap-4">
           <div className="grid gap-2 md:grid-cols-[90px_90px_1fr_auto]">
             <input
@@ -230,6 +243,10 @@ export function AdminMatchEditor({
                   <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-slate-300">
                     Pon el marcador para desplegar los goleadores.
                   </div>
+                ) : !homePlayers.length ? (
+                  <div className="rounded-2xl border border-dashed border-amber-300/30 px-4 py-5 text-sm text-amber-100">
+                    Nadie ha elegido goleadores de esta selección.
+                  </div>
                 ) : null}
               </div>
             </div>
@@ -257,6 +274,10 @@ export function AdminMatchEditor({
                   <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-slate-300">
                     Pon el marcador para desplegar los goleadores.
                   </div>
+                ) : !awayPlayers.length ? (
+                  <div className="rounded-2xl border border-dashed border-amber-300/30 px-4 py-5 text-sm text-amber-100">
+                    Nadie ha elegido goleadores de esta selección.
+                  </div>
                 ) : null}
               </div>
             </div>
@@ -264,12 +285,12 @@ export function AdminMatchEditor({
 
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+        <div className="rounded-3xl border border-white/10 bg-black/20 p-4 lg:sticky lg:top-24">
           <h3 className="text-lg font-black">Tabla viva de goleadores</h3>
           <p className="mt-2 text-xs text-slate-300">
             Aquí solo salen jugadores que alguien haya elegido en sus apuestas.
           </p>
-          <div className="mt-3 grid gap-2">
+          <div className="mt-3 grid max-h-[26rem] gap-2 overflow-y-auto pr-1">
             {liveLeaders.length ? (
               liveLeaders.map((entry) => (
                 <div
@@ -293,10 +314,17 @@ export function AdminMatchEditor({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-3">
-        <button className="btn-primary">Guardar resultado y goleadores</button>
+        <button className="btn-primary disabled:cursor-not-allowed disabled:opacity-50" disabled={!hasRequiredScorers}>
+          Guardar resultado y goleadores
+        </button>
         <button type="submit" formAction={clearAdminMatchBundleAction} className="btn-secondary">
           Quitar resultado
         </button>
+        {!hasRequiredScorers ? (
+          <span className="self-center text-sm text-amber-100">
+            Selecciona un goleador por cada gol cuando haya candidatos elegidos por usuarios.
+          </span>
+        ) : null}
       </div>
     </form>
   );
