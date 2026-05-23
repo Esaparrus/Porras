@@ -63,11 +63,11 @@ export function getPaymentStatusCopy(status: LeaguePaymentStatus) {
   return status === "paid"
     ? {
         short: "Pagado",
-        playful: "Pago como un campeón",
+        playful: "Pagado",
       }
     : {
-        short: "Pendiente",
-        playful: "Moroso con balon",
+        short: "RATA",
+        playful: "RATA",
       };
 }
 

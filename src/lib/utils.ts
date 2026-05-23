@@ -1,10 +1,18 @@
-﻿import { clsx, type ClassValue } from "clsx";
+import { clsx, type ClassValue } from "clsx";
+
+function svgFlagDataUrl(svg: string) {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)
+    .replace(/'/g, "%27")
+    .replace(/"/g, "%22")}`;
+}
 
 const SPECIAL_FLAG_IMAGE_URLS: Record<string, string> = {
-  "gb-eng":
-    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 40'><rect width='60' height='40' fill='%23fff'/><rect x='24' width='12' height='40' fill='%23c8102e'/><rect y='14' width='60' height='12' fill='%23c8102e'/></svg>",
-  "gb-sct":
-    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 40'><rect width='60' height='40' fill='%23005eb8'/><path d='M0 0 24 0 60 24 60 40 36 40 0 16Z' fill='%23fff'/><path d='M60 0 36 0 0 24 0 40 24 40 60 16Z' fill='%23fff'/></svg>",
+  "gb-eng": svgFlagDataUrl(
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 40'><rect width='60' height='40' fill='#fff'/><rect x='24' width='12' height='40' fill='#c8102e'/><rect y='14' width='60' height='12' fill='#c8102e'/></svg>",
+  ),
+  "gb-sct": svgFlagDataUrl(
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 40'><rect width='60' height='40' fill='#005eb8'/><line x1='0' y1='0' x2='60' y2='40' stroke='#fff' stroke-width='10'/><line x1='60' y1='0' x2='0' y2='40' stroke='#fff' stroke-width='10'/></svg>",
+  ),
 };
 
 const FALLBACK_FLAG_CODES_BY_SHORT_NAME: Record<string, string> = {
@@ -80,6 +88,5 @@ export function getTeamFlagImageUrl(
 
 export function getDisplayPlayerName(player?: { name?: string | null } | null) {
   const rawName = player?.name?.trim() ?? "";
-  return rawName.replace(/^[A-Z]{2,3}\s+(?=[A-ZÁÉÍÓÚÜÑ])/u, "");
+  return rawName.replace(/^[A-Z]{2,3}\s+(?=[A-Z\u00C1\u00C9\u00CD\u00D3\u00DA\u00DC\u00D1])/u, "");
 }
-

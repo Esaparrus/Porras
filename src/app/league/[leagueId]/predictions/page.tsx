@@ -113,15 +113,16 @@ export default async function PredictionsPage({
       </div>
       <StageTabs
         items={[
+          { href: "#grupos", label: "Grupos" },
           { href: "#partidos", label: "Partidos" },
           { href: "#eliminatorias", label: "Eliminatorias" },
-          { href: "#goleadores", label: "Goleadores" },
-          { href: "#puntuacion", label: "Puntuación" },
+          { href: "#puntuacion", label: "Puntuacion" },
+          { href: "#goleadores", label: "Jugadores" },
           { href: "#premios", label: "Premios" },
           { href: "#resumen", label: "Resumen" },
         ]}
       />
-      <section id="partidos" className="mt-6">
+      <section className="mt-6">
         <PredictionWorkflow
           leagueId={leagueId}
           matches={matchRows}
@@ -131,10 +132,13 @@ export default async function PredictionsPage({
           locked={Boolean(league?.lock_matches)}
         />
       </section>
+      <section id="puntuacion" className="mt-10">
+        <PointRulesCard settings={pointSettings} />
+      </section>
       <section id="goleadores" className="mt-10">
         <form action={saveScorerPredictionsAction} className="glass rounded-3xl p-5">
           <input type="hidden" name="league_id" value={leagueId} />
-          <h2 className="text-2xl font-black">Goleadores</h2>
+          <h2 className="text-2xl font-black">Jugadores individuales</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-3">
             {[0, 1, 2].map((index) => (
               <label key={index}>
@@ -161,9 +165,6 @@ export default async function PredictionsPage({
             Guardar goleadores
           </button>
         </form>
-      </section>
-      <section id="puntuacion" className="mt-10">
-        <PointRulesCard settings={pointSettings} />
       </section>
       <section id="premios" className="mt-10">
         <form action={saveAwardPredictionsAction} className="glass rounded-3xl p-5">

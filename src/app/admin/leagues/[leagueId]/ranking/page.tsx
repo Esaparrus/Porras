@@ -68,6 +68,11 @@ export default async function AdminRankingPage({
     settings: pointSettings as PointSettings,
     finalAwards,
   });
+  const finishedMatches = matchesRows.filter((match) => match.is_finished).length;
+  const totalMatches = matchesRows.length;
+  const matchProgressPercentage = totalMatches
+    ? Math.round((finishedMatches / totalMatches) * 100)
+    : 0;
 
   const rows = scoreRows.map((score, index) => ({
     userId: score.user_id,
@@ -97,6 +102,9 @@ export default async function AdminRankingPage({
             playedPoints: progress.playedPoints,
             remainingPoints: progress.remainingPoints,
             progressPercentage: progress.progressPercentage,
+            finishedMatches,
+            totalMatches,
+            matchProgressPercentage,
             prizes,
           }}
           title="Clasificacion admin"

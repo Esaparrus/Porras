@@ -150,6 +150,26 @@ on conflict (team_id, name) do update set
 update public.players
 set is_active = true;
 
+insert into public.players (name, team_id, position, is_star, scorer_rank, is_active)
+select
+  'Jugador referencia ' || teams.short_name,
+  teams.id,
+  'FW',
+  false,
+  900 + row_number() over (order by teams.short_name),
+  true
+from public.teams teams
+where not exists (
+  select 1
+  from public.players players
+  where players.team_id = teams.id
+)
+on conflict (team_id, name) do update set
+  position = excluded.position,
+  is_star = excluded.is_star,
+  scorer_rank = excluded.scorer_rank,
+  is_active = true;
+
 delete from public.matches
 where match_number is null;
 

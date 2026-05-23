@@ -1,13 +1,14 @@
 ﻿"use client";
 
 import { useMemo, useState } from "react";
-import { AlertCircle, Check, Save } from "lucide-react";
+import { AlertCircle, CalendarDays, Check, Grid2X2, Save } from "lucide-react";
 import { saveMatchPredictionsAction } from "@/app/actions";
 import { GroupStandingTable, MatchTeamLabel, TeamBadge } from "@/components/ui";
 import { STAGE_LABELS } from "@/lib/constants";
 import {
   calculateBestThirdPlacedTeams,
   calculatePredictedGroupStandings,
+  calculateRealGroupStandings,
 } from "@/lib/scoring";
 import type { Match, MatchPrediction, StandingRow, Team } from "@/lib/types";
 import { getTeamFlagImageUrl } from "@/lib/utils";
@@ -22,6 +23,8 @@ type KnockoutMatch = Match & {
   predictedHomeTeam?: Team | null;
   predictedAwayTeam?: Team | null;
 };
+
+type MatchSortMode = "group" | "date";
 
 const ROUND_32_SLOTS: Record<number, [string, string]> = {
   73: ["2A", "2B"],
@@ -102,6 +105,7 @@ export function PredictionWorkflow({
   groupLetters: string[];
   locked: boolean;
 }) {
+  const [matchSortMode, setMatchSortMode] = useState<MatchSortMode>("group");
   const [draft, setDraft] = useState<Record<string, DraftPrediction>>(() =>
     Object.fromEntries(
       matches.map((match) => {
@@ -143,16 +147,81 @@ export function PredictionWorkflow({
       ),
     [groupLetters, matches, predictionRows, teams],
   );
-
-  const knockoutMatches = useMemo(
-    () => buildKnockoutMatches(matches, standingsByGroup, draft),
-    [draft, matches, standingsByGroup],
+  const realStandingsByGroup = useMemo(
+    () =>
+      new Map(
+        groupLetters.map((group) => [
+          group,
+          calculateRealGroupStandings(teams, matches, group),
+        ]),
+      ),
+    [groupLetters, matches, teams],
   );
 
-  const completedMatches = matches.filter((match) => {
+  const groupMatchRows = useMemo(
+    () => matches.filter((match) => match.stage === "group"),
+    [matches],
+  );
+  const completedGroups = useMemo(
+    () =>
+      new Set(
+        groupLetters.filter((group) =>
+          groupMatchRows
+            .filter((match) => match.group_letter === group)
+            .every((match) => {
+              const item = draft[match.id];
+              return numberOrNull(item?.home) !== null && numberOrNull(item?.away) !== null;
+            }),
+        ),
+      ),
+    [draft, groupLetters, groupMatchRows],
+  );
+  const allGroupsPredicted =
+    groupMatchRows.length > 0 && completedGroups.size === groupLetters.length;
+  const groupedPredictionMatches = useMemo(
+    () =>
+      groupLetters.map((group) => ({
+        key: group,
+        title: `Grupo ${group}`,
+        matches: groupMatchRows.filter((match) => match.group_letter === group),
+      })),
+    [groupLetters, groupMatchRows],
+  );
+  const datedPredictionMatches = useMemo(
+    () =>
+      Array.from(
+        groupMatchRows.reduce((groups, match) => {
+          const key = formatMatchDay(match.match_date);
+          groups.set(key, [...(groups.get(key) ?? []), match]);
+          return groups;
+        }, new Map<string, Match[]>()),
+        ([key, matchesForDay]) => ({
+          key,
+          title: key,
+          matches: matchesForDay,
+        }),
+      ),
+    [groupMatchRows],
+  );
+  const predictionSections =
+    matchSortMode === "group" ? groupedPredictionMatches : datedPredictionMatches;
+  const knockoutMatches = useMemo(
+    () =>
+      buildKnockoutMatches(
+        matches,
+        standingsByGroup,
+        draft,
+        completedGroups,
+        allGroupsPredicted,
+      ),
+    [allGroupsPredicted, completedGroups, draft, matches, standingsByGroup],
+  );
+  const finishedGroupMatches = groupMatchRows.filter((match) => match.is_finished).length;
+  const completedGroupPredictions = groupMatchRows.filter((match) => {
     const item = draft[match.id];
     return item?.home !== "" && item?.away !== "";
   }).length;
+
   const knockoutIssuesByRound = useMemo(
     () =>
       new Map(
@@ -213,87 +282,120 @@ export function PredictionWorkflow({
       <input type="hidden" name="league_id" value={leagueId} />
       <input type="hidden" name="match_ids" value={matches.map((match) => match.id).join(",")} />
 
-      <div className="glass rounded-3xl p-4 sm:p-5">
+      <section id="grupos" className="glass scroll-mt-6 rounded-3xl p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-black uppercase text-[#ff7a1a]">
               Paso 1
             </p>
-            <h2 className="mt-1 text-2xl font-black">Rellena los grupos</h2>
+            <h2 className="mt-1 text-2xl font-black">Clasificacion de grupos</h2>
             <p className="mt-1 text-sm text-slate-300">
-              Al poner marcadores, las tablas y los cruces se recalculan al momento.
+              Se actualiza con los resultados que va guardando el admin.
             </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
-            {completedMatches}/{matches.length} partidos con marcador
+            {finishedGroupMatches}/{groupMatchRows.length} partidos de grupo jugados
           </div>
         </div>
 
-        <div className="mt-5 grid gap-4 2xl:grid-cols-2">
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {groupLetters.map((group) => {
             const groupMatches = matches.filter(
               (match) => match.stage === "group" && match.group_letter === group,
             );
-            const issueCount = groupMatches.reduce(
-              (total, match) => total + getMatchIssues(match, draft[match.id]).length,
-              0,
-            );
+            const finishedCount = groupMatches.filter((match) => match.is_finished).length;
             return (
-            <section
-              key={group}
-              className={
-                issueCount > 0
-                  ? "prediction-group-card prediction-group-card-error"
-                  : "prediction-group-card"
-              }
-            >
-              <div className="flex items-center justify-between gap-3">
-                <h3 className={issueCount > 0 ? "text-lg font-black text-red-100" : "text-lg font-black"}>
-                  Grupo {group}
-                </h3>
-                <span
-                  className={
-                    issueCount > 0
-                      ? "prediction-error-pill"
-                      : "rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-slate-300"
-                  }
-                >
-                  {issueCount > 0
-                    ? `${issueCount} por revisar`
-                    : groupCompletion(matches, draft, group)}
-                </span>
-              </div>
-              <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.95fr]">
-                <div className="grid gap-2">
-                  {groupMatches.map((match) => (
-                      <PredictionMatchCard
-                        key={match.id}
-                        match={match}
-                        draft={draft[match.id]}
-                        disabled={locked}
-                        onScoreChange={updateScore}
-                      />
-                    ))}
+              <section
+                key={group}
+                className="prediction-group-card"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-lg font-black">
+                    Grupo {group}
+                  </h3>
+                  <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-slate-300">
+                    {finishedCount}/{groupMatches.length}
+                  </span>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3">
                   <div className="mb-2 flex items-center gap-2 text-sm font-black text-slate-200">
                     <Check className="h-4 w-4 text-[#ff7a1a]" />
-                    Tabla prevista
+                    Tabla real
                   </div>
-                  <GroupStandingTable rows={standingsByGroup.get(group) ?? []} />
+                  <GroupStandingTable rows={realStandingsByGroup.get(group) ?? []} />
                 </div>
-              </div>
-            </section>
+              </section>
             );
           })}
         </div>
-      </div>
+      </section>
+
+      <section id="partidos" className="glass scroll-mt-6 rounded-3xl p-4 sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase text-[#ff7a1a]">
+              Paso 2
+            </p>
+            <h2 className="mt-1 text-2xl font-black">Partidos</h2>
+            <p className="mt-1 text-sm text-slate-300">
+              Mete tu prediccion de marcador para cada partido de grupo.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
+              {completedGroupPredictions}/{groupMatchRows.length} partidos con marcador
+            </div>
+            <div className="prediction-sort-control" aria-label="Ordenar partidos">
+              <button
+                type="button"
+                onClick={() => setMatchSortMode("group")}
+                className={matchSortMode === "group" ? "prediction-sort-button prediction-sort-button-active" : "prediction-sort-button"}
+              >
+                <Grid2X2 className="h-4 w-4" />
+                Por grupos
+              </button>
+              <button
+                type="button"
+                onClick={() => setMatchSortMode("date")}
+                className={matchSortMode === "date" ? "prediction-sort-button prediction-sort-button-active" : "prediction-sort-button"}
+              >
+                <CalendarDays className="h-4 w-4" />
+                Por fecha
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4">
+          {predictionSections.map((section) => (
+            <section key={section.key} className="prediction-group-card">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-lg font-black">{section.title}</h3>
+                <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-slate-300">
+                  {section.matches.length} partidos
+                </span>
+              </div>
+              <div className="grid gap-3 lg:grid-cols-2">
+                {section.matches.map((match) => (
+                  <PredictionMatchCard
+                    key={match.id}
+                    match={match}
+                    draft={draft[match.id]}
+                    disabled={locked}
+                    onScoreChange={updateScore}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      </section>
 
       <section id="eliminatorias" className="glass scroll-mt-6 rounded-3xl p-4 sm:p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-black uppercase text-[#ff7a1a]">
-              Paso 2
+              Paso 3
             </p>
             <h2 className="mt-1 text-2xl font-black">Eliminatorias vivas</h2>
             <p className="mt-1 text-sm text-slate-300">
@@ -514,12 +616,14 @@ function PredictionMatchCard({
       ].filter(Boolean).join(" ")}
     >
       <div className="mb-3 flex items-center justify-between gap-2">
-        <span className={issues.length ? "text-xs font-black uppercase text-red-100" : "text-xs font-black uppercase text-[#ff7a1a]"}>
-          Partido {match.match_number}
-        </span>
-        {isKnockout ? (
-          <span className="prediction-match-date">{formatMatchDate(match.match_date)}</span>
-        ) : null}
+        <div className="min-w-0">
+          <span className={issues.length ? "text-xs font-black uppercase text-red-100" : "text-xs font-black uppercase text-[#ff7a1a]"}>
+            Partido {match.match_number}
+          </span>
+          <div className={isKnockout ? "prediction-match-date prediction-match-date-compact" : "prediction-match-date"}>
+            {formatMatchDate(match.match_date)}
+          </div>
+        </div>
         {draft?.winnerId && canPickWinner ? (
           <span className="rounded-full bg-emerald-400/10 px-2 py-1 text-[11px] font-bold text-emerald-100">
             Clasificado
@@ -636,7 +740,7 @@ function CompactTeamCode({ team }: { team: Team }) {
         <span
           aria-hidden="true"
           className="prediction-team-code-flag"
-          style={{ backgroundImage: `url(${flagUrl})` }}
+          style={{ backgroundImage: `url("${flagUrl}")` }}
         />
       ) : (
         <span className="shrink-0">{team.flag_emoji}</span>
@@ -650,6 +754,8 @@ function buildKnockoutMatches(
   matches: Match[],
   standingsByGroup: Map<string, StandingRow[]>,
   draft: Record<string, DraftPrediction>,
+  completedGroups: Set<string>,
+  allGroupsPredicted: boolean,
 ) {
   const byNumber = new Map(matches.map((match) => [match.match_number ?? 0, match]));
   const derived = new Map<number, KnockoutMatch>();
@@ -662,8 +768,12 @@ function buildKnockoutMatches(
     if (!match) return;
     derived.set(number, {
       ...match,
-      predictedHomeTeam: resolveGroupSlot(homeSlot, standingsByGroup, bestThirds, usedThirds),
-      predictedAwayTeam: resolveGroupSlot(awaySlot, standingsByGroup, bestThirds, usedThirds),
+      predictedHomeTeam:
+        match.home_team ??
+        resolveGroupSlot(homeSlot, standingsByGroup, bestThirds, usedThirds, completedGroups, allGroupsPredicted),
+      predictedAwayTeam:
+        match.away_team ??
+        resolveGroupSlot(awaySlot, standingsByGroup, bestThirds, usedThirds, completedGroups, allGroupsPredicted),
     });
   });
 
@@ -675,8 +785,8 @@ function buildKnockoutMatches(
     if (!match) return;
     derived.set(number, {
       ...match,
-      predictedHomeTeam: homeMatch ? resolveWinner(homeMatch, draft[homeMatch.id]) : null,
-      predictedAwayTeam: awayMatch ? resolveWinner(awayMatch, draft[awayMatch.id]) : null,
+      predictedHomeTeam: match.home_team ?? (homeMatch ? resolveWinner(homeMatch, draft[homeMatch.id]) : null),
+      predictedAwayTeam: match.away_team ?? (awayMatch ? resolveWinner(awayMatch, draft[awayMatch.id]) : null),
     });
   });
 
@@ -688,8 +798,8 @@ function buildKnockoutMatches(
     if (!match) return;
     derived.set(number, {
       ...match,
-      predictedHomeTeam: homeMatch ? resolveLoser(homeMatch, draft[homeMatch.id]) : null,
-      predictedAwayTeam: awayMatch ? resolveLoser(awayMatch, draft[awayMatch.id]) : null,
+      predictedHomeTeam: match.home_team ?? (homeMatch ? resolveLoser(homeMatch, draft[homeMatch.id]) : null),
+      predictedAwayTeam: match.away_team ?? (awayMatch ? resolveLoser(awayMatch, draft[awayMatch.id]) : null),
     });
   });
 
@@ -701,12 +811,17 @@ function resolveGroupSlot(
   standingsByGroup: Map<string, StandingRow[]>,
   bestThirds: StandingRow[],
   usedThirds: Set<string>,
+  completedGroups: Set<string>,
+  allGroupsPredicted: boolean,
 ) {
   const position = Number(slot[0]);
   if (position === 1 || position === 2) {
-    return standingsByGroup.get(slot[1])?.[position - 1]?.team ?? null;
+    const group = slot[1];
+    if (!completedGroups.has(group)) return null;
+    return standingsByGroup.get(group)?.[position - 1]?.team ?? null;
   }
 
+  if (!allGroupsPredicted) return null;
   const allowedGroups = new Set(slot.slice(1).split(""));
   const row = bestThirds.find(
     (third) =>
@@ -748,10 +863,20 @@ function numberOrNull(value?: string) {
 function formatMatchDate(value: string | null) {
   if (!value) return "Fecha por definir";
   return new Intl.DateTimeFormat("es-ES", {
-    day: "2-digit",
+    day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    month: "2-digit",
+    month: "long",
+    timeZone: "Europe/Madrid",
+    weekday: "long",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function formatMatchDay(value: string | null) {
+  if (!value) return "Fecha por definir";
+  return new Intl.DateTimeFormat("es-ES", {
+    dateStyle: "full",
     timeZone: "Europe/Madrid",
   }).format(new Date(value));
 }
@@ -809,18 +934,4 @@ function getMatchIssues(match: KnockoutMatch | Match, draft?: DraftPrediction) {
   return issues;
 }
 
-function groupCompletion(
-  matches: Match[],
-  draft: Record<string, DraftPrediction>,
-  group: string,
-) {
-  const groupMatches = matches.filter(
-    (match) => match.stage === "group" && match.group_letter === group,
-  );
-  const done = groupMatches.filter((match) => {
-    const item = draft[match.id];
-    return item?.home !== "" && item?.away !== "";
-  }).length;
-  return `${done}/${groupMatches.length}`;
-}
 

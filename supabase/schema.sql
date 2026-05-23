@@ -351,7 +351,14 @@ for select using (
     select 1 from public.leagues l
     where l.id = league_id
     and public.is_league_member(l.id)
-    and (l.predictions_visible or l.status <> 'open')
+    and (
+      l.predictions_visible
+      or l.status <> 'open'
+      or exists (
+        select 1 from public.matches m
+        where m.is_finished
+      )
+    )
   )
 );
 

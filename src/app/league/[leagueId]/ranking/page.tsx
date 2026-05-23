@@ -67,6 +67,15 @@ export default async function LeagueRankingPage({
     settings: pointSettings as PointSettings,
     finalAwards,
   });
+  const finishedMatches = matchesRows.filter((match) => match.is_finished).length;
+  const totalMatches = matchesRows.length;
+  const matchProgressPercentage = totalMatches
+    ? Math.round((finishedMatches / totalMatches) * 100)
+    : 0;
+  const predictionsUnlocked =
+    Boolean(league?.predictions_visible) ||
+    league?.status !== "open" ||
+    finishedMatches > 0;
 
   const rows = scoreRows.map((score, index) => ({
     userId: score.user_id,
@@ -88,10 +97,13 @@ export default async function LeagueRankingPage({
           playedPoints: progress.playedPoints,
           remainingPoints: progress.remainingPoints,
           progressPercentage: progress.progressPercentage,
+          finishedMatches,
+          totalMatches,
+          matchProgressPercentage,
           prizes,
         }}
         title="Clasificacion"
-        allowPlayerLinks
+        allowPlayerLinks={predictionsUnlocked}
       />
     </UserLayout>
   );

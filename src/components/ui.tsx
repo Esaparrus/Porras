@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   BadgeEuro,
   Crown,
+  Eye,
   Loader2,
   ShieldCheck,
   ShieldX,
@@ -33,7 +34,7 @@ export function TeamBadge({ team }: { team?: Team | null }) {
         <span
           aria-hidden="true"
           className="h-4 w-6 shrink-0 rounded-[2px] bg-cover bg-center shadow-sm shadow-black/30"
-          style={{ backgroundImage: `url(${flagUrl})` }}
+          style={{ backgroundImage: `url("${flagUrl}")` }}
         />
       ) : (
         <span className="shrink-0">{team.flag_emoji}</span>
@@ -249,6 +250,9 @@ type RankingSummary = {
   playedPoints: number;
   remainingPoints: number;
   progressPercentage: number;
+  finishedMatches: number;
+  totalMatches: number;
+  matchProgressPercentage: number;
   prizes: {
     first: number;
     second: number;
@@ -295,8 +299,6 @@ export function RankingTable({
   title: string;
   allowPlayerLinks?: boolean;
 }) {
-  const podium = [rows[1], rows[0], rows[2]].filter(Boolean);
-
   return (
     <div className="space-y-6">
       <section className="glass overflow-hidden rounded-[2rem] border-white/15">
@@ -312,8 +314,8 @@ export function RankingTable({
                   La pelea por la gloria
                 </h2>
                 <p className="mt-2 max-w-2xl text-sm text-slate-300">
-                  {summary.playedPoints} puntos ya han salido al campo y quedan{" "}
-                  {summary.remainingPoints} por decidir.
+                  {summary.finishedMatches} de {summary.totalMatches} partidos ya estan cerrados.
+                  {summary.totalMatches > 0 ? ` Quedan ${summary.totalMatches - summary.finishedMatches} por decidir.` : ""}
                 </p>
               </div>
               <div className="min-w-[220px] rounded-[1.75rem] border border-white/10 bg-black/25 p-4">
@@ -331,12 +333,12 @@ export function RankingTable({
             <div className="mt-6 h-4 overflow-hidden rounded-full bg-white/10">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-[#3bd16f] via-[#27e7ff] to-[#ff4d2d]"
-                style={{ width: `${summary.progressPercentage}%` }}
+                style={{ width: `${summary.matchProgressPercentage}%` }}
               />
             </div>
             <div className="mt-3 flex flex-wrap justify-between gap-3 text-xs font-bold uppercase tracking-wide text-slate-300">
-              <span>{summary.progressPercentage}% del botin de puntos ya se ha jugado</span>
-              <span>{summary.remainingPoints} pts siguen en el aire</span>
+              <span>{summary.matchProgressPercentage}% de partidos cerrados</span>
+              <span>{summary.playedPoints} pts resueltos, {summary.remainingPoints} pts en juego</span>
             </div>
           </div>
         </div>
@@ -348,66 +350,6 @@ export function RankingTable({
         <StatCard label="Premio 1º" value={formatCurrency(summary.prizes.first)} icon={<Crown />} />
         <StatCard label="Premio 2º-3º" value={`${formatCurrency(summary.prizes.second)} / ${formatCurrency(summary.prizes.third)}`} icon={<BadgeEuro />} />
       </div>
-
-      {podium.length ? (
-        <section className="grid gap-4 lg:grid-cols-3">
-          {podium.map((row) => {
-            const position = rows.findIndex((item) => item.userId === row.userId) + 1;
-            const accent =
-              position === 1
-                ? "from-[#27e7ff] to-[#ff4d2d]"
-                : position === 2
-                  ? "from-slate-100 to-slate-400"
-                  : "from-amber-500 to-orange-700";
-
-            return (
-              <article
-                key={row.userId}
-                className="glass relative overflow-hidden rounded-[2rem] border-white/15 p-5"
-              >
-                <div className={cn("absolute inset-x-0 top-0 h-2 bg-gradient-to-r", accent)} />
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-300">
-                      {position === 1 ? "Lider" : `Puesto ${position}`}
-                    </div>
-                    <h3 className="mt-2 text-2xl font-black text-white">{row.displayName}</h3>
-                  </div>
-                  <div className="rounded-2xl bg-black/30 px-4 py-3 text-right">
-                    <div className="text-xs font-black uppercase tracking-wide text-slate-300">
-                      Premio
-                    </div>
-                    <div className="text-2xl font-black text-[#27e7ff]">
-                      {formatCurrency(row.prize)}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-5 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-5xl font-black leading-none text-white">
-                      {row.score.total_points}
-                    </div>
-                    <div className="mt-1 text-sm font-semibold text-slate-300">
-                      puntos totales
-                    </div>
-                  </div>
-                  <PaymentStatusChip status={row.paymentStatus} />
-                </div>
-                <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-2xl bg-white/5 p-3">
-                    <div className="text-slate-300">Exactos</div>
-                    <div className="mt-1 text-2xl font-black">{row.score.exact_scores_count}</div>
-                  </div>
-                  <div className="rounded-2xl bg-white/5 p-3">
-                    <div className="text-slate-300">Eliminatorias</div>
-                    <div className="mt-1 text-2xl font-black">{row.score.knockout_points}</div>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </section>
-      ) : null}
 
       <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#07111f]/80">
         <table className="w-full min-w-[980px] text-left text-sm">
@@ -447,7 +389,15 @@ export function RankingTable({
                   <td className="px-4 py-4">
                     <div className="space-y-2">
                       <div className="font-black text-white">{playerName}</div>
-                      <PaymentStatusChip status={row.paymentStatus} compact />
+                      {allowPlayerLinks ? (
+                        <Link
+                          href={playerHref}
+                          className="inline-flex items-center gap-2 rounded-full border border-[#27e7ff]/40 bg-[#27e7ff]/10 px-3 py-1 text-xs font-black uppercase text-[#27e7ff] hover:bg-[#27e7ff] hover:text-black"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Ver apuestas
+                        </Link>
+                      ) : null}
                     </div>
                   </td>
                   <td className="px-4 py-4">
