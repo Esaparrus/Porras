@@ -171,6 +171,7 @@ create table public.league_player_goals (
   league_id uuid not null references public.leagues(id) on delete cascade,
   player_id uuid not null references public.players(id) on delete cascade,
   goals int not null default 0,
+  manual_goals_override int,
   updated_at timestamptz not null default now(),
   unique (league_id, player_id)
 );

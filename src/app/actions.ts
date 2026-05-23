@@ -441,6 +441,25 @@ export async function quickGoalAction(formData: FormData) {
   revalidatePath(`/league/${leagueId}/ranking`);
 }
 
+export async function setAdminScorerGoalsAction(formData: FormData) {
+  const { user } = await requireAdmin();
+  const supabase = createSupabaseAdminClient();
+  const playerId = String(formData.get("player_id") ?? "");
+  const goals = Math.max(0, numberFromForm(formData, "goals"));
+
+  if (!playerId) return;
+
+  await syncAllLeaguesPlayerGoalValue(supabase, playerId, goals);
+  await supabase.from("admin_logs").insert({
+    league_id: null,
+    admin_user_id: user.id,
+    action_type: "set_scorer_goals",
+    description: `Total manual de goles actualizado para jugador ${playerId}`,
+  });
+  await recalculateAllLeagueScores();
+  revalidatePath("/admin/results");
+}
+
 export async function saveAdminMatchBundleAction(formData: FormData) {
   const { user } = await requireAdmin();
   const supabase = createSupabaseAdminClient();
@@ -457,6 +476,37 @@ export async function saveAdminMatchBundleAction(formData: FormData) {
     .getAll("away_scorer_player_id")
     .map((value) => String(value))
     .filter(Boolean);
+  const submittedScorerIds = Array.from(new Set([...homeScorers, ...awayScorers]));
+  const { data: match } = await supabase
+    .from("matches")
+    .select("home_team_id, away_team_id")
+    .eq("id", matchId)
+    .maybeSingle();
+
+  let validHomeScorers = homeScorers;
+  let validAwayScorers = awayScorers;
+
+  if (submittedScorerIds.length) {
+    const [{ data: pickedRows }, { data: playerRows }] = await Promise.all([
+      supabase.from("scorer_predictions").select("player_id").in("player_id", submittedScorerIds),
+      supabase.from("players").select("id, team_id").in("id", submittedScorerIds),
+    ]);
+    const pickedIds = new Set((pickedRows ?? []).map((row) => row.player_id));
+    const teamByPlayerId = new Map((playerRows ?? []).map((row) => [row.id, row.team_id]));
+
+    validHomeScorers = homeScorers.filter(
+      (playerId) =>
+        pickedIds.has(playerId) &&
+        Boolean(match?.home_team_id) &&
+        teamByPlayerId.get(playerId) === match?.home_team_id,
+    );
+    validAwayScorers = awayScorers.filter(
+      (playerId) =>
+        pickedIds.has(playerId) &&
+        Boolean(match?.away_team_id) &&
+        teamByPlayerId.get(playerId) === match?.away_team_id,
+    );
+  }
 
   await supabase
     .from("matches")
@@ -471,7 +521,7 @@ export async function saveAdminMatchBundleAction(formData: FormData) {
   await supabase.from("match_scorers").delete().eq("match_id", matchId);
 
   const scorerTotals = new Map<string, number>();
-  [...homeScorers, ...awayScorers].forEach((playerId) => {
+  [...validHomeScorers, ...validAwayScorers].forEach((playerId) => {
     scorerTotals.set(playerId, (scorerTotals.get(playerId) ?? 0) + 1);
   });
 
@@ -762,6 +812,7 @@ async function syncAllLeaguesPlayerGoalValue(
         league_id: currentLeagueId,
         player_id: playerId,
         goals,
+        manual_goals_override: goals,
       },
       { onConflict: "league_id,player_id" },
     );
@@ -782,14 +833,27 @@ async function syncLeagueGoalTotalsFromMatchScorers(
   });
 
   for (const league of leagues ?? []) {
+    const { data: existingGoalRows } = await supabase
+      .from("league_player_goals")
+      .select("player_id, manual_goals_override")
+      .eq("league_id", league.id);
+    const manualOverrides = new Map(
+      (existingGoalRows ?? [])
+        .filter((row) => row.manual_goals_override !== null)
+        .map((row) => [row.player_id, row.manual_goals_override as number]),
+    );
+
     await supabase.from("league_player_goals").delete().eq("league_id", league.id);
 
-    if (totals.size) {
+    const playerIds = new Set([...totals.keys(), ...manualOverrides.keys()]);
+
+    if (playerIds.size) {
       await supabase.from("league_player_goals").insert(
-        Array.from(totals.entries()).map(([playerId, goals]) => ({
+        Array.from(playerIds).map((playerId) => ({
           league_id: league.id,
           player_id: playerId,
-          goals,
+          goals: manualOverrides.get(playerId) ?? totals.get(playerId) ?? 0,
+          manual_goals_override: manualOverrides.get(playerId) ?? null,
         })),
       );
     }

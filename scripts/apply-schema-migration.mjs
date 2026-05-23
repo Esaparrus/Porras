@@ -18,6 +18,7 @@ await client.connect();
 
 try {
   await client.query(await readFile("supabase/migrate-world-cup-2026.sql", "utf8"));
+  await client.query(await readFile("supabase/add-manual-scorer-goal-overrides.sql", "utf8"));
   await client.query(`
     update public.teams
     set flag_code = case short_name

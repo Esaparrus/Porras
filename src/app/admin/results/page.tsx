@@ -5,6 +5,7 @@ import { PlayerPicker } from "@/components/player-picker";
 import {
   rejectPlayerSelectionRequestAction,
   resolvePlayerSelectionRequestAction,
+  setAdminScorerGoalsAction,
 } from "@/app/actions";
 import { STAGE_LABELS } from "@/lib/constants";
 import { requireAdmin } from "@/lib/data";
@@ -20,7 +21,20 @@ type LeaderboardEntry = {
   name: string;
   flag: string;
   teamName: string;
+  pickCount: number;
+  captainCount: number;
   goals: number;
+  manualOverride: number | null;
+};
+
+type ScorerPredictionSummary = {
+  player_id: string;
+  is_captain: boolean;
+};
+
+type AdminScorerPlayer = Player & {
+  pickCount: number;
+  captainCount: number;
 };
 
 const SPAIN_DATE_FORMAT = new Intl.DateTimeFormat("es-ES", {
@@ -67,6 +81,7 @@ export default async function AdminResultsPage() {
     { data: scorerRows },
     { data: requestRows },
     { data: scorerPredictionRows },
+    { data: goalRows },
   ] = await Promise.all([
     supabase
       .from("matches")
@@ -85,7 +100,8 @@ export default async function AdminResultsPage() {
       .from("player_selection_requests")
       .select("*, teams(*), profiles(*), resolved_player:players(*, teams(*))")
       .order("created_at", { ascending: false }),
-    supabase.from("scorer_predictions").select("player_id"),
+    supabase.from("scorer_predictions").select("player_id, is_captain"),
+    supabase.from("league_player_goals").select("player_id, goals, manual_goals_override"),
   ]);
 
   const matches = (matchRows ?? []) as Match[];
@@ -93,10 +109,40 @@ export default async function AdminResultsPage() {
   const players = (playerRows ?? []) as Player[];
   const scorerData = (scorerRows ?? []) as MatchScorerRow[];
   const requests = (requestRows ?? []) as PlayerSelectionRequest[];
-  const pickedPlayerIds = new Set((scorerPredictionRows ?? []).map((row) => row.player_id));
+  const scorerPredictions = (scorerPredictionRows ?? []) as ScorerPredictionSummary[];
+  const goalTotalsByPlayer = new Map<string, { goals: number; manualOverride: number | null }>();
 
-  const pickedPlayers = players.filter((player) => pickedPlayerIds.has(player.id));
-  const pickedPlayersByTeam = new Map<string, Player[]>();
+  (goalRows ?? []).forEach((row) => {
+    const current = goalTotalsByPlayer.get(row.player_id);
+    const goals = Math.max(current?.goals ?? 0, row.goals ?? 0);
+    const manualOverride =
+      row.manual_goals_override ?? current?.manualOverride ?? null;
+    goalTotalsByPlayer.set(row.player_id, { goals, manualOverride });
+  });
+  const pickedPlayerIds = new Set(scorerPredictions.map((row) => row.player_id));
+  const pickStatsByPlayer = new Map<string, { pickCount: number; captainCount: number }>();
+
+  scorerPredictions.forEach((row) => {
+    const stats = pickStatsByPlayer.get(row.player_id) ?? { pickCount: 0, captainCount: 0 };
+    stats.pickCount += 1;
+    if (row.is_captain) stats.captainCount += 1;
+    pickStatsByPlayer.set(row.player_id, stats);
+  });
+
+  const pickedPlayers = players
+    .filter((player) => pickedPlayerIds.has(player.id))
+    .map((player) => ({
+      ...player,
+      pickCount: pickStatsByPlayer.get(player.id)?.pickCount ?? 0,
+      captainCount: pickStatsByPlayer.get(player.id)?.captainCount ?? 0,
+    }))
+    .sort(
+      (left, right) =>
+        right.pickCount - left.pickCount ||
+        right.captainCount - left.captainCount ||
+        left.name.localeCompare(right.name),
+    );
+  const pickedPlayersByTeam = new Map<string, AdminScorerPlayer[]>();
   pickedPlayers.forEach((player) => {
     const current = pickedPlayersByTeam.get(player.team_id) ?? [];
     current.push(player);
@@ -106,21 +152,39 @@ export default async function AdminResultsPage() {
   const scorerRowsByMatch = new Map<string, MatchScorerRow[]>();
   const leaderboardMap = new Map<string, LeaderboardEntry>();
 
+  pickedPlayers.forEach((player) => {
+    const goalTotals = goalTotalsByPlayer.get(player.id);
+    leaderboardMap.set(player.id, {
+      playerId: player.id,
+      name: player.name,
+      flag: player.teams?.flag_emoji ?? "",
+      teamName: player.teams?.name ?? "",
+      pickCount: player.pickCount,
+      captainCount: player.captainCount,
+      goals: goalTotals?.goals ?? 0,
+      manualOverride: goalTotals?.manualOverride ?? null,
+    });
+  });
+
   scorerData.forEach((row) => {
     const current = scorerRowsByMatch.get(row.match_id) ?? [];
     current.push(row);
     scorerRowsByMatch.set(row.match_id, current);
 
-    if (!pickedPlayerIds.has(row.player_id)) return;
+    if (!pickedPlayerIds.has(row.player_id) || goalTotalsByPlayer.has(row.player_id)) return;
 
     const player = Array.isArray(row.players) ? row.players[0] : row.players;
     if (!player) return;
+    const pickStats = pickStatsByPlayer.get(row.player_id);
     const entry = leaderboardMap.get(row.player_id) ?? {
       playerId: row.player_id,
       name: player.name,
       flag: player.teams?.flag_emoji ?? "",
       teamName: player.teams?.name ?? "",
+      pickCount: pickStats?.pickCount ?? 0,
+      captainCount: pickStats?.captainCount ?? 0,
       goals: 0,
+      manualOverride: null,
     };
     entry.goals += row.goals;
     leaderboardMap.set(row.player_id, entry);
@@ -161,6 +225,34 @@ export default async function AdminResultsPage() {
       </div>
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.65fr_0.95fr]">
+        <div className="xl:col-span-2">
+          <section className="glass rounded-3xl p-5">
+            <h2 className="text-2xl font-black">Grupos</h2>
+            <p className="mt-2 text-sm text-slate-300">
+              Vista rápida de clasificación. El orden manual se usa solo como último desempate.
+            </p>
+            <div className="mt-4 grid gap-4 xl:grid-cols-4">
+              {groupLetters.map((groupLetter) => {
+                const rows = calculateRealGroupStandings(teams, matches, groupLetter);
+                const rowsKey = rows
+                  .map(
+                    (row) =>
+                      `${row.team.id}:${row.points}:${row.goalDifference}:${row.goalsFor}:${row.goalsAgainst}`,
+                  )
+                  .join("|");
+
+                return (
+                  <AdminGroupOrderEditor
+                    key={`${groupLetter}-${rowsKey}`}
+                    groupLetter={groupLetter}
+                    rows={rows}
+                  />
+                );
+              })}
+            </div>
+          </section>
+        </div>
+
         <div className="grid gap-6">
           {orderedDateGroups.map(([dateKey, dateMatches]) => (
             <section key={dateKey} className="grid gap-4">
@@ -209,57 +301,47 @@ export default async function AdminResultsPage() {
           ))}
         </div>
 
-        <div className="grid gap-6">
+        <div className="grid content-start gap-6">
           <section className="glass rounded-3xl p-5">
-            <h2 className="text-2xl font-black">Orden manual de grupos</h2>
-            <p className="mt-2 text-sm text-slate-300">
-              Se usa solo como último desempate y también sirve para corregir cruces si algo raro pasa.
-            </p>
-            <div className="mt-4 grid gap-4">
-              {groupLetters.map((groupLetter) => {
-                const rows = calculateRealGroupStandings(teams, matches, groupLetter);
-                const rowsKey = rows
-                  .map(
-                    (row) =>
-                      `${row.team.id}:${row.points}:${row.goalDifference}:${row.goalsFor}:${row.goalsAgainst}`,
-                  )
-                  .join("|");
-
-                return (
-                  <AdminGroupOrderEditor
-                    key={`${groupLetter}-${rowsKey}`}
-                    groupLetter={groupLetter}
-                    rows={rows}
-                  />
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="glass rounded-3xl p-5">
-            <h2 className="text-2xl font-black">Goleadores que lleva la gente</h2>
+            <h2 className="text-2xl font-black">Clasificación de goleadores</h2>
             <div className="mt-2 text-sm text-slate-300">
-              Solo aparecen futbolistas elegidos por usuarios. Si guardas un goleador inventado
-              o uno que nadie lleva, no se verá en esta lista.
+              Aparecen todos los jugadores elegidos por usuarios, aunque todavía lleven 0 goles.
             </div>
-            <div className="mt-4 grid gap-2">
+            <div className="mt-4 grid max-h-[70vh] gap-2 overflow-y-auto pr-1">
               {leaderboard.length ? (
-                leaderboard.slice(0, 24).map((entry) => (
+                leaderboard.map((entry) => (
                   <div
                     key={entry.playerId}
-                    className="flex items-center justify-between rounded-2xl bg-black/20 px-3 py-2"
+                    className="rounded-2xl bg-black/20 px-3 py-3"
                   >
-                    <div>
-                      <div className="font-semibold">
-                        {entry.flag} {entry.name}
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold">
+                          {entry.flag} {entry.name}
+                        </div>
+                        <div className="text-xs text-slate-300">
+                          {entry.teamName} · {entry.pickCount} eleg.
+                          {entry.captainCount ? ` · ${entry.captainCount} cap.` : ""}
+                          {entry.manualOverride !== null ? " · manual" : ""}
+                        </div>
                       </div>
-                      <div className="text-xs text-slate-300">{entry.teamName}</div>
+                      <strong className="text-2xl leading-none">{entry.goals}</strong>
                     </div>
-                    <strong className="text-xl">{entry.goals}</strong>
+                    <form action={setAdminScorerGoalsAction} className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+                      <input type="hidden" name="player_id" value={entry.playerId} />
+                      <input
+                        name="goals"
+                        type="number"
+                        min="0"
+                        defaultValue={entry.goals}
+                        className="field h-10 text-center"
+                      />
+                      <button className="btn-secondary h-10 px-3 py-0">Fijar</button>
+                    </form>
                   </div>
                 ))
               ) : (
-                <div className="text-sm text-slate-300">Todavía no hay goles cargados.</div>
+                <div className="text-sm text-slate-300">Todavía nadie ha elegido goleadores.</div>
               )}
             </div>
           </section>
