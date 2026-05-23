@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { AdminNav } from "@/components/admin-nav";
+import { requireAdmin } from "@/lib/data";
 
 export function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -102,20 +103,33 @@ export function UserLayout({
   );
 }
 
-export function AdminLayout({
+export async function AdminLayout({
   children,
   leagueId,
 }: {
   children: React.ReactNode;
   leagueId?: string;
 }) {
+  async function getLeagueName() {
+    if (!leagueId) return undefined;
+
+    const { supabase } = await requireAdmin();
+    const { data: league } = await supabase
+      .from("leagues")
+      .select("name")
+      .eq("id", leagueId)
+      .single();
+
+    return league?.name;
+  }
+
   return (
     <Shell>
       <header className="mb-6 flex flex-col gap-4">
         <Link href="/admin">
           <BrandLogo label="Panel admin" />
         </Link>
-        <AdminNav leagueId={leagueId} />
+        <AdminNav leagueId={leagueId} leagueName={await getLeagueName()} />
       </header>
       {children}
     </Shell>

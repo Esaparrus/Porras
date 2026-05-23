@@ -2,12 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, ClipboardList, Home, LogOut, Settings, Trophy, Users } from "lucide-react";
+import {
+  BarChart3,
+  ChevronRight,
+  ClipboardList,
+  Home,
+  LogOut,
+  Settings,
+  Trophy,
+  Users,
+} from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { cn } from "@/lib/utils";
 
 type AdminNavProps = {
   leagueId?: string;
+  leagueName?: string;
 };
 
 type NavItem = {
@@ -28,7 +38,7 @@ function isActive(pathname: string, item: NavItem) {
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+function MainNavLink({ item, pathname }: { item: NavItem; pathname: string }) {
   const Icon = item.icon;
   const active = isActive(pathname, item);
 
@@ -36,68 +46,99 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
     <Link
       href={item.href}
       className={cn(
-        "flex min-w-[150px] items-center gap-3 rounded-2xl border px-4 py-3 text-left transition",
+        "inline-flex min-h-12 items-center gap-2 border-4 border-black px-4 py-2 text-sm font-black uppercase text-black shadow-[5px_5px_0_#000] transition",
         active
-          ? "border-[#27e7ff]/70 bg-[#27e7ff]/18 text-white shadow-[4px_4px_0_#000]"
-          : "border-white/10 bg-black/20 text-slate-200 hover:border-[#27e7ff]/40 hover:bg-white/10",
+          ? "bg-[#ff2bd6] text-white"
+          : "bg-[#27e7ff] hover:bg-[#7cf3ff]",
       )}
     >
-      <span
-        className={cn(
-          "flex h-10 w-10 items-center justify-center rounded-xl border",
-          active
-            ? "border-white/20 bg-black/25 text-[#27e7ff]"
-            : "border-white/10 bg-white/5 text-slate-300",
-        )}
-      >
-        <Icon className="h-5 w-5" />
-      </span>
-      <span>
-        <span className="block text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
-          Admin
-        </span>
-        <span className="block text-sm font-black uppercase">{item.label}</span>
-      </span>
+      <Icon className="h-4 w-4 shrink-0" />
+      <span>{item.label}</span>
     </Link>
   );
 }
 
-export function AdminNav({ leagueId }: AdminNavProps) {
+function LeagueNavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+  const Icon = item.icon;
+  const active = isActive(pathname, item);
+
+  return (
+    <Link
+      href={item.href}
+      className={cn(
+        "inline-flex min-h-11 items-center gap-2 border px-3 py-2 text-sm font-black uppercase transition",
+        active
+          ? "border-[#27e7ff] bg-[#27e7ff] text-black shadow-[4px_4px_0_#000]"
+          : "border-white/15 bg-black/25 text-slate-100 hover:border-[#27e7ff]/70 hover:bg-white/10",
+      )}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      <span>{item.label}</span>
+    </Link>
+  );
+}
+
+export function AdminNav({ leagueId, leagueName }: AdminNavProps) {
   const pathname = usePathname();
+  const currentLeagueName = leagueName ?? "esta liga";
   const leagueItems: NavItem[] = leagueId
     ? [
         { href: `/admin/leagues/${leagueId}`, label: "Resumen", icon: BarChart3, exact: true },
         { href: `/admin/leagues/${leagueId}/users`, label: "Usuarios", icon: Users },
-        { href: `/admin/leagues/${leagueId}/settings`, label: "Ajustes", icon: Settings },
+        { href: `/admin/leagues/${leagueId}/settings`, label: "Puntuacion", icon: Settings },
         { href: `/admin/leagues/${leagueId}/ranking`, label: "Ranking", icon: Trophy },
         { href: `/admin/leagues/${leagueId}/logs`, label: "Logs", icon: ClipboardList },
       ]
     : [];
 
   return (
-    <div className="flex flex-1 flex-col gap-3">
-      <div className="rounded-[1.75rem] border border-white/10 bg-black/20 p-4">
-        <div className="text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
-          Navegación principal
+    <div className="flex flex-1 flex-col gap-4">
+      <div className="border border-white/10 bg-black/20 p-4 shadow-2xl shadow-black/10 backdrop-blur-xl">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.22em] text-slate-300">
+              Navegacion principal
+            </div>
+            <p className="mt-1 text-sm text-slate-300">
+              Accesos generales del panel de administrador.
+            </p>
+          </div>
+          {leagueId ? (
+            <div className="inline-flex items-center gap-2 bg-black/35 px-3 py-2 text-xs font-black uppercase text-slate-200">
+              <span>Admin</span>
+              <ChevronRight className="h-4 w-4 text-[#27e7ff]" />
+              <span>Ligas</span>
+              <ChevronRight className="h-4 w-4 text-[#27e7ff]" />
+              <span className="text-white">{currentLeagueName}</span>
+            </div>
+          ) : null}
         </div>
         <nav className="mt-3 flex flex-wrap gap-3">
           {baseItems.map((item) => (
-            <NavLink key={item.href} item={item} pathname={pathname} />
+            <MainNavLink key={item.href} item={item} pathname={pathname} />
           ))}
         </nav>
       </div>
 
       {leagueItems.length ? (
-        <div className="rounded-[1.75rem] border border-white/10 bg-black/20 p-4">
-          <div className="text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
-            Liga actual
+        <div className="border-4 border-black bg-[#315523]/90 p-4 shadow-[7px_7px_0_#000]">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.2em] text-[#27e7ff]">
+                Dentro de la liga
+              </div>
+              <h2 className="mt-1 text-2xl font-black text-white">{currentLeagueName}</h2>
+              <p className="mt-1 max-w-3xl text-sm text-slate-100">
+                Estas opciones afectan solo a esta liga: usuarios, puntuacion, ranking y actividad.
+              </p>
+            </div>
+            <Link href="/admin/leagues" className="btn-secondary py-2">
+              Ver todas las ligas
+            </Link>
           </div>
-          <p className="mt-1 text-sm text-slate-300">
-            Accesos rápidos de la liga que estás gestionando.
-          </p>
-          <nav className="mt-3 flex flex-wrap gap-3">
+          <nav className="mt-4 flex flex-wrap gap-3">
             {leagueItems.map((item) => (
-              <NavLink key={item.href} item={item} pathname={pathname} />
+              <LeagueNavLink key={item.href} item={item} pathname={pathname} />
             ))}
           </nav>
         </div>
