@@ -34,6 +34,7 @@ const AWARD_REQUEST_FIELDS = [
   "best_goalkeeper_id",
   "best_young_player_id",
 ] as const;
+const DEFAULT_RESET_PASSWORD = "paquete";
 
 type AwardRequestField = (typeof AWARD_REQUEST_FIELDS)[number];
 
@@ -735,6 +736,42 @@ export async function resetUserBlockAction(formData: FormData) {
     description: `Reset de apuestas: ${block}`,
   });
   await recalculateLeagueScores(leagueId);
+  revalidatePath(`/admin/leagues/${leagueId}/users`);
+}
+
+export async function resetUserPasswordAction(formData: FormData) {
+  const { user } = await requireAdmin();
+  const supabase = createSupabaseAdminClient();
+  const leagueId = String(formData.get("league_id"));
+  const targetUserId = String(formData.get("target_user_id"));
+
+  const { data: membership } = await supabase
+    .from("league_members")
+    .select("id")
+    .eq("league_id", leagueId)
+    .eq("user_id", targetUserId)
+    .maybeSingle();
+
+  if (!membership) {
+    redirect(`/admin/leagues/${leagueId}/users?error=Usuario no encontrado en esta liga`);
+  }
+
+  const { error } = await supabase.auth.admin.updateUserById(targetUserId, {
+    password: DEFAULT_RESET_PASSWORD,
+  });
+
+  if (error) {
+    redirect(`/admin/leagues/${leagueId}/users?error=No se pudo resetear la contrasena`);
+  }
+
+  await supabase.from("admin_logs").insert({
+    league_id: leagueId,
+    admin_user_id: user.id,
+    target_user_id: targetUserId,
+    action_type: "reset_password",
+    description: `Contrasena reseteada a ${DEFAULT_RESET_PASSWORD}`,
+  });
+
   revalidatePath(`/admin/leagues/${leagueId}/users`);
 }
 

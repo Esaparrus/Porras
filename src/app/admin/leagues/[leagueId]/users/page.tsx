@@ -1,7 +1,9 @@
 import {
   resetUserBlockAction,
+  resetUserPasswordAction,
   updateLeagueMemberPaymentStatusAction,
 } from "@/app/actions";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { AdminLayout } from "@/components/layouts";
 import { EmptyState, PaymentStatusChip, StatCard } from "@/components/ui";
 import { countPayments, formatAdminDate, getMemberScore } from "@/lib/admin";
@@ -126,6 +128,18 @@ export default async function AdminUsersPage({
               <div className="mt-4 border-t border-white/10 pt-4">
                 <div className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-400">
                   Resets admin
+                </div>
+                <div className="mb-3 flex flex-wrap gap-2">
+                  <form action={resetUserPasswordAction}>
+                    <input type="hidden" name="league_id" value={leagueId} />
+                    <input type="hidden" name="target_user_id" value={member.user_id} />
+                    <ConfirmSubmitButton
+                      className="btn-danger py-2"
+                      confirmMessage={`Vas a cambiar la contrasena de @${member.profile?.username ?? "sin-usuario"} a "paquete". Quieres seguir?`}
+                    >
+                      Poner contrasena por defecto: paquete
+                    </ConfirmSubmitButton>
+                  </form>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {["matches", "scorers", "awards", "knockouts", "all"].map((block) => (
