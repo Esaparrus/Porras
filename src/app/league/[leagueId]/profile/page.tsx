@@ -31,6 +31,97 @@ const PROFILE_AVATAR_EMOJIS = [
   "🎮",
   "🎲",
   "🧩",
+  "🏅",
+  "🥇",
+  "🥈",
+  "🥉",
+  "🎖️",
+  "🏟️",
+  "🥅",
+  "🏃",
+  "💪",
+  "👏",
+  "🙌",
+  "🤝",
+  "👍",
+  "👌",
+  "✌️",
+  "🤙",
+  "💥",
+  "⚡",
+  "☄️",
+  "🌪️",
+  "🌈",
+  "☀️",
+  "🌙",
+  "🌟",
+  "✨",
+  "💫",
+  "🔮",
+  "🧿",
+  "💰",
+  "💸",
+  "🎰",
+  "🃏",
+  "♠️",
+  "♥️",
+  "♦️",
+  "♣️",
+  "🎵",
+  "🎧",
+  "🎤",
+  "🎸",
+  "🥁",
+  "🎺",
+  "🎹",
+  "🎬",
+  "📸",
+  "💻",
+  "📱",
+  "⌚",
+  "🕹️",
+  "🏁",
+  "🚩",
+  "🧨",
+  "🛡️",
+  "⚔️",
+  "🗡️",
+  "💣",
+  "🧱",
+  "🧲",
+  "🔋",
+  "🪙",
+  "🎁",
+  "🎈",
+  "🎉",
+  "🎊",
+  "🥂",
+  "🍻",
+  "🍕",
+  "🍔",
+  "🌮",
+  "🍿",
+  "🍩",
+  "🍭",
+  "🍒",
+  "🍉",
+  "🌶️",
+  "💯",
+  "🔝",
+  "🆙",
+  "🆒",
+  "✅",
+  "❌",
+  "❓",
+  "❗",
+  "🔴",
+  "🟠",
+  "🟡",
+  "🟢",
+  "🔵",
+  "🟣",
+  "⚫",
+  "⚪",
 ] as const;
 
 export default async function LeagueProfilePage({
@@ -116,32 +207,34 @@ export default async function LeagueProfilePage({
 
             <div>
               <div className="text-sm font-black uppercase tracking-wide text-slate-300">Icono</div>
-              <div className="mt-3 grid grid-cols-6 gap-2 sm:grid-cols-9">
-                <label className="flex aspect-square cursor-pointer items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-sm font-black has-[:checked]:border-[#27e7ff] has-[:checked]:bg-[#27e7ff] has-[:checked]:text-black">
-                  <input
-                    type="radio"
-                    name="avatar_emoji"
-                    value=""
-                    defaultChecked={!profile.avatar_emoji}
-                    className="sr-only"
-                  />
-                  -
-                </label>
-                {PROFILE_AVATAR_EMOJIS.map((emoji) => (
-                  <label
-                    key={emoji}
-                    className="flex aspect-square cursor-pointer items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-2xl has-[:checked]:border-[#27e7ff] has-[:checked]:bg-[#27e7ff]"
-                  >
+              <div className="mt-3 max-h-72 overflow-y-auto rounded-3xl border border-white/10 bg-black/20 p-3">
+                <div className="grid grid-cols-6 gap-2 sm:grid-cols-9">
+                  <label className="flex aspect-square cursor-pointer items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-sm font-black has-[:checked]:border-[#27e7ff] has-[:checked]:bg-[#27e7ff] has-[:checked]:text-black">
                     <input
                       type="radio"
                       name="avatar_emoji"
-                      value={emoji}
-                      defaultChecked={profile.avatar_emoji === emoji}
+                      value=""
+                      defaultChecked={!profile.avatar_emoji}
                       className="sr-only"
                     />
-                    {emoji}
+                    -
                   </label>
-                ))}
+                  {PROFILE_AVATAR_EMOJIS.map((emoji) => (
+                    <label
+                      key={emoji}
+                      className="flex aspect-square cursor-pointer items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-2xl has-[:checked]:border-[#27e7ff] has-[:checked]:bg-[#27e7ff]"
+                    >
+                      <input
+                        type="radio"
+                        name="avatar_emoji"
+                        value={emoji}
+                        defaultChecked={profile.avatar_emoji === emoji}
+                        className="sr-only"
+                      />
+                      {emoji}
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
 
