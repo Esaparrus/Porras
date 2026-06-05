@@ -210,6 +210,68 @@ select.field option {
   box-shadow: 0 0 0 1px rgb(248 113 113 / 0.14), 0 18px 42px rgb(127 29 29 / 0.14);
 }
 
+.prediction-group-summary {
+  align-items: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.prediction-collapse-button,
+.prediction-groups-collapsed a {
+  align-items: center;
+  background: #27e7ff;
+  border: 3px solid #000;
+  box-shadow: 5px 5px 0 #000;
+  color: #08111f;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 1000;
+  gap: 8px;
+  justify-content: center;
+  min-height: 46px;
+  padding: 10px 14px;
+  text-align: center;
+  text-transform: uppercase;
+  transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.prediction-collapse-button:hover,
+.prediction-groups-collapsed a:hover {
+  background: #7cf3ff;
+  box-shadow: 6px 6px 0 #000;
+  transform: translate(-1px, -1px);
+}
+
+.prediction-collapse-button:active,
+.prediction-groups-collapsed a:active {
+  box-shadow: 2px 2px 0 #000;
+  transform: translate(3px, 3px);
+}
+
+.prediction-collapse-button:focus-visible,
+.prediction-groups-collapsed a:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 4px;
+}
+
+.prediction-groups-collapsed {
+  align-items: center;
+  background: rgb(0 0 0 / 0.2);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 18px;
+  color: rgb(226 232 240);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 14px;
+  font-weight: 800;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding: 12px;
+}
+
 .prediction-sort-control {
   background: rgb(0 0 0 / 0.26);
   border: 1px solid rgb(255 255 255 / 0.12);
@@ -807,6 +869,12 @@ select.field option {
   .prediction-tree-shell {
     border-radius: 18px;
     padding: 10px;
+  }
+
+  .prediction-group-summary,
+  .prediction-collapse-button,
+  .prediction-groups-collapsed a {
+    width: 100%;
   }
 
   .prediction-match-card {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, CalendarDays, Check, Grid2X2, Save } from "lucide-react";
+import { AlertCircle, CalendarDays, Check, ChevronDown, ChevronUp, Grid2X2, Save } from "lucide-react";
 import { saveMatchPredictionsAction } from "@/app/actions";
 import { GroupStandingTable, MatchTeamLabel, TeamBadge } from "@/components/ui";
 import { STAGE_LABELS } from "@/lib/constants";
@@ -135,6 +135,7 @@ export function PredictionWorkflow({
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [matchSortMode, setMatchSortMode] = useState<MatchSortMode>("group");
+  const [groupsExpanded, setGroupsExpanded] = useState(true);
   const [draft, setDraft] = useState<Record<string, DraftPrediction>>(() =>
     Object.fromEntries(
       matches.map((match) => {
@@ -505,48 +506,67 @@ export function PredictionWorkflow({
               Se actualiza automaticamente con los resultados que tienes guardados.
             </p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
-            {finishedGroupMatches}/{groupMatchRows.length} partidos de grupo jugados
+          <div className="prediction-group-summary">
+            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
+              {finishedGroupMatches}/{groupMatchRows.length} partidos de grupo jugados
+            </div>
+            <button
+              type="button"
+              className="prediction-collapse-button"
+              aria-controls="group-standings-panel"
+              aria-expanded={groupsExpanded}
+              onClick={() => setGroupsExpanded((current) => !current)}
+            >
+              {groupsExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {groupsExpanded ? "Replegar grupos" : "Desplegar grupos"}
+            </button>
           </div>
         </div>
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {groupLetters.map((group) => {
-            const groupMatches = matches.filter(
-              (match) => match.stage === "group" && match.group_letter === group,
-            );
-            const finishedCount = groupMatches.filter((match) => match.is_finished).length;
-            return (
-              <section
-                key={group}
-                className="prediction-group-card"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-lg font-black">
-                    Grupo {group}
-                  </h3>
-                  <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-slate-300">
-                    {finishedCount}/{groupMatches.length}
-                  </span>
-                </div>
-                <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3">
-                  <div className="mb-2 flex items-center gap-2 text-sm font-black text-slate-200">
-                    <Check className="h-4 w-4 text-[#ff7a1a]" />
-                    Clasificacion prevista
+        {groupsExpanded ? (
+          <div id="group-standings-panel" className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {groupLetters.map((group) => {
+              const groupMatches = matches.filter(
+                (match) => match.stage === "group" && match.group_letter === group,
+              );
+              const finishedCount = groupMatches.filter((match) => match.is_finished).length;
+              return (
+                <section
+                  key={group}
+                  className="prediction-group-card"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-lg font-black">
+                      Grupo {group}
+                    </h3>
+                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-slate-300">
+                      {finishedCount}/{groupMatches.length}
+                    </span>
                   </div>
-                  <GroupStandingTable rows={standingsByGroup.get(group) ?? []} />
-                </div>
-                <div className="mt-3 rounded-2xl border border-white/10 bg-black/10 p-3">
-                  <div className="mb-2 flex items-center gap-2 text-sm font-black text-slate-200">
-                    <Check className="h-4 w-4 text-[#ff7a1a]" />
-                    Tabla real
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="mb-2 flex items-center gap-2 text-sm font-black text-slate-200">
+                      <Check className="h-4 w-4 text-[#ff7a1a]" />
+                      Clasificacion prevista
+                    </div>
+                    <GroupStandingTable rows={standingsByGroup.get(group) ?? []} />
                   </div>
-                  <GroupStandingTable rows={realStandingsByGroup.get(group) ?? []} />
-                </div>
-              </section>
-            );
-          })}
-        </div>
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-black/10 p-3">
+                    <div className="mb-2 flex items-center gap-2 text-sm font-black text-slate-200">
+                      <Check className="h-4 w-4 text-[#ff7a1a]" />
+                      Tabla real
+                    </div>
+                    <GroupStandingTable rows={realStandingsByGroup.get(group) ?? []} />
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        ) : (
+          <div id="group-standings-panel" className="prediction-groups-collapsed">
+            <span>{groupLetters.length} grupos replegados para bajar rapido a los partidos.</span>
+            <a href="#partidos">Ir a partidos</a>
+          </div>
+        )}
       </section>
 
       <section id="partidos" className="glass scroll-mt-6 rounded-3xl p-4 sm:p-5">
