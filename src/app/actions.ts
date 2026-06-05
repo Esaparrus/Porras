@@ -290,18 +290,171 @@ export async function updateLeagueLocksAction(formData: FormData) {
   await requireAdmin();
   const supabase = createSupabaseAdminClient();
   const leagueId = String(formData.get("league_id"));
+  const nextStatus = String(formData.get("status"));
+  const nextLocks = {
+    predictions_visible: formData.get("predictions_visible") === "on",
+    lock_matches: formData.get("lock_matches") === "on",
+    lock_scorers: formData.get("lock_scorers") === "on",
+    lock_awards: formData.get("lock_awards") === "on",
+    lock_knockouts: formData.get("lock_knockouts") === "on",
+  };
+
+  if (
+    nextStatus !== "open" &&
+    nextLocks.lock_matches &&
+    nextLocks.lock_scorers &&
+    nextLocks.lock_awards &&
+    nextLocks.lock_knockouts
+  ) {
+    const pendingMessage = await getLeaguePredictionPendingMessage(leagueId);
+    if (pendingMessage) {
+      redirect(
+        `/admin/leagues/${leagueId}/settings?warning=${encodeURIComponent(pendingMessage)}`,
+      );
+    }
+  }
+
   await supabase
     .from("leagues")
     .update({
-      status: String(formData.get("status")),
-      predictions_visible: formData.get("predictions_visible") === "on",
-      lock_matches: formData.get("lock_matches") === "on",
-      lock_scorers: formData.get("lock_scorers") === "on",
-      lock_awards: formData.get("lock_awards") === "on",
-      lock_knockouts: formData.get("lock_knockouts") === "on",
+      status: nextStatus,
+      predictions_visible: nextLocks.predictions_visible,
+      lock_matches: nextLocks.lock_matches,
+      lock_scorers: nextLocks.lock_scorers,
+      lock_awards: nextLocks.lock_awards,
+      lock_knockouts: nextLocks.lock_knockouts,
     })
     .eq("id", leagueId);
   revalidatePath(`/admin/leagues/${leagueId}`);
+  revalidatePath(`/admin/leagues/${leagueId}/settings`);
+}
+
+export async function checkLeaguePredictionProgressAction(formData: FormData) {
+  await requireAdmin();
+  const leagueId = String(formData.get("league_id"));
+  const pendingMessage = await getLeaguePredictionPendingMessage(leagueId);
+
+  if (pendingMessage) {
+    redirect(
+      `/admin/leagues/${leagueId}/settings?warning=${encodeURIComponent(pendingMessage)}`,
+    );
+  }
+
+  redirect(
+    `/admin/leagues/${leagueId}/settings?notice=${encodeURIComponent("Todos tienen sus apuestas completas ahora mismo.")}`,
+  );
+}
+
+async function getLeaguePredictionPendingMessage(leagueId: string) {
+  const supabase = createSupabaseAdminClient();
+  const [
+    { data: members },
+    { data: matches },
+    { data: matchPredictions },
+    { data: scorerPredictions },
+    { data: awardPredictions },
+    { data: awardRequests },
+  ] = await Promise.all([
+    supabase
+      .from("league_members")
+      .select("user_id, profiles(display_name, username)")
+      .eq("league_id", leagueId),
+    supabase.from("matches").select("id, stage"),
+    supabase
+      .from("match_predictions")
+      .select("user_id, match_id, predicted_home_score, predicted_away_score, predicted_winner_team_id")
+      .eq("league_id", leagueId),
+    supabase
+      .from("scorer_predictions")
+      .select("user_id, player_id, is_captain")
+      .eq("league_id", leagueId),
+    supabase
+      .from("award_predictions")
+      .select("user_id, top_scorer_player_id, best_player_id, best_goalkeeper_id, best_young_player_id")
+      .eq("league_id", leagueId),
+    supabase
+      .from("player_selection_requests")
+      .select("user_id, field_key, player_name, status")
+      .eq("league_id", leagueId),
+  ]);
+
+  const matchRows = matches ?? [];
+  const totalMatches = matchRows.length;
+  const knockoutMatchIds = new Set(
+    matchRows.filter((match) => match.stage !== "group").map((match) => match.id),
+  );
+  const predictionsByUser = groupByUser(matchPredictions ?? []);
+  const scorersByUser = groupByUser(scorerPredictions ?? []);
+  const awardsByUser = new Map(
+    (awardPredictions ?? []).map((row) => [row.user_id, row]),
+  );
+  const awardRequestsByUser = groupByUser(
+    (awardRequests ?? []).filter((row) => row.status !== "rejected"),
+  );
+
+  const pendingLines = (members ?? [])
+    .map((member) => {
+      const userId = member.user_id;
+      const userMatchPredictions = predictionsByUser.get(userId) ?? [];
+      const completedMatchIds = new Set(
+        userMatchPredictions
+          .filter(
+            (prediction) =>
+              prediction.predicted_home_score !== null &&
+              prediction.predicted_away_score !== null,
+          )
+          .map((prediction) => prediction.match_id),
+      );
+      const tiedKnockoutsWithoutWinner = userMatchPredictions.filter(
+        (prediction) =>
+          knockoutMatchIds.has(prediction.match_id) &&
+          prediction.predicted_home_score !== null &&
+          prediction.predicted_away_score !== null &&
+          prediction.predicted_home_score === prediction.predicted_away_score &&
+          !prediction.predicted_winner_team_id,
+      ).length;
+      const missingMatches =
+        Math.max(0, totalMatches - completedMatchIds.size) + tiedKnockoutsWithoutWinner;
+
+      const userScorers = scorersByUser.get(userId) ?? [];
+      const uniqueScorers = new Set(userScorers.map((prediction) => prediction.player_id));
+      const hasCaptain = userScorers.some((prediction) => prediction.is_captain);
+      const missingScorers = Math.max(0, 3 - uniqueScorers.size) + (hasCaptain ? 0 : 1);
+
+      const userAward = awardsByUser.get(userId);
+      const userAwardRequests = awardRequestsByUser.get(userId) ?? [];
+      const missingAwards = AWARD_REQUEST_FIELDS.filter((field) => {
+        if (userAward?.[field]) return false;
+        return !userAwardRequests.some(
+          (request) => request.field_key === field && request.player_name,
+        );
+      }).length;
+
+      const pendingParts = [
+        missingMatches ? `${missingMatches} resultados` : "",
+        missingScorers ? `${missingScorers} goleadores/capitan` : "",
+        missingAwards ? `${missingAwards} premios` : "",
+      ].filter(Boolean);
+
+      if (!pendingParts.length) return null;
+
+      const profile = Array.isArray(member.profiles)
+        ? member.profiles[0]
+        : member.profiles;
+      const displayName = profile?.display_name || profile?.username || "Un usuario";
+      return `${displayName} le queda por completar ${pendingParts.join(", ")}`;
+    })
+    .filter(Boolean);
+
+  if (!pendingLines.length) return "";
+  return `${pendingLines.join(". ")}. Avisale antes de comenzar la liga.`;
+}
+
+function groupByUser<Row extends { user_id: string }>(rows: Row[]) {
+  return rows.reduce<Map<string, Row[]>>((groups, row) => {
+    groups.set(row.user_id, [...(groups.get(row.user_id) ?? []), row]);
+    return groups;
+  }, new Map());
 }
 
 export async function saveMatchPredictionsAction(formData: FormData) {

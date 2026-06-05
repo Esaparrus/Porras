@@ -1,4 +1,8 @@
-import { updateLeagueLocksAction, updateLeagueSettingsAction } from "@/app/actions";
+import {
+  checkLeaguePredictionProgressAction,
+  updateLeagueLocksAction,
+  updateLeagueSettingsAction,
+} from "@/app/actions";
 import { AdminLayout } from "@/components/layouts";
 import { calculateLeaguePot, calculatePrizeBreakdown, formatCurrency } from "@/lib/league-insights";
 import { DEFAULT_POINT_SETTINGS, STATUS_LABELS } from "@/lib/constants";
@@ -83,10 +87,13 @@ const labels: Record<string, string> = {
 
 export default async function SettingsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ leagueId: string }>;
+  searchParams: Promise<{ notice?: string; warning?: string }>;
 }) {
   const { leagueId } = await params;
+  const { notice, warning } = await searchParams;
   const { supabase } = await requireAdmin();
   const [{ data: settings }, { data: league }, { count: memberCount }] = await Promise.all([
     supabase
@@ -109,6 +116,16 @@ export default async function SettingsPage({
   return (
     <AdminLayout leagueId={leagueId}>
       <h1 className="text-3xl font-black">Ajustes de liga</h1>
+      {warning ? (
+        <div className="mt-5 rounded-2xl border border-[#ff7a1a]/60 bg-[#ff7a1a]/15 p-4 text-sm font-semibold text-white">
+          {warning}
+        </div>
+      ) : null}
+      {notice ? (
+        <div className="mt-5 rounded-2xl border border-[#27e7ff]/60 bg-[#27e7ff]/15 p-4 text-sm font-semibold text-white">
+          {notice}
+        </div>
+      ) : null}
       <div className="mt-6 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
         <div className="space-y-6">
           <form action={updateLeagueLocksAction} className="glass rounded-3xl p-5">
@@ -144,23 +161,33 @@ export default async function SettingsPage({
             <button className="btn-primary mt-6 w-full">Guardar bloqueos</button>
           </form>
 
-          <form action={updateLeagueLocksAction} className="glass rounded-3xl p-5">
-            <input type="hidden" name="league_id" value={leagueId} />
-            <input type="hidden" name="status" value="locked" />
-            <input type="hidden" name="predictions_visible" value="on" />
-            <input type="hidden" name="lock_matches" value="on" />
-            <input type="hidden" name="lock_scorers" value="on" />
-            <input type="hidden" name="lock_awards" value="on" />
-            <input type="hidden" name="lock_knockouts" value="on" />
+          <section className="glass rounded-3xl p-5">
             <h2 className="text-xl font-black">Inicio del torneo</h2>
             <p className="mt-3 text-sm text-slate-300">
               Cuando empiece, bloquea toda la porra. Nadie podra cambiar partidos,
               eliminatorias, goleadores ni premios, y las apuestas quedaran visibles.
             </p>
-            <button className="btn-danger mt-6 w-full">
-              Bloquear toda la porra
-            </button>
-          </form>
+            <div className="mt-6 grid gap-3">
+              <form action={checkLeaguePredictionProgressAction}>
+                <input type="hidden" name="league_id" value={leagueId} />
+                <button className="btn-primary w-full">
+                  Comprobar apuestas pendientes
+                </button>
+              </form>
+              <form action={updateLeagueLocksAction}>
+                <input type="hidden" name="league_id" value={leagueId} />
+                <input type="hidden" name="status" value="locked" />
+                <input type="hidden" name="predictions_visible" value="on" />
+                <input type="hidden" name="lock_matches" value="on" />
+                <input type="hidden" name="lock_scorers" value="on" />
+                <input type="hidden" name="lock_awards" value="on" />
+                <input type="hidden" name="lock_knockouts" value="on" />
+                <button className="btn-danger w-full">
+                  Bloquear toda la porra
+                </button>
+              </form>
+            </div>
+          </section>
         </div>
 
         <form action={updateLeagueSettingsAction} className="space-y-5">
