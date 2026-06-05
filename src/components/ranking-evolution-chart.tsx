@@ -2,15 +2,363 @@
 
 import Link from "next/link";
 import { ArrowLeft, Pause, Play, RotateCcw } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import type {
-  RankingEvolutionData,
-  RankingEvolutionEntry,
-} from "@/lib/ranking-evolution";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { RankingEvolutionData } from "@/lib/ranking-evolution";
 
-const FRAME_MS = 900;
-const ROW_HEIGHT = 58;
-const TOP_OFFSET = 18;
+export type RankingPoint = {
+  day: number;
+  rank: number;
+};
+
+export type Participant = {
+  id: string;
+  name: string;
+  color: string;
+  points: RankingPoint[];
+};
+
+export const exampleRankingReplayData: Participant[] = [
+  {
+    id: "unai",
+    name: "Unai",
+    color: "#FF3B30",
+    points: [
+      { day: 0, rank: 5 },
+      { day: 1, rank: 3 },
+      { day: 2, rank: 1 },
+      { day: 3, rank: 2 },
+      { day: 4, rank: 4 },
+    ],
+  },
+  {
+    id: "aritz",
+    name: "Aritz",
+    color: "#007AFF",
+    points: [
+      { day: 0, rank: 1 },
+      { day: 1, rank: 2 },
+      { day: 2, rank: 4 },
+      { day: 3, rank: 3 },
+      { day: 4, rank: 1 },
+    ],
+  },
+  {
+    id: "bidatz",
+    name: "Bidatz",
+    color: "#34C759",
+    points: [
+      { day: 0, rank: 3 },
+      { day: 1, rank: 1 },
+      { day: 2, rank: 2 },
+      { day: 3, rank: 5 },
+      { day: 4, rank: 2 },
+    ],
+  },
+];
+
+type AnimatedRankingReplayProps = {
+  data: Participant[];
+  maxRank: number;
+  durationPerStep?: number;
+  dayLabels?: string[];
+  title?: string;
+};
+
+const CHART_LEFT = 68;
+const CHART_TOP = 54;
+const CHART_RIGHT = 172;
+const CHART_BOTTOM = 58;
+const DAY_SPACING = 112;
+const RANK_SPACING = 54;
+
+export function AnimatedRankingReplay({
+  data,
+  maxRank,
+  durationPerStep = 900,
+  dayLabels,
+  title = "Evolucion de la clasificacion",
+}: AnimatedRankingReplayProps) {
+  const [hasStarted, setHasStarted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playhead, setPlayhead] = useState(0);
+  const frameRef = useRef<number | null>(null);
+  const startedAtRef = useRef(0);
+  const startPlayheadRef = useRef(0);
+  const latestPlayheadRef = useRef(0);
+  const orderedData = useMemo(
+    () =>
+      data.map((participant) => ({
+        ...participant,
+        points: participant.points.slice().sort((left, right) => left.day - right.day),
+      })),
+    [data],
+  );
+  const allDays = useMemo(() => {
+    const days = new Set<number>();
+    orderedData.forEach((participant) => {
+      participant.points.forEach((point) => days.add(point.day));
+    });
+    return Array.from(days).sort((left, right) => left - right);
+  }, [orderedData]);
+  const minDay = allDays[0] ?? 0;
+  const maxDay = allDays.at(-1) ?? 0;
+  const currentSegment = Math.min(Math.floor(playhead), Math.max(maxDay - 1, 0));
+  const segmentProgress = Math.min(1, Math.max(0, playhead - currentSegment));
+  const easedDay = currentSegment + easeInOutCubic(segmentProgress);
+  const activeDay = Math.round(playhead);
+  const chartWidth = Math.max(720, CHART_LEFT + CHART_RIGHT + Math.max(1, maxDay - minDay) * DAY_SPACING);
+  const chartHeight = Math.max(
+    360,
+    CHART_TOP + CHART_BOTTOM + Math.max(1, maxRank - 1) * RANK_SPACING,
+  );
+  const finished = hasStarted && playhead >= maxDay;
+
+  useEffect(() => {
+    latestPlayheadRef.current = playhead;
+  }, [playhead]);
+
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    function tick(timestamp: number) {
+      if (!startedAtRef.current) startedAtRef.current = timestamp;
+      const elapsed = timestamp - startedAtRef.current;
+      const nextPlayhead = Math.min(
+        maxDay,
+        startPlayheadRef.current + elapsed / durationPerStep,
+      );
+
+      latestPlayheadRef.current = nextPlayhead;
+      setPlayhead(nextPlayhead);
+
+      if (nextPlayhead >= maxDay) {
+        setIsPlaying(false);
+        frameRef.current = null;
+        return;
+      }
+
+      frameRef.current = window.requestAnimationFrame(tick);
+    }
+
+    frameRef.current = window.requestAnimationFrame(tick);
+
+    return () => {
+      if (frameRef.current !== null) {
+        window.cancelAnimationFrame(frameRef.current);
+      }
+      frameRef.current = null;
+      startedAtRef.current = 0;
+      startPlayheadRef.current = latestPlayheadRef.current;
+    };
+  }, [durationPerStep, isPlaying, maxDay]);
+
+  function play() {
+    const nextPlayhead = !hasStarted || finished ? minDay : playhead;
+    setHasStarted(true);
+    setPlayhead(nextPlayhead);
+    startPlayheadRef.current = nextPlayhead;
+    startedAtRef.current = 0;
+    setIsPlaying(maxDay > minDay);
+  }
+
+  function pause() {
+    startPlayheadRef.current = playhead;
+    startedAtRef.current = 0;
+    setIsPlaying(false);
+  }
+
+  function restart() {
+    startPlayheadRef.current = minDay;
+    startedAtRef.current = 0;
+    setPlayhead(minDay);
+    setHasStarted(true);
+    setIsPlaying(false);
+  }
+
+  return (
+    <section className="rounded-2xl border border-white/10 bg-[#081322] p-4 text-white shadow-2xl shadow-black/30">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-[#27e7ff]">
+            Animated bump chart
+          </p>
+          <h1 className="mt-1 text-2xl font-black leading-tight sm:text-3xl">
+            {title}
+          </h1>
+          <p className="mt-1 text-sm font-semibold text-slate-300">
+            Tiempo de izquierda a derecha. Puesto 1 arriba.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="btn-primary px-4 py-2"
+            onClick={play}
+            disabled={isPlaying || maxDay <= minDay}
+          >
+            <Play className="h-4 w-4" />
+            Ver evolucion
+          </button>
+          <button
+            type="button"
+            className="btn-secondary px-4 py-2"
+            onClick={pause}
+            disabled={!isPlaying}
+          >
+            <Pause className="h-4 w-4" />
+            Pausar
+          </button>
+          <button type="button" className="btn-secondary px-4 py-2" onClick={restart}>
+            <RotateCcw className="h-4 w-4" />
+            Reiniciar
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3">
+        <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">
+          {hasStarted ? dayLabels?.[activeDay] ?? `Jornada ${activeDay}` : "Pulsa Play"}
+        </div>
+        <div className="text-sm font-semibold text-slate-300">
+          {hasStarted
+            ? `${Math.round(((playhead - minDay) / Math.max(1, maxDay - minDay)) * 100)}%`
+            : "El recorrido se dibuja durante la animacion"}
+        </div>
+      </div>
+
+      <div className="relative mt-4 overflow-x-auto rounded-2xl border border-white/10 bg-[#050b14]">
+        {!hasStarted ? (
+          <div className="absolute inset-0 z-10 flex min-h-[360px] items-center justify-center bg-[#050b14]/82 p-6 text-center backdrop-blur-sm">
+            <div>
+              <button type="button" className="btn-primary" onClick={play}>
+                <Play className="h-5 w-5" />
+                Ver evolucion
+              </button>
+              <p className="mt-4 max-w-md text-sm font-semibold text-slate-300">
+                No se pinta el grafico completo al cargar. El replay empieza en la jornada 0.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        <svg
+          className="block"
+          width={chartWidth}
+          height={chartHeight}
+          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+          role="img"
+          aria-label="Replay animado de posiciones del ranking"
+        >
+          <defs>
+            <filter id="ranking-dot-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          <rect width={chartWidth} height={chartHeight} fill="#050b14" />
+          <g opacity="0.9">
+            {Array.from({ length: maxRank }).map((_, index) => {
+              const rank = index + 1;
+              const y = yForRank(rank, maxRank);
+              return (
+                <g key={rank}>
+                  <line
+                    x1={CHART_LEFT}
+                    x2={chartWidth - CHART_RIGHT}
+                    y1={y}
+                    y2={y}
+                    stroke="rgba(255,255,255,0.08)"
+                  />
+                  <text
+                    x={CHART_LEFT - 14}
+                    y={y + 4}
+                    textAnchor="end"
+                    fill={rank === 1 ? "#27e7ff" : "#94a3b8"}
+                    fontSize="12"
+                    fontWeight="900"
+                  >
+                    {rank}o
+                  </text>
+                </g>
+              );
+            })}
+
+            {allDays.map((day) => {
+              const x = xForDay(day, minDay);
+              return (
+                <g key={day}>
+                  <line
+                    x1={x}
+                    x2={x}
+                    y1={CHART_TOP - 16}
+                    y2={chartHeight - CHART_BOTTOM + 10}
+                    stroke="rgba(255,255,255,0.06)"
+                  />
+                  <text
+                    x={x}
+                    y={chartHeight - 22}
+                    textAnchor="middle"
+                    fill={Math.round(easedDay) === day ? "#ff7a1a" : "#94a3b8"}
+                    fontSize="12"
+                    fontWeight="900"
+                  >
+                    J{day}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+
+          {hasStarted
+            ? orderedData.map((participant) => {
+                const current = getInterpolatedPosition(participant.points, easedDay, maxRank);
+                const trail = buildTrailPoints(participant.points, easedDay, maxRank);
+
+                return (
+                  <g key={participant.id}>
+                    <polyline
+                      points={trail.map((point) => `${point.x},${point.y}`).join(" ")}
+                      fill="none"
+                      stroke={participant.color}
+                      strokeWidth="4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      opacity="0.72"
+                    />
+                    <circle
+                      cx={current.x}
+                      cy={current.y}
+                      r="9"
+                      fill={participant.color}
+                      stroke="#ffffff"
+                      strokeWidth="2"
+                      filter="url(#ranking-dot-glow)"
+                    />
+                    <text
+                      x={current.x + 14}
+                      y={current.y + 5}
+                      fill="#f8fafc"
+                      fontSize="13"
+                      fontWeight="900"
+                      paintOrder="stroke"
+                      stroke="#050b14"
+                      strokeWidth="5"
+                    >
+                      {participant.name}
+                    </text>
+                  </g>
+                );
+              })
+            : null}
+        </svg>
+      </div>
+    </section>
+  );
+}
 
 export function RankingEvolutionChart({
   leagueId,
@@ -19,306 +367,133 @@ export function RankingEvolutionChart({
   leagueId: string;
   data: RankingEvolutionData;
 }) {
-  const [frameIndex, setFrameIndex] = useState(0);
-  const [playing, setPlaying] = useState(data.frames.length > 1);
-  const frame = data.frames[frameIndex] ?? data.frames[0];
-  const playerByUserId = useMemo(
-    () => new Map(data.players.map((player) => [player.userId, player])),
-    [data.players],
-  );
-  const maxPoints = Math.max(
-    1,
-    ...data.frames.flatMap((item) => item.entries.map((entry) => entry.totalPoints)),
-  );
-  const progress =
-    data.frames.length > 1 ? Math.round((frameIndex / (data.frames.length - 1)) * 100) : 0;
-  const chartHeight = Math.max(360, data.players.length * ROW_HEIGHT + TOP_OFFSET * 2);
-
-  useEffect(() => {
-    if (!playing || data.frames.length <= 1) return;
-    const timer = window.setInterval(() => {
-      setFrameIndex((current) => {
-        if (current >= data.frames.length - 1) {
-          setPlaying(false);
-          return current;
-        }
-        return current + 1;
-      });
-    }, FRAME_MS);
-
-    return () => window.clearInterval(timer);
-  }, [data.frames.length, playing]);
-
-  if (!frame) {
-    return (
-      <main className="min-h-screen bg-[#06111f] p-6 text-white">
-        <Link href={`/league/${leagueId}/ranking`} className="btn-secondary">
-          <ArrowLeft className="h-5 w-5" />
-          Volver
-        </Link>
-        <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.08] p-6">
-          Todavia no hay datos para pintar la evolucion.
-        </div>
-      </main>
-    );
-  }
+  const participants = useMemo(() => toParticipants(data), [data]);
+  const dayLabels = useMemo(() => data.frames.map((frame) => frame.label), [data.frames]);
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#06111f] text-white">
-      <div className="flex min-h-screen min-w-[980px] flex-col bg-[radial-gradient(circle_at_20%_15%,rgba(39,231,255,0.16),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(0,0,0,0.28))] p-4 lg:p-6">
-        <header className="flex shrink-0 items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Link
-              href={`/league/${leagueId}/ranking`}
-              className="inline-flex h-12 w-12 items-center justify-center border-4 border-black bg-[#27e7ff] text-black shadow-[5px_5px_0_#000] transition hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[7px_7px_0_#000]"
-              aria-label="Volver al ranking"
-            >
-              <ArrowLeft className="h-6 w-6" />
-            </Link>
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-[#27e7ff]">
-                Evolucion del ranking
-              </p>
-              <h1 className="text-2xl font-black leading-none sm:text-4xl">
-                Carrera de la liga
-              </h1>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="inline-flex h-12 w-12 items-center justify-center border-4 border-black bg-[#ff2bd6] text-white shadow-[5px_5px_0_#000] transition hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[7px_7px_0_#000]"
-              onClick={() => setPlaying((value) => !value)}
-              aria-label={playing ? "Pausar evolucion" : "Reproducir evolucion"}
-            >
-              {playing ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
-            </button>
-            <button
-              type="button"
-              className="inline-flex h-12 w-12 items-center justify-center border-4 border-black bg-white text-black shadow-[5px_5px_0_#000] transition hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[7px_7px_0_#000]"
-              onClick={() => {
-                setFrameIndex(0);
-                setPlaying(data.frames.length > 1);
-              }}
-              aria-label="Reiniciar evolucion"
-            >
-              <RotateCcw className="h-6 w-6" />
-            </button>
-          </div>
-        </header>
-
-        <section className="mt-4 grid shrink-0 grid-cols-[1fr_auto] items-end gap-4">
-          <div>
-            <div className="text-5xl font-black leading-none text-[#ff7a1a]">
-              {frame.label}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-3 text-sm font-bold text-slate-300">
-              <span>{frame.finishedMatches} de {data.totalMatches} partidos cerrados</span>
-              {frame.matchNumber ? <span>Partido {frame.matchNumber}</span> : null}
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">
-              Avance
-            </div>
-            <div className="mt-1 text-4xl font-black text-[#27e7ff]">{progress}%</div>
-          </div>
-        </section>
-
-        <div className="mt-4 h-3 shrink-0 overflow-hidden rounded-full bg-white/10">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-[#3bd16f] via-[#27e7ff] to-[#ff2bd6] transition-[width] duration-500"
-            style={{ width: `${progress}%` }}
-          />
+    <main className="min-h-screen overflow-hidden bg-[#06111f] p-3 text-white sm:p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <Link
+          href={`/league/${leagueId}/ranking`}
+          className="inline-flex h-12 w-12 items-center justify-center border-4 border-black bg-[#27e7ff] text-black shadow-[5px_5px_0_#000]"
+          aria-label="Volver al ranking"
+        >
+          <ArrowLeft className="h-6 w-6" />
+        </Link>
+        <div className="text-right text-xs font-black uppercase tracking-[0.18em] text-slate-300">
+          Gira el movil para verlo mas ancho
         </div>
-
-        <section className="mt-4 grid min-h-0 flex-1 grid-cols-[1fr_280px] gap-4">
-          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black/28">
-            <div className="absolute left-4 top-4 z-10 rounded-full bg-black/50 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-slate-200">
-              Y: posicion / X: fecha
-            </div>
-            <div className="absolute inset-0 overflow-auto p-4 pt-14">
-              <div className="relative min-h-full" style={{ height: chartHeight }}>
-                <RankAxis count={data.players.length} />
-                <PathChart
-                  frames={data.frames}
-                  frameIndex={frameIndex}
-                  chartHeight={chartHeight}
-                  playerIds={data.players.map((player) => player.userId)}
-                  playerByUserId={playerByUserId}
-                />
-                <div className="absolute inset-x-0 bottom-0 left-[54px] right-4 h-px bg-white/15" />
-                {frame.entries.map((entry) => (
-                  <RaceBar
-                    key={entry.userId}
-                    entry={entry}
-                    player={playerByUserId.get(entry.userId)}
-                    maxPoints={maxPoints}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <aside className="overflow-hidden rounded-2xl border border-white/10 bg-black/28">
-            <div className="border-b border-white/10 p-4">
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">
-                Foto actual
-              </div>
-              <div className="mt-1 text-2xl font-black">Top ranking</div>
-            </div>
-            <div className="max-h-full overflow-auto p-3">
-              {frame.entries.slice(0, 10).map((entry) => {
-                const player = playerByUserId.get(entry.userId);
-                return (
-                  <div
-                    key={entry.userId}
-                    className="mb-2 grid grid-cols-[42px_1fr_auto] items-center gap-3 rounded-xl bg-white/[0.07] px-3 py-2"
-                  >
-                    <div className="font-black text-[#27e7ff]">#{entry.rank}</div>
-                    <div className="min-w-0">
-                      <div className="truncate font-black">{player?.displayName ?? "Jugador"}</div>
-                      <div className="text-xs font-semibold text-slate-400">
-                        {entry.exactScores} exactos
-                      </div>
-                    </div>
-                    <div className="font-black">{entry.totalPoints}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </aside>
-        </section>
       </div>
+
+      {participants.length ? (
+        <AnimatedRankingReplay
+          data={participants}
+          maxRank={Math.max(1, data.players.length)}
+          durationPerStep={900}
+          dayLabels={dayLabels}
+          title="Replay de la clasificacion"
+        />
+      ) : (
+        <section className="rounded-2xl border border-white/10 bg-white/[0.08] p-6">
+          Todavia no hay datos para pintar la evolucion.
+        </section>
+      )}
     </main>
   );
 }
 
-function RaceBar({
-  entry,
-  player,
-  maxPoints,
-}: {
-  entry: RankingEvolutionEntry;
-  player?: { displayName: string; avatarEmoji: string | null };
-  maxPoints: number;
-}) {
-  const color = colorForId(entry.userId);
-  const width = 18 + (entry.totalPoints / maxPoints) * 72;
+function toParticipants(data: RankingEvolutionData): Participant[] {
+  return data.players.map((player) => ({
+    id: player.userId,
+    name: player.displayName,
+    color: colorForId(player.userId),
+    points: data.frames.map((frame, day) => {
+      const entry = frame.entries.find((item) => item.userId === player.userId);
+      return {
+        day,
+        rank: entry?.rank ?? data.players.length,
+      };
+    }),
+  }));
+}
 
+function buildTrailPoints(points: RankingPoint[], currentDay: number, maxRank: number) {
+  const trail = points
+    .filter((point) => point.day <= Math.floor(currentDay))
+    .map((point) => ({
+      x: xForDay(point.day, points[0]?.day ?? 0),
+      y: yForRank(point.rank, maxRank),
+    }));
+
+  const current = getInterpolatedPosition(points, currentDay, maxRank);
+  const last = trail.at(-1);
+  if (!last || last.x !== current.x || last.y !== current.y) {
+    trail.push(current);
+  }
+
+  return trail;
+}
+
+function getInterpolatedPosition(
+  points: RankingPoint[],
+  currentDay: number,
+  maxRank: number,
+) {
+  const minDay = points[0]?.day ?? 0;
+  const previous = getPointAtOrBefore(points, currentDay);
+  const next = getPointAtOrAfter(points, currentDay);
+  const span = Math.max(1, next.day - previous.day);
+  const amount = Math.min(1, Math.max(0, (currentDay - previous.day) / span));
+  const rank = previous.rank + (next.rank - previous.rank) * amount;
+  const day = previous.day + (next.day - previous.day) * amount;
+
+  return {
+    x: xForDay(day, minDay),
+    y: yForRank(rank, maxRank),
+  };
+}
+
+function getPointAtOrBefore(points: RankingPoint[], day: number) {
   return (
-    <div
-      className="absolute left-[54px] right-4 grid grid-cols-[minmax(190px,1fr)_82px] items-center gap-3 transition-[top] duration-700 ease-out"
-      style={{ top: TOP_OFFSET + (entry.rank - 1) * ROW_HEIGHT }}
-    >
-      <div className="min-w-0">
-        <div className="mb-1 flex items-center justify-between gap-3">
-          <div className="min-w-0 truncate text-sm font-black">
-            <span className="mr-2 text-[#27e7ff]">#{entry.rank}</span>
-            {player?.avatarEmoji ? <span className="mr-2">{player.avatarEmoji}</span> : null}
-            {player?.displayName ?? "Jugador"}
-          </div>
-          <div className="text-xs font-black text-slate-300">{entry.totalPoints} pts</div>
-        </div>
-        <div className="h-7 rounded-r-full bg-white/10">
-          <div
-            className="h-full rounded-r-full border border-white/20 transition-[width] duration-700 ease-out"
-            style={{
-              width: `${width}%`,
-              background: `linear-gradient(90deg, ${color}, rgba(255,255,255,0.82))`,
-            }}
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-1 text-[11px] font-black text-slate-300">
-        <span>P {entry.matchPoints}</span>
-        <span>G {entry.groupPoints}</span>
-        <span>KO {entry.knockoutPoints}</span>
-        <span>Gol {entry.scorerPoints}</span>
-      </div>
-    </div>
+    points
+      .slice()
+      .reverse()
+      .find((point) => point.day <= day) ??
+    points[0] ?? { day: 0, rank: 1 }
   );
 }
 
-function RankAxis({ count }: { count: number }) {
-  return (
-    <div className="absolute bottom-0 left-0 top-0 w-[42px]">
-      {Array.from({ length: count }).map((_, index) => (
-        <div
-          key={index}
-          className="absolute left-0 right-0 border-t border-white/10 pt-1 text-right text-xs font-black text-slate-500"
-          style={{ top: TOP_OFFSET + index * ROW_HEIGHT + 14 }}
-        >
-          {index + 1}
-        </div>
-      ))}
-    </div>
-  );
+function getPointAtOrAfter(points: RankingPoint[], day: number) {
+  return points.find((point) => point.day >= day) ?? points.at(-1) ?? { day: 0, rank: 1 };
 }
 
-function PathChart({
-  frames,
-  frameIndex,
-  chartHeight,
-  playerIds,
-  playerByUserId,
-}: {
-  frames: RankingEvolutionData["frames"];
-  frameIndex: number;
-  chartHeight: number;
-  playerIds: string[];
-  playerByUserId: Map<string, { displayName: string }>;
-}) {
-  const width = Math.max(740, frames.length * 18);
-  const activeFrames = frames.slice(0, frameIndex + 1);
+function xForDay(day: number, minDay: number) {
+  return CHART_LEFT + (day - minDay) * DAY_SPACING;
+}
 
-  return (
-    <svg
-      className="absolute inset-y-0 left-[54px] right-4 h-full w-[calc(100%-70px)] opacity-45"
-      viewBox={`0 0 ${width} ${chartHeight}`}
-      preserveAspectRatio="none"
-      aria-hidden="true"
-    >
-      {playerIds.map((userId) => {
-        const points = activeFrames
-          .map((frame, index) => {
-            const entry = frame.entries.find((item) => item.userId === userId);
-            if (!entry) return null;
-            const x = frames.length > 1 ? (index / (frames.length - 1)) * width : 0;
-            const y = TOP_OFFSET + (entry.rank - 1) * ROW_HEIGHT + 32;
-            return `${x},${y}`;
-          })
-          .filter(Boolean)
-          .join(" ");
+function yForRank(rank: number, maxRank: number) {
+  const normalized = maxRank <= 1 ? 0 : (rank - 1) / (maxRank - 1);
+  return CHART_TOP + normalized * (maxRank - 1) * RANK_SPACING;
+}
 
-        return (
-          <polyline
-            key={userId}
-            points={points}
-            fill="none"
-            stroke={colorForId(userId)}
-            strokeWidth="3"
-            vectorEffect="non-scaling-stroke"
-          >
-            <title>{playerByUserId.get(userId)?.displayName ?? "Jugador"}</title>
-          </polyline>
-        );
-      })}
-    </svg>
-  );
+function easeInOutCubic(value: number) {
+  return value < 0.5
+    ? 4 * value * value * value
+    : 1 - Math.pow(-2 * value + 2, 3) / 2;
 }
 
 function colorForId(id: string) {
   const colors = [
-    "#27e7ff",
-    "#ff2bd6",
-    "#ff7a1a",
-    "#3bd16f",
-    "#facc15",
-    "#a78bfa",
-    "#fb7185",
-    "#38bdf8",
+    "#FF3B30",
+    "#007AFF",
+    "#34C759",
+    "#FF9500",
+    "#AF52DE",
+    "#5AC8FA",
+    "#FF2D55",
+    "#FFD60A",
+    "#64D2FF",
+    "#BF5AF2",
   ];
   const total = id.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return colors[total % colors.length];
