@@ -46,6 +46,26 @@ const AWARD_REQUEST_FIELDS = [
   "best_young_player_id",
 ] as const;
 const DEFAULT_RESET_PASSWORD = "paquete";
+const PROFILE_AVATAR_EMOJIS = [
+  "⚽",
+  "🏆",
+  "🔥",
+  "💎",
+  "🚀",
+  "🧠",
+  "🎯",
+  "🍀",
+  "⭐",
+  "👑",
+  "😎",
+  "🤘",
+  "🥶",
+  "🥳",
+  "🪄",
+  "🎮",
+  "🎲",
+  "🧩",
+] as const;
 
 type AwardRequestField = (typeof AWARD_REQUEST_FIELDS)[number];
 type PredictionLockKey = "lock_matches" | "lock_scorers" | "lock_awards" | "lock_knockouts";
@@ -1000,6 +1020,38 @@ export async function updateOwnLeaguePaymentStatusAction(formData: FormData) {
   revalidatePath(`/league/${leagueId}/ranking`);
   revalidatePath(`/league/${leagueId}/profile`);
   revalidatePath(`/admin/leagues/${leagueId}/users`);
+}
+
+export async function updateOwnProfileAction(formData: FormData) {
+  const { user } = await requireUser();
+  const supabase = createSupabaseAdminClient();
+  const leagueId = String(formData.get("league_id"));
+  const displayName = String(formData.get("display_name") ?? "").trim();
+  const avatarEmoji = String(formData.get("avatar_emoji") ?? "").trim();
+
+  if (displayName.length < 2 || displayName.length > 32) {
+    redirect(`/league/${leagueId}/profile?error=El nombre debe tener entre 2 y 32 caracteres`);
+  }
+
+  const normalizedAvatarEmoji =
+    avatarEmoji && PROFILE_AVATAR_EMOJIS.includes(avatarEmoji as (typeof PROFILE_AVATAR_EMOJIS)[number])
+      ? avatarEmoji
+      : null;
+
+  await supabase
+    .from("profiles")
+    .update({
+      display_name: displayName,
+      avatar_emoji: normalizedAvatarEmoji,
+    })
+    .eq("id", user.id);
+
+  revalidatePath(`/league/${leagueId}`);
+  revalidatePath(`/league/${leagueId}/ranking`);
+  revalidatePath(`/league/${leagueId}/profile`);
+  revalidatePath(`/admin/leagues/${leagueId}/ranking`);
+  revalidatePath(`/admin/leagues/${leagueId}/users`);
+  redirect(`/league/${leagueId}/profile?saved=profile`);
 }
 
 export async function updateLeagueMemberPaymentStatusAction(formData: FormData) {

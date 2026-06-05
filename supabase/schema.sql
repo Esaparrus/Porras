@@ -11,6 +11,7 @@ create table public.profiles (
   email text not null unique,
   username text not null unique,
   display_name text not null,
+  avatar_emoji text,
   role public.user_role not null default 'player',
   created_at timestamptz not null default now()
 );
@@ -325,6 +326,17 @@ alter table public.player_selection_requests enable row level security;
 
 create policy "profiles self or admin read" on public.profiles
 for select using (id = auth.uid() or public.is_admin());
+create policy "profiles league members read" on public.profiles
+for select using (
+  exists (
+    select 1
+    from public.league_members current_member
+    join public.league_members target_member
+      on target_member.league_id = current_member.league_id
+    where current_member.user_id = auth.uid()
+      and target_member.user_id = profiles.id
+  )
+);
 create policy "profiles self update" on public.profiles
 for update using (id = auth.uid() or public.is_admin());
 

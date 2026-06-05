@@ -76,7 +76,9 @@ export default async function AdminRankingPage({
 
   const rows = scoreRows.map((score, index) => ({
     userId: score.user_id,
-    displayName: score.profiles?.display_name ?? "Jugador",
+    displayName: score.profiles?.display_name || score.profiles?.username || "Jugador",
+    username: score.profiles?.username ?? null,
+    avatarEmoji: score.profiles?.avatar_emoji ?? null,
     paymentStatus: paymentByUserId.get(score.user_id) ?? "pending",
     prize: getPrizeForPosition(index + 1, prizes),
     score,

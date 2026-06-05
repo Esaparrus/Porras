@@ -238,6 +238,8 @@ export function PredictionInput({ match }: { match: Match }) {
 type RankingEntry = {
   userId: string;
   displayName: string;
+  username?: string | null;
+  avatarEmoji?: string | null;
   paymentStatus: LeaguePaymentStatus;
   prize: number;
   score: Score;
@@ -371,13 +373,21 @@ export function RankingTable({
           <tbody>
             {rows.map((row, index) => {
               const playerHref = `/league/${leagueId}/players/${row.userId}`;
-              const playerName = allowPlayerLinks ? (
-                <Link href={playerHref} className="hover:text-[#27e7ff]">
-                  {row.displayName}
-                </Link>
-              ) : (
-                row.displayName
+              const playerLabel = (
+                <span className="inline-flex min-w-0 items-center gap-2">
+                  {row.avatarEmoji ? (
+                    <span className="text-xl leading-none" aria-hidden="true">
+                      {row.avatarEmoji}
+                    </span>
+                  ) : null}
+                  <span className="truncate">{row.displayName}</span>
+                </span>
               );
+              const playerName = allowPlayerLinks ? (
+                <Link href={playerHref} className="inline-flex min-w-0 hover:text-[#27e7ff]">
+                  {playerLabel}
+                </Link>
+              ) : playerLabel;
 
               return (
                 <tr key={row.userId} className="border-t border-white/10 align-top">
@@ -389,6 +399,9 @@ export function RankingTable({
                   <td className="px-4 py-4">
                     <div className="space-y-2">
                       <div className="font-black text-white">{playerName}</div>
+                      {row.username ? (
+                        <div className="text-xs font-semibold text-slate-400">@{row.username}</div>
+                      ) : null}
                       {allowPlayerLinks ? (
                         <Link
                           href={playerHref}

@@ -22,6 +22,7 @@ export type Profile = {
   email: string;
   username: string;
   display_name: string;
+  avatar_emoji: string | null;
   role: Role;
   created_at: string;
 };
