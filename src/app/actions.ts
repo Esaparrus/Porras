@@ -295,6 +295,7 @@ export async function saveMatchPredictionsAction(formData: FormData) {
   });
   await recalculateLeagueScores(leagueId);
   revalidatePath(`/league/${leagueId}/predictions`);
+  return { ok: true, savedAt: new Date().toISOString(), userId: user.id };
 }
 
 export async function saveScorerPredictionsAction(formData: FormData) {

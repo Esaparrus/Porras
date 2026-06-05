@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { AlertCircle, CalendarDays, Check, Grid2X2, Save } from "lucide-react";
 import { saveMatchPredictionsAction } from "@/app/actions";
 import { GroupStandingTable, MatchTeamLabel, TeamBadge } from "@/components/ui";
@@ -25,6 +26,12 @@ type KnockoutMatch = Match & {
 };
 
 type MatchSortMode = "group" | "date";
+type SaveMode = "auto" | "manual";
+type SaveStatus =
+  | { kind: "idle"; message: string }
+  | { kind: "saving"; mode: SaveMode; message: string }
+  | { kind: "saved"; mode: SaveMode; message: string }
+  | { kind: "error"; mode: SaveMode; message: string };
 
 const ROUND_32_SLOTS: Record<number, [string, string]> = {
   73: ["2A", "2B"],
@@ -105,6 +112,8 @@ export function PredictionWorkflow({
   groupLetters: string[];
   locked: boolean;
 }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [matchSortMode, setMatchSortMode] = useState<MatchSortMode>("group");
   const [draft, setDraft] = useState<Record<string, DraftPrediction>>(() =>
     Object.fromEntries(
@@ -121,6 +130,13 @@ export function PredictionWorkflow({
       }),
     ),
   );
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>({
+    kind: "idle",
+    message: locked ? "Las apuestas estan bloqueadas." : "Autoguardado activo.",
+  });
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inFlightSaveRef = useRef(false);
+  const queuedSaveModeRef = useRef<SaveMode | null>(null);
 
   const predictionRows = useMemo(
     () =>
@@ -221,6 +237,8 @@ export function PredictionWorkflow({
     const item = draft[match.id];
     return item?.home !== "" && item?.away !== "";
   }).length;
+  const draftSnapshot = useMemo(() => serializeDraftSnapshot(matches, draft), [draft, matches]);
+  const lastSavedSnapshotRef = useRef(draftSnapshot);
 
   const knockoutIssuesByRound = useMemo(
     () =>
@@ -245,6 +263,98 @@ export function PredictionWorkflow({
       ),
     [knockoutMatches],
   );
+
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+  const savePredictions = useCallback(async (mode: SaveMode) => {
+    if (locked) return;
+
+    const snapshot = serializeDraftSnapshot(matches, draft);
+    if (snapshot === lastSavedSnapshotRef.current) {
+      if (mode === "manual") {
+        setSaveStatus({
+          kind: "saved",
+          mode,
+          message: "Los resultados se han guardado.",
+        });
+      }
+      return;
+    }
+
+    if (inFlightSaveRef.current) {
+      queuedSaveModeRef.current = mode === "manual" ? "manual" : (queuedSaveModeRef.current ?? "auto");
+      return;
+    }
+
+    inFlightSaveRef.current = true;
+    setSaveStatus({
+      kind: "saving",
+      mode,
+      message: mode === "manual" ? "Guardando resultados..." : "Autoguardando...",
+    });
+
+    try {
+      await saveMatchPredictionsAction(buildPredictionFormData(leagueId, matches, draft));
+      lastSavedSnapshotRef.current = snapshot;
+      setSaveStatus({
+        kind: "saved",
+        mode,
+        message:
+          mode === "manual"
+            ? "Los resultados se han guardado."
+            : `Autoguardado a las ${formatSaveTime(new Date())}.`,
+      });
+      startTransition(() => {
+        router.refresh();
+      });
+    } catch {
+      setSaveStatus({
+        kind: "error",
+        mode,
+        message:
+          mode === "manual"
+            ? "No se han podido guardar los resultados."
+            : "Ha fallado el autoguardado. Pulsa Guardar apuestas.",
+      });
+    } finally {
+      inFlightSaveRef.current = false;
+      const queuedMode = queuedSaveModeRef.current;
+      queuedSaveModeRef.current = null;
+      if (queuedMode && serializeDraftSnapshot(matches, draft) !== lastSavedSnapshotRef.current) {
+        void savePredictions(queuedMode);
+      }
+    }
+  }, [draft, leagueId, locked, matches, router, startTransition]);
+
+  useEffect(() => {
+    if (locked || inFlightSaveRef.current) return;
+
+    if (draftSnapshot === lastSavedSnapshotRef.current) return;
+
+    setSaveStatus((current) =>
+      current.kind === "saving"
+        ? current
+        : { kind: "idle", message: "Cambios pendientes de autoguardado." },
+    );
+
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      void savePredictions("auto");
+    }, 1500);
+
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [draftSnapshot, locked, savePredictions]);
+
+  function handleManualSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    void savePredictions("manual");
+  }
+
+  const visibleSaveStatus = locked
+    ? { kind: "idle" as const, message: "Las apuestas estan bloqueadas." }
+    : saveStatus;
 
   function updateScore(match: KnockoutMatch | Match, side: "home" | "away", value: string) {
     setDraft((current) => {
@@ -278,9 +388,7 @@ export function PredictionWorkflow({
   }
 
   return (
-    <form action={saveMatchPredictionsAction} className="space-y-8">
-      <input type="hidden" name="league_id" value={leagueId} />
-      <input type="hidden" name="match_ids" value={matches.map((match) => match.id).join(",")} />
+    <form onSubmit={handleManualSubmit} className="space-y-8">
 
       <section id="grupos" className="glass scroll-mt-6 rounded-3xl p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -290,7 +398,7 @@ export function PredictionWorkflow({
             </p>
             <h2 className="mt-1 text-2xl font-black">Clasificacion de grupos</h2>
             <p className="mt-1 text-sm text-slate-300">
-              Se actualiza con los resultados que va guardando el admin.
+              Se actualiza automaticamente con los resultados que tienes guardados.
             </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
@@ -318,6 +426,13 @@ export function PredictionWorkflow({
                   </span>
                 </div>
                 <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3">
+                  <div className="mb-2 flex items-center gap-2 text-sm font-black text-slate-200">
+                    <Check className="h-4 w-4 text-[#ff7a1a]" />
+                    Clasificacion prevista
+                  </div>
+                  <GroupStandingTable rows={standingsByGroup.get(group) ?? []} />
+                </div>
+                <div className="mt-3 rounded-2xl border border-white/10 bg-black/10 p-3">
                   <div className="mb-2 flex items-center gap-2 text-sm font-black text-slate-200">
                     <Check className="h-4 w-4 text-[#ff7a1a]" />
                     Tabla real
@@ -414,19 +529,24 @@ export function PredictionWorkflow({
         />
       </section>
 
-      {matches.map((match) => (
-        <input
-          key={`winner-${match.id}`}
-          type="hidden"
-          name={`winner_${match.id}`}
-          value={draft[match.id]?.winnerId ?? ""}
-        />
-      ))}
+      <div className="space-y-3">
+        <div
+          className={
+            visibleSaveStatus.kind === "error"
+              ? "rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-100"
+              : visibleSaveStatus.kind === "saved"
+                ? "rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm font-bold text-emerald-100"
+                : "rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200"
+          }
+        >
+          {visibleSaveStatus.message}
+        </div>
 
-      <button disabled={locked} className="btn-primary sticky bottom-4 z-10 w-full shadow-2xl shadow-black/30">
-        <Save className="h-5 w-5" />
-        Guardar apuestas
-      </button>
+        <button disabled={locked} className="btn-primary sticky bottom-4 z-10 w-full shadow-2xl shadow-black/30">
+          <Save className="h-5 w-5" />
+          Guardar apuestas
+        </button>
+      </div>
     </form>
   );
 }
@@ -858,6 +978,47 @@ function numberOrNull(value?: string) {
   if (value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 && Number.isInteger(parsed) ? parsed : null;
+}
+
+function buildPredictionFormData(
+  leagueId: string,
+  matches: Match[],
+  draft: Record<string, DraftPrediction>,
+) {
+  const formData = new FormData();
+  formData.set("league_id", leagueId);
+  formData.set("match_ids", matches.map((match) => match.id).join(","));
+
+  matches.forEach((match) => {
+    const prediction = draft[match.id];
+    formData.set(`home_${match.id}`, prediction?.home ?? "");
+    formData.set(`away_${match.id}`, prediction?.away ?? "");
+    formData.set(`winner_${match.id}`, prediction?.winnerId ?? "");
+  });
+
+  return formData;
+}
+
+function serializeDraftSnapshot(matches: Match[], draft: Record<string, DraftPrediction>) {
+  return matches
+    .map((match) => {
+      const prediction = draft[match.id];
+      return [
+        match.id,
+        prediction?.home ?? "",
+        prediction?.away ?? "",
+        prediction?.winnerId ?? "",
+      ].join(":");
+    })
+    .join("|");
+}
+
+function formatSaveTime(value: Date) {
+  return new Intl.DateTimeFormat("es-ES", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Madrid",
+  }).format(value);
 }
 
 function formatMatchDate(value: string | null) {
