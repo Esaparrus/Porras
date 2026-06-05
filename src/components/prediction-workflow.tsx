@@ -135,7 +135,11 @@ export function PredictionWorkflow({
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [matchSortMode, setMatchSortMode] = useState<MatchSortMode>("group");
-  const [groupsExpanded, setGroupsExpanded] = useState(true);
+  const [sectionVisibility, setSectionVisibility] = useState({
+    groups: true,
+    matches: true,
+    knockout: true,
+  });
   const [draft, setDraft] = useState<Record<string, DraftPrediction>>(() =>
     Object.fromEntries(
       matches.map((match) => {
@@ -492,6 +496,13 @@ export function PredictionWorkflow({
     });
   }
 
+  function toggleSection(section: "groups" | "matches" | "knockout") {
+    setSectionVisibility((current) => ({
+      ...current,
+      [section]: !current[section],
+    }));
+  }
+
   return (
     <form onSubmit={handleManualSubmit} className="space-y-8">
 
@@ -514,16 +525,16 @@ export function PredictionWorkflow({
               type="button"
               className="prediction-collapse-button"
               aria-controls="group-standings-panel"
-              aria-expanded={groupsExpanded}
-              onClick={() => setGroupsExpanded((current) => !current)}
+              aria-expanded={sectionVisibility.groups}
+              onClick={() => toggleSection("groups")}
             >
-              {groupsExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              {groupsExpanded ? "Replegar grupos" : "Desplegar grupos"}
+              {sectionVisibility.groups ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {sectionVisibility.groups ? "Replegar grupos" : "Desplegar grupos"}
             </button>
           </div>
         </div>
 
-        {groupsExpanded ? (
+        {sectionVisibility.groups ? (
           <div id="group-standings-panel" className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {groupLetters.map((group) => {
               const groupMatches = matches.filter(
@@ -563,8 +574,7 @@ export function PredictionWorkflow({
           </div>
         ) : (
           <div id="group-standings-panel" className="prediction-groups-collapsed">
-            <span>{groupLetters.length} grupos replegados para bajar rapido a los partidos.</span>
-            <a href="#partidos">Ir a partidos</a>
+            <span>{groupLetters.length} grupos replegados.</span>
           </div>
         )}
       </section>
@@ -584,6 +594,16 @@ export function PredictionWorkflow({
             <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
               {completedGroupPredictions}/{groupMatchRows.length} partidos con marcador
             </div>
+            <button
+              type="button"
+              className="prediction-collapse-button"
+              aria-controls="matches-panel"
+              aria-expanded={sectionVisibility.matches}
+              onClick={() => toggleSection("matches")}
+            >
+              {sectionVisibility.matches ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {sectionVisibility.matches ? "Replegar partidos" : "Desplegar partidos"}
+            </button>
             <div className="prediction-sort-control" aria-label="Ordenar partidos">
               <button
                 type="button"
@@ -605,33 +625,39 @@ export function PredictionWorkflow({
           </div>
         </div>
 
-        <div className="mt-5 grid gap-4">
-          {predictionSections.map((section) => (
-            <section key={section.key} className="prediction-group-card">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-lg font-black">{section.title}</h3>
-                <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-slate-300">
-                  {section.matches.length} partidos
-                </span>
-              </div>
-              <div className="grid gap-3 lg:grid-cols-2">
-                {section.matches.map((match) => (
-                  <PredictionMatchCard
-                    key={match.id}
-                    match={match}
-                    draft={draft[match.id]}
-                    disabled={locked}
-                    onScoreChange={updateScore}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
+        {sectionVisibility.matches ? (
+          <div id="matches-panel" className="mt-5 grid gap-4">
+            {predictionSections.map((section) => (
+              <section key={section.key} className="prediction-group-card">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h3 className="text-lg font-black">{section.title}</h3>
+                  <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-slate-300">
+                    {section.matches.length} partidos
+                  </span>
+                </div>
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {section.matches.map((match) => (
+                    <PredictionMatchCard
+                      key={match.id}
+                      match={match}
+                      draft={draft[match.id]}
+                      disabled={locked}
+                      onScoreChange={updateScore}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <div id="matches-panel" className="prediction-groups-collapsed">
+            <span>{predictionSections.length} bloques de partidos replegados.</span>
+          </div>
+        )}
       </section>
 
       <section id="eliminatorias" className="glass scroll-mt-6 rounded-3xl p-4 sm:p-5">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-black uppercase text-[#ff7a1a]">
               Paso 3
@@ -641,25 +667,43 @@ export function PredictionWorkflow({
               Cada clasificado alimenta la siguiente ronda. Si hay empate, marca quién pasa.
             </p>
           </div>
+          <button
+            type="button"
+            className="prediction-collapse-button"
+            aria-controls="knockout-panel"
+            aria-expanded={sectionVisibility.knockout}
+            onClick={() => toggleSection("knockout")}
+          >
+            {sectionVisibility.knockout ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {sectionVisibility.knockout ? "Replegar eliminatorias" : "Desplegar eliminatorias"}
+          </button>
         </div>
 
-        {tiebreakPrompts.length ? (
-          <ManualTiebreakPanel
-            prompts={tiebreakPrompts}
-            draft={tiebreakDraft}
-            disabled={locked}
-            onChange={updateTiebreakOrder}
-          />
-        ) : null}
+        {sectionVisibility.knockout ? (
+          <div id="knockout-panel">
+            {tiebreakPrompts.length ? (
+              <ManualTiebreakPanel
+                prompts={tiebreakPrompts}
+                draft={tiebreakDraft}
+                disabled={locked}
+                onChange={updateTiebreakOrder}
+              />
+            ) : null}
 
-        <PredictionPosterBracket
-          draft={draft}
-          disabled={locked}
-          knockoutByNumber={knockoutByNumber}
-          knockoutIssuesByRound={knockoutIssuesByRound}
-          onScoreChange={updateScore}
-          onWinnerChange={updateWinner}
-        />
+            <PredictionPosterBracket
+              draft={draft}
+              disabled={locked}
+              knockoutByNumber={knockoutByNumber}
+              knockoutIssuesByRound={knockoutIssuesByRound}
+              onScoreChange={updateScore}
+              onWinnerChange={updateWinner}
+            />
+          </div>
+        ) : (
+          <div id="knockout-panel" className="prediction-groups-collapsed">
+            <span>El cuadro de eliminatorias esta replegado.</span>
+          </div>
+        )}
       </section>
 
       <div className="space-y-3">

@@ -218,8 +218,7 @@ select.field option {
   justify-content: flex-end;
 }
 
-.prediction-collapse-button,
-.prediction-groups-collapsed a {
+.prediction-collapse-button {
   align-items: center;
   background: #27e7ff;
   border: 3px solid #000;
@@ -237,21 +236,18 @@ select.field option {
   transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
-.prediction-collapse-button:hover,
-.prediction-groups-collapsed a:hover {
+.prediction-collapse-button:hover {
   background: #7cf3ff;
   box-shadow: 6px 6px 0 #000;
   transform: translate(-1px, -1px);
 }
 
-.prediction-collapse-button:active,
-.prediction-groups-collapsed a:active {
+.prediction-collapse-button:active {
   box-shadow: 2px 2px 0 #000;
   transform: translate(3px, 3px);
 }
 
-.prediction-collapse-button:focus-visible,
-.prediction-groups-collapsed a:focus-visible {
+.prediction-collapse-button:focus-visible {
   outline: 3px solid #fff;
   outline-offset: 4px;
 }
@@ -872,8 +868,7 @@ select.field option {
   }
 
   .prediction-group-summary,
-  .prediction-collapse-button,
-  .prediction-groups-collapsed a {
+  .prediction-collapse-button {
     width: 100%;
   }
 
