@@ -64,12 +64,12 @@ type AnimatedRankingReplayProps = {
   title?: string;
 };
 
-const CHART_LEFT = 68;
-const CHART_TOP = 54;
-const CHART_RIGHT = 172;
-const CHART_BOTTOM = 58;
-const DAY_SPACING = 112;
-const RANK_SPACING = 54;
+const CHART_WIDTH = 430;
+const CHART_LEFT = 52;
+const CHART_TOP = 82;
+const CHART_RIGHT = 74;
+const CHART_BOTTOM = 46;
+const DAY_SPACING = 92;
 
 export function AnimatedRankingReplay({
   data,
@@ -106,10 +106,10 @@ export function AnimatedRankingReplay({
   const segmentProgress = Math.min(1, Math.max(0, playhead - currentSegment));
   const easedDay = currentSegment + easeInOutCubic(segmentProgress);
   const activeDay = Math.round(playhead);
-  const chartWidth = Math.max(720, CHART_LEFT + CHART_RIGHT + Math.max(1, maxDay - minDay) * DAY_SPACING);
+  const chartWidth = CHART_WIDTH;
   const chartHeight = Math.max(
-    360,
-    CHART_TOP + CHART_BOTTOM + Math.max(1, maxRank - 1) * RANK_SPACING,
+    430,
+    CHART_TOP + CHART_BOTTOM + Math.max(1, maxDay - minDay) * DAY_SPACING,
   );
   const finished = hasStarted && playhead >= maxDay;
 
@@ -180,13 +180,13 @@ export function AnimatedRankingReplay({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.2em] text-[#27e7ff]">
-            Animated bump chart
+            Replay vertical
           </p>
           <h1 className="mt-1 text-2xl font-black leading-tight sm:text-3xl">
             {title}
           </h1>
           <p className="mt-1 text-sm font-semibold text-slate-300">
-            Tiempo de izquierda a derecha. Puesto 1 arriba.
+            Jornadas de arriba a abajo. Puestos en la escala superior.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -226,9 +226,9 @@ export function AnimatedRankingReplay({
         </div>
       </div>
 
-      <div className="relative mt-4 overflow-x-auto rounded-2xl border border-white/10 bg-[#050b14]">
+      <div className="relative mt-4 overflow-hidden rounded-2xl border border-white/10 bg-[#050b14]">
         {!hasStarted ? (
-          <div className="absolute inset-0 z-10 flex min-h-[360px] items-center justify-center bg-[#050b14]/82 p-6 text-center backdrop-blur-sm">
+          <div className="absolute inset-0 z-10 flex min-h-[430px] items-start justify-center bg-[#050b14]/82 p-6 pt-24 text-center backdrop-blur-sm">
             <div>
               <button type="button" className="btn-primary" onClick={play}>
                 <Play className="h-5 w-5" />
@@ -242,8 +242,8 @@ export function AnimatedRankingReplay({
         ) : null}
 
         <svg
-          className="block"
-          width={chartWidth}
+          className="block h-auto w-full"
+          width="100%"
           height={chartHeight}
           viewBox={`0 0 ${chartWidth} ${chartHeight}`}
           role="img"
@@ -263,20 +263,20 @@ export function AnimatedRankingReplay({
           <g opacity="0.9">
             {Array.from({ length: maxRank }).map((_, index) => {
               const rank = index + 1;
-              const y = yForRank(rank, maxRank);
+              const x = xForRank(rank, maxRank);
               return (
                 <g key={rank}>
                   <line
-                    x1={CHART_LEFT}
-                    x2={chartWidth - CHART_RIGHT}
-                    y1={y}
-                    y2={y}
-                    stroke="rgba(255,255,255,0.08)"
+                    x1={x}
+                    x2={x}
+                    y1={CHART_TOP - 26}
+                    y2={chartHeight - CHART_BOTTOM + 8}
+                    stroke="rgba(255,255,255,0.07)"
                   />
                   <text
-                    x={CHART_LEFT - 14}
-                    y={y + 4}
-                    textAnchor="end"
+                    x={x}
+                    y={30}
+                    textAnchor="middle"
                     fill={rank === 1 ? "#27e7ff" : "#94a3b8"}
                     fontSize="12"
                     fontWeight="900"
@@ -288,20 +288,20 @@ export function AnimatedRankingReplay({
             })}
 
             {allDays.map((day) => {
-              const x = xForDay(day, minDay);
+              const y = yForDay(day, minDay);
               return (
                 <g key={day}>
                   <line
-                    x1={x}
-                    x2={x}
-                    y1={CHART_TOP - 16}
-                    y2={chartHeight - CHART_BOTTOM + 10}
+                    x1={CHART_LEFT - 8}
+                    x2={chartWidth - CHART_RIGHT + 24}
+                    y1={y}
+                    y2={y}
                     stroke="rgba(255,255,255,0.06)"
                   />
                   <text
-                    x={x}
-                    y={chartHeight - 22}
-                    textAnchor="middle"
+                    x={CHART_LEFT - 16}
+                    y={y + 4}
+                    textAnchor="end"
                     fill={Math.round(easedDay) === day ? "#ff7a1a" : "#94a3b8"}
                     fontSize="12"
                     fontWeight="900"
@@ -317,6 +317,7 @@ export function AnimatedRankingReplay({
             ? orderedData.map((participant) => {
                 const current = getInterpolatedPosition(participant.points, easedDay, maxRank);
                 const trail = buildTrailPoints(participant.points, easedDay, maxRank);
+                const labelAtEnd = current.x > chartWidth - 150;
 
                 return (
                   <g key={participant.id}>
@@ -339,10 +340,11 @@ export function AnimatedRankingReplay({
                       filter="url(#ranking-dot-glow)"
                     />
                     <text
-                      x={current.x + 14}
+                      x={labelAtEnd ? current.x - 14 : current.x + 14}
                       y={current.y + 5}
+                      textAnchor={labelAtEnd ? "end" : "start"}
                       fill="#f8fafc"
-                      fontSize="13"
+                      fontSize="12"
                       fontWeight="900"
                       paintOrder="stroke"
                       stroke="#050b14"
@@ -371,7 +373,7 @@ export function RankingEvolutionChart({
   const dayLabels = useMemo(() => data.frames.map((frame) => frame.label), [data.frames]);
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#06111f] p-3 text-white sm:p-5">
+    <main className="min-h-screen bg-[#06111f] p-3 text-white sm:p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
         <Link
           href={`/league/${leagueId}/ranking`}
@@ -381,7 +383,7 @@ export function RankingEvolutionChart({
           <ArrowLeft className="h-6 w-6" />
         </Link>
         <div className="text-right text-xs font-black uppercase tracking-[0.18em] text-slate-300">
-          Gira el movil para verlo mas ancho
+          Vista movil vertical
         </div>
       </div>
 
@@ -418,11 +420,12 @@ function toParticipants(data: RankingEvolutionData): Participant[] {
 }
 
 function buildTrailPoints(points: RankingPoint[], currentDay: number, maxRank: number) {
+  const minDay = points[0]?.day ?? 0;
   const trail = points
     .filter((point) => point.day <= Math.floor(currentDay))
     .map((point) => ({
-      x: xForDay(point.day, points[0]?.day ?? 0),
-      y: yForRank(point.rank, maxRank),
+      x: xForRank(point.rank, maxRank),
+      y: yForDay(point.day, minDay),
     }));
 
   const current = getInterpolatedPosition(points, currentDay, maxRank);
@@ -448,8 +451,8 @@ function getInterpolatedPosition(
   const day = previous.day + (next.day - previous.day) * amount;
 
   return {
-    x: xForDay(day, minDay),
-    y: yForRank(rank, maxRank),
+    x: xForRank(rank, maxRank),
+    y: yForDay(day, minDay),
   };
 }
 
@@ -467,13 +470,13 @@ function getPointAtOrAfter(points: RankingPoint[], day: number) {
   return points.find((point) => point.day >= day) ?? points.at(-1) ?? { day: 0, rank: 1 };
 }
 
-function xForDay(day: number, minDay: number) {
-  return CHART_LEFT + (day - minDay) * DAY_SPACING;
+function xForRank(rank: number, maxRank: number) {
+  const normalized = maxRank <= 1 ? 0 : (rank - 1) / (maxRank - 1);
+  return CHART_LEFT + normalized * (CHART_WIDTH - CHART_LEFT - CHART_RIGHT);
 }
 
-function yForRank(rank: number, maxRank: number) {
-  const normalized = maxRank <= 1 ? 0 : (rank - 1) / (maxRank - 1);
-  return CHART_TOP + normalized * (maxRank - 1) * RANK_SPACING;
+function yForDay(day: number, minDay: number) {
+  return CHART_TOP + (day - minDay) * DAY_SPACING;
 }
 
 function easeInOutCubic(value: number) {
