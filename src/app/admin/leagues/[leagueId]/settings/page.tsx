@@ -130,7 +130,10 @@ export default async function SettingsPage({
         <div className="space-y-6">
           <form action={updateLeagueLocksAction} className="glass rounded-3xl p-5">
             <input type="hidden" name="league_id" value={leagueId} />
-            <h2 className="text-xl font-black">Bloqueos y visibilidad</h2>
+            <h2 className="text-xl font-black">Bloqueos manuales</h2>
+            <p className="mt-3 text-sm text-slate-300">
+              Úsalo solo si quieres cerrar partes concretas antes del inicio.
+            </p>
             <label className="mt-4 block">
               <span className="label">Estado</span>
               <select name="status" defaultValue={league?.status} className="field mt-2">
@@ -158,7 +161,7 @@ export default async function SettingsPage({
                 <span className="font-semibold">{label}</span>
               </label>
             ))}
-            <button className="btn-primary mt-6 w-full">Guardar bloqueos</button>
+            <button className="btn-primary mt-6 w-full">Guardar bloqueos manuales</button>
           </form>
 
           <section className="glass rounded-3xl p-5">
