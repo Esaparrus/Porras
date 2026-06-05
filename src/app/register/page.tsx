@@ -51,7 +51,7 @@ export default async function RegisterPage({
                 name="league_code"
                 required
                 className="field mt-2 uppercase"
-                placeholder="ARAZURI-2026"
+                placeholder="ARAZURI"
               />
             </label>
             <button className="btn-primary w-full">Crear cuenta y entrar</button>
