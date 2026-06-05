@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowLeft, Pause, Play, RotateCcw } from "lucide-react";
+import { Pause, Play, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RankingEvolutionData } from "@/lib/ranking-evolution";
 
@@ -363,7 +362,6 @@ export function AnimatedRankingReplay({
 }
 
 export function RankingEvolutionChart({
-  leagueId,
   data,
 }: {
   leagueId: string;
@@ -374,14 +372,7 @@ export function RankingEvolutionChart({
 
   return (
     <main className="min-h-screen bg-[#06111f] p-3 text-white sm:p-5">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <Link
-          href={`/league/${leagueId}/ranking`}
-          className="inline-flex h-12 w-12 items-center justify-center border-4 border-black bg-[#27e7ff] text-black shadow-[5px_5px_0_#000]"
-          aria-label="Volver al ranking"
-        >
-          <ArrowLeft className="h-6 w-6" />
-        </Link>
+      <div className="mb-4 flex justify-end">
         <div className="text-right text-xs font-black uppercase tracking-[0.18em] text-slate-300">
           Vista movil vertical
         </div>

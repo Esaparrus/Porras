@@ -4,7 +4,6 @@ import {
   BadgeEuro,
   Crown,
   Eye,
-  ChartNoAxesColumnIncreasing,
   Loader2,
   ShieldCheck,
   ShieldX,
@@ -320,13 +319,6 @@ export function RankingTable({
                   {summary.finishedMatches} de {summary.totalMatches} partidos ya estan cerrados.
                   {summary.totalMatches > 0 ? ` Quedan ${summary.totalMatches - summary.finishedMatches} por decidir.` : ""}
                 </p>
-                <Link
-                  href={`/league/${leagueId}/ranking/evolution`}
-                  className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#27e7ff]/40 bg-[#27e7ff]/10 px-4 py-2 text-xs font-black uppercase text-[#27e7ff] hover:bg-[#27e7ff] hover:text-black"
-                >
-                  <ChartNoAxesColumnIncreasing className="h-4 w-4" />
-                  Ver evolucion
-                </Link>
               </div>
               <div className="min-w-[220px] rounded-[1.75rem] border border-white/10 bg-black/25 p-4">
                 <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">
