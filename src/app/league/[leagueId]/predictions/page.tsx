@@ -12,6 +12,7 @@ import type {
   Match,
   MatchPrediction,
   PointSettings,
+  PredictionTiebreakSelection,
   PlayerSelectionRequest,
   Team,
 } from "@/lib/types";
@@ -32,6 +33,7 @@ export default async function PredictionsPage({
     { data: scorerPredictions },
     { data: awardPrediction },
     { data: requestRows },
+    { data: tiebreakRows },
     { data: settings },
   ] = await Promise.all([
     supabase.from("leagues").select("*").eq("id", leagueId).single(),
@@ -63,6 +65,12 @@ export default async function PredictionsPage({
       .select("*")
       .eq("league_id", leagueId)
       .eq("user_id", user.id),
+    supabase
+      .from("prediction_tiebreak_selections")
+      .select("*")
+      .eq("league_id", leagueId)
+      .eq("user_id", user.id)
+      .order("rank"),
     supabase
       .from("league_point_settings")
       .select("*")
@@ -123,6 +131,7 @@ export default async function PredictionsPage({
           leagueId={leagueId}
           matches={matchRows}
           predictions={predictionRows}
+          tiebreakSelections={(tiebreakRows ?? []) as PredictionTiebreakSelection[]}
           teams={teamRows}
           groupLetters={groupLetters}
           locked={Boolean(leagueClosed || league?.lock_matches || league?.lock_knockouts)}

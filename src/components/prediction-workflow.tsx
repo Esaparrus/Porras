@@ -7,11 +7,29 @@ import { saveMatchPredictionsAction } from "@/app/actions";
 import { GroupStandingTable, MatchTeamLabel, TeamBadge } from "@/components/ui";
 import { STAGE_LABELS } from "@/lib/constants";
 import {
+  BEST_THIRD_SCOPE_KEY,
+  buildBestThirdTiebreakPrompt,
+  buildGroupTiebreakPrompt,
+  buildManualRankMap,
+  buildTiebreakDraft,
+  getTiebreakScopeId,
+  pushUniqueTieGroup,
+  type PredictionTiebreakDraft,
+  type PredictionTiebreakPrompt,
+} from "@/lib/prediction-tiebreaks";
+import {
   calculateBestThirdPlacedTeams,
   calculatePredictedGroupStandings,
   calculateRealGroupStandings,
 } from "@/lib/scoring";
-import type { Match, MatchPrediction, StandingRow, Team } from "@/lib/types";
+import { getThirdPlaceAssignments } from "@/lib/world-cup-third-place-assignments";
+import type {
+  Match,
+  MatchPrediction,
+  PredictionTiebreakSelection,
+  StandingRow,
+  Team,
+} from "@/lib/types";
 import { getTeamFlagImageUrl } from "@/lib/utils";
 
 type DraftPrediction = {
@@ -101,6 +119,7 @@ export function PredictionWorkflow({
   leagueId,
   matches,
   predictions,
+  tiebreakSelections,
   teams,
   groupLetters,
   locked,
@@ -108,6 +127,7 @@ export function PredictionWorkflow({
   leagueId: string;
   matches: Match[];
   predictions: MatchPrediction[];
+  tiebreakSelections: PredictionTiebreakSelection[];
   teams: Team[];
   groupLetters: string[];
   locked: boolean;
@@ -129,6 +149,9 @@ export function PredictionWorkflow({
         ];
       }),
     ),
+  );
+  const [tiebreakDraft, setTiebreakDraft] = useState<PredictionTiebreakDraft>(() =>
+    buildTiebreakDraft(tiebreakSelections),
   );
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({
     kind: "idle",
@@ -152,17 +175,31 @@ export function PredictionWorkflow({
       })),
     [draft, leagueId, matches],
   );
-
-  const standingsByGroup = useMemo(
-    () =>
-      new Map(
-        groupLetters.map((group) => [
+  const predictedGroupState = useMemo(() => {
+    const unresolvedGroupTies: Array<{ group: string; rows: StandingRow[] }> = [];
+    const standingsByGroup = new Map(
+      groupLetters.map((group) => {
+        const groupUnresolved: StandingRow[][] = [];
+        const rows = calculatePredictedGroupStandings(
+          teams,
+          matches,
+          predictionRows,
           group,
-          calculatePredictedGroupStandings(teams, matches, predictionRows, group),
-        ]),
-      ),
-    [groupLetters, matches, predictionRows, teams],
-  );
+          {
+            manualRanksByTeamId: buildManualRankMap(
+              tiebreakDraft[getTiebreakScopeId("group", group)],
+            ),
+            collectUnresolvedTie: (rows) => pushUniqueTieGroup(groupUnresolved, rows),
+          },
+        );
+        groupUnresolved.forEach((rows) => unresolvedGroupTies.push({ group, rows }));
+        return [group, rows];
+      }),
+    );
+
+    return { standingsByGroup, unresolvedGroupTies };
+  }, [groupLetters, matches, predictionRows, teams, tiebreakDraft]);
+  const standingsByGroup = predictedGroupState.standingsByGroup;
   const realStandingsByGroup = useMemo(
     () =>
       new Map(
@@ -221,23 +258,72 @@ export function PredictionWorkflow({
   );
   const predictionSections =
     matchSortMode === "group" ? groupedPredictionMatches : datedPredictionMatches;
+  const predictedBestThirdState = useMemo(() => {
+    const unresolvedBestThirdTies: StandingRow[][] = [];
+    const bestThirds = calculateBestThirdPlacedTeams(
+      Array.from(standingsByGroup.values()),
+      {
+        manualRanksByTeamId: buildManualRankMap(
+          tiebreakDraft[getTiebreakScopeId("best_third", BEST_THIRD_SCOPE_KEY)],
+        ),
+        collectUnresolvedTie: (rows) => pushUniqueTieGroup(unresolvedBestThirdTies, rows),
+      },
+    );
+    return {
+      bestThirds,
+      unresolvedBestThirdTies,
+      thirdPlaceAssignments: getThirdPlaceAssignments(bestThirds),
+    };
+  }, [standingsByGroup, tiebreakDraft]);
+  const tiebreakPrompts = useMemo(() => {
+    const prompts = predictedGroupState.unresolvedGroupTies
+      .filter(({ group }) => completedGroups.has(group))
+      .map(({ group, rows }) => buildGroupTiebreakPrompt(group, rows));
+    if (
+      allGroupsPredicted &&
+      predictedBestThirdState.unresolvedBestThirdTies.length
+    ) {
+      prompts.push(
+        buildBestThirdTiebreakPrompt(
+          predictedBestThirdState.unresolvedBestThirdTies[0] ?? [],
+        ),
+      );
+    }
+    return prompts;
+  }, [
+    allGroupsPredicted,
+    completedGroups,
+    predictedBestThirdState.unresolvedBestThirdTies,
+    predictedGroupState.unresolvedGroupTies,
+  ]);
   const knockoutMatches = useMemo(
     () =>
       buildKnockoutMatches(
         matches,
         standingsByGroup,
-        draft,
-        completedGroups,
-        allGroupsPredicted,
+      predictedBestThirdState.thirdPlaceAssignments,
+      draft,
+      completedGroups,
+      allGroupsPredicted,
       ),
-    [allGroupsPredicted, completedGroups, draft, matches, standingsByGroup],
+    [
+      allGroupsPredicted,
+      completedGroups,
+      draft,
+      matches,
+      predictedBestThirdState.thirdPlaceAssignments,
+      standingsByGroup,
+    ],
   );
   const finishedGroupMatches = groupMatchRows.filter((match) => match.is_finished).length;
   const completedGroupPredictions = groupMatchRows.filter((match) => {
     const item = draft[match.id];
     return item?.home !== "" && item?.away !== "";
   }).length;
-  const draftSnapshot = useMemo(() => serializeDraftSnapshot(matches, draft), [draft, matches]);
+  const draftSnapshot = useMemo(
+    () => serializeDraftSnapshot(matches, draft, tiebreakDraft),
+    [draft, matches, tiebreakDraft],
+  );
   const lastSavedSnapshotRef = useRef(draftSnapshot);
 
   const knockoutIssuesByRound = useMemo(
@@ -268,7 +354,7 @@ export function PredictionWorkflow({
   const savePredictions = useCallback(async (mode: SaveMode) => {
     if (locked) return;
 
-    const snapshot = serializeDraftSnapshot(matches, draft);
+    const snapshot = serializeDraftSnapshot(matches, draft, tiebreakDraft);
     if (snapshot === lastSavedSnapshotRef.current) {
       if (mode === "manual") {
         setSaveStatus({
@@ -293,7 +379,9 @@ export function PredictionWorkflow({
     });
 
     try {
-      await saveMatchPredictionsAction(buildPredictionFormData(leagueId, matches, draft));
+      await saveMatchPredictionsAction(
+        buildPredictionFormData(leagueId, matches, draft, tiebreakDraft),
+      );
       lastSavedSnapshotRef.current = snapshot;
       setSaveStatus({
         kind: "saved",
@@ -319,11 +407,15 @@ export function PredictionWorkflow({
       inFlightSaveRef.current = false;
       const queuedMode = queuedSaveModeRef.current;
       queuedSaveModeRef.current = null;
-      if (queuedMode && serializeDraftSnapshot(matches, draft) !== lastSavedSnapshotRef.current) {
+      if (
+        queuedMode &&
+        serializeDraftSnapshot(matches, draft, tiebreakDraft) !==
+          lastSavedSnapshotRef.current
+      ) {
         void savePredictions(queuedMode);
       }
     }
-  }, [draft, leagueId, locked, matches, router, startTransition]);
+  }, [draft, leagueId, locked, matches, router, startTransition, tiebreakDraft]);
 
   useEffect(() => {
     if (locked || inFlightSaveRef.current) return;
@@ -385,6 +477,18 @@ export function PredictionWorkflow({
         winnerId,
       },
     }));
+  }
+
+  function updateTiebreakOrder(scopeId: string, position: number, teamId: string) {
+    setTiebreakDraft((current) => {
+      const next = [...(current[scopeId] ?? [])];
+      const duplicateIndex = next.findIndex(
+        (candidate, index) => candidate === teamId && index !== position,
+      );
+      if (duplicateIndex >= 0) next[duplicateIndex] = "";
+      next[position] = teamId;
+      return { ...current, [scopeId]: next };
+    });
   }
 
   return (
@@ -519,6 +623,15 @@ export function PredictionWorkflow({
           </div>
         </div>
 
+        {tiebreakPrompts.length ? (
+          <ManualTiebreakPanel
+            prompts={tiebreakPrompts}
+            draft={tiebreakDraft}
+            disabled={locked}
+            onChange={updateTiebreakOrder}
+          />
+        ) : null}
+
         <PredictionPosterBracket
           draft={draft}
           disabled={locked}
@@ -621,6 +734,68 @@ function PredictionPosterBracket({
         />
       </div>
     </div>
+  );
+}
+
+function ManualTiebreakPanel({
+  prompts,
+  draft,
+  disabled,
+  onChange,
+}: {
+  prompts: PredictionTiebreakPrompt[];
+  draft: PredictionTiebreakDraft;
+  disabled: boolean;
+  onChange: (scopeId: string, position: number, teamId: string) => void;
+}) {
+  return (
+    <section className="manual-tiebreak-panel mt-5">
+      <div className="manual-tiebreak-header">
+        <AlertCircle className="h-5 w-5 text-[#ff7a1a]" />
+        <div>
+          <h3>Desempates manuales</h3>
+          <p>
+            Aquí no metes tarjetas amarillas. Si tus resultados llegan al fair
+            play, ordénalo a mano para cerrar los cruces.
+          </p>
+        </div>
+      </div>
+      <div className="manual-tiebreak-grid">
+        {prompts.map((prompt) => {
+          const orderedTeamIds = draft[prompt.scopeId] ?? [];
+          return (
+            <article key={prompt.scopeId} className="manual-tiebreak-card">
+              <div className="manual-tiebreak-copy">
+                <h4>{prompt.title}</h4>
+                <p>{prompt.description}</p>
+              </div>
+              <div className="manual-tiebreak-slots">
+                {prompt.teams.map((_, index) => (
+                  <label key={`${prompt.scopeId}-${index}`} className="manual-tiebreak-slot">
+                    <span>{index + 1}.º desempate</span>
+                    <select
+                      className="field"
+                      disabled={disabled}
+                      value={orderedTeamIds[index] ?? ""}
+                      onChange={(event) =>
+                        onChange(prompt.scopeId, index, event.target.value)
+                      }
+                    >
+                      <option value="">Elige selección</option>
+                      {prompt.teams.map((team) => (
+                        <option key={team.id} value={team.id}>
+                          {team.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -873,14 +1048,16 @@ function CompactTeamCode({ team }: { team: Team }) {
 function buildKnockoutMatches(
   matches: Match[],
   standingsByGroup: Map<string, StandingRow[]>,
+  thirdPlaceAssignments: ReturnType<typeof getThirdPlaceAssignments>,
   draft: Record<string, DraftPrediction>,
   completedGroups: Set<string>,
   allGroupsPredicted: boolean,
 ) {
   const byNumber = new Map(matches.map((match) => [match.match_number ?? 0, match]));
   const derived = new Map<number, KnockoutMatch>();
-  const bestThirds = calculateBestThirdPlacedTeams(Array.from(standingsByGroup.values()));
-  const usedThirds = new Set<string>();
+  const resolvedThirdPlaceAssignments = allGroupsPredicted
+    ? thirdPlaceAssignments
+    : null;
 
   Object.entries(ROUND_32_SLOTS).forEach(([numberText, [homeSlot, awaySlot]]) => {
     const number = Number(numberText);
@@ -890,10 +1067,24 @@ function buildKnockoutMatches(
       ...match,
       predictedHomeTeam:
         match.home_team ??
-        resolveGroupSlot(homeSlot, standingsByGroup, bestThirds, usedThirds, completedGroups, allGroupsPredicted),
+        resolveGroupSlot(
+          homeSlot,
+          awaySlot,
+          standingsByGroup,
+          resolvedThirdPlaceAssignments,
+          completedGroups,
+          allGroupsPredicted,
+        ),
       predictedAwayTeam:
         match.away_team ??
-        resolveGroupSlot(awaySlot, standingsByGroup, bestThirds, usedThirds, completedGroups, allGroupsPredicted),
+        resolveGroupSlot(
+          awaySlot,
+          homeSlot,
+          standingsByGroup,
+          resolvedThirdPlaceAssignments,
+          completedGroups,
+          allGroupsPredicted,
+        ),
     });
   });
 
@@ -928,9 +1119,9 @@ function buildKnockoutMatches(
 
 function resolveGroupSlot(
   slot: string,
+  pairedSlot: string,
   standingsByGroup: Map<string, StandingRow[]>,
-  bestThirds: StandingRow[],
-  usedThirds: Set<string>,
+  thirdPlaceAssignments: ReturnType<typeof getThirdPlaceAssignments>,
   completedGroups: Set<string>,
   allGroupsPredicted: boolean,
 ) {
@@ -941,17 +1132,11 @@ function resolveGroupSlot(
     return standingsByGroup.get(group)?.[position - 1]?.team ?? null;
   }
 
-  if (!allGroupsPredicted) return null;
-  const allowedGroups = new Set(slot.slice(1).split(""));
-  const row = bestThirds.find(
-    (third) =>
-      third.team.group_letter &&
-      allowedGroups.has(third.team.group_letter) &&
-      !usedThirds.has(third.team.id),
-  );
-  if (!row) return null;
-  usedThirds.add(row.team.id);
-  return row.team;
+  if (!allGroupsPredicted || !thirdPlaceAssignments || !pairedSlot.startsWith("1")) {
+    return null;
+  }
+
+  return thirdPlaceAssignments.get(pairedSlot)?.team ?? null;
 }
 
 function resolveWinner(match: KnockoutMatch, draft?: DraftPrediction) {
@@ -984,10 +1169,12 @@ function buildPredictionFormData(
   leagueId: string,
   matches: Match[],
   draft: Record<string, DraftPrediction>,
+  tiebreakDraft: PredictionTiebreakDraft,
 ) {
   const formData = new FormData();
   formData.set("league_id", leagueId);
   formData.set("match_ids", matches.map((match) => match.id).join(","));
+  formData.set("tiebreak_selections", JSON.stringify(tiebreakDraft));
 
   matches.forEach((match) => {
     const prediction = draft[match.id];
@@ -999,8 +1186,12 @@ function buildPredictionFormData(
   return formData;
 }
 
-function serializeDraftSnapshot(matches: Match[], draft: Record<string, DraftPrediction>) {
-  return matches
+function serializeDraftSnapshot(
+  matches: Match[],
+  draft: Record<string, DraftPrediction>,
+  tiebreakDraft: PredictionTiebreakDraft,
+) {
+  const matchSnapshot = matches
     .map((match) => {
       const prediction = draft[match.id];
       return [
@@ -1011,6 +1202,11 @@ function serializeDraftSnapshot(matches: Match[], draft: Record<string, DraftPre
       ].join(":");
     })
     .join("|");
+  const tiebreakSnapshot = Object.entries(tiebreakDraft)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([scopeId, orderedTeamIds]) => `${scopeId}:${orderedTeamIds.join(",")}`)
+    .join("|");
+  return `${matchSnapshot}__${tiebreakSnapshot}`;
 }
 
 function formatSaveTime(value: Date) {

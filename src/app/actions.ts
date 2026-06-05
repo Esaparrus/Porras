@@ -5,8 +5,14 @@ import { redirect } from "next/navigation";
 import { DEFAULT_POINT_SETTINGS } from "@/lib/constants";
 import { requireAdmin, requireUser } from "@/lib/data";
 import {
+  BEST_THIRD_SCOPE_KEY,
+  buildManualRankMap,
+  buildTiebreakRows,
+} from "@/lib/prediction-tiebreaks";
+import {
   calculateAllMatchPointsForUser,
   calculateAwardPoints,
+  calculateBestThirdPlacedTeams,
   calculateGroupPredictionPoints,
   calculateLiveKnockoutMatchPoints,
   calculatePredictedGroupStandings,
@@ -17,7 +23,12 @@ import {
 } from "@/lib/scoring";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { Match, MatchPrediction, PointSettings } from "@/lib/types";
+import type {
+  Match,
+  MatchPrediction,
+  PointSettings,
+  PredictionTiebreakSelection,
+} from "@/lib/types";
 import { generateKnockoutFromResults, getMatchWinner } from "@/lib/world-cup";
 import {
   authEmailForUsername,
@@ -315,6 +326,18 @@ export async function saveMatchPredictionsAction(formData: FormData) {
   await supabase.from("match_predictions").upsert(rows, {
     onConflict: "league_id,user_id,match_id",
   });
+  const tiebreakDraft = JSON.parse(
+    String(formData.get("tiebreak_selections") ?? "{}"),
+  ) as Record<string, string[]>;
+  await supabase
+    .from("prediction_tiebreak_selections")
+    .delete()
+    .eq("league_id", leagueId)
+    .eq("user_id", user.id);
+  const tiebreakRows = buildTiebreakRows(leagueId, user.id, tiebreakDraft);
+  if (tiebreakRows.length) {
+    await supabase.from("prediction_tiebreak_selections").insert(tiebreakRows);
+  }
   await recalculateLeagueScores(leagueId);
   revalidatePath(`/league/${leagueId}/predictions`);
   return { ok: true, savedAt: new Date().toISOString(), userId: user.id };
@@ -1000,6 +1023,7 @@ export async function recalculateLeagueScores(leagueId: string) {
       matchPredictionsResult,
       scorerPredictionsResult,
       awardPredictionResult,
+      tiebreakSelectionsResult,
     ] = await Promise.all([
       supabase
         .from("match_predictions")
@@ -1017,9 +1041,40 @@ export async function recalculateLeagueScores(leagueId: string) {
         .eq("league_id", leagueId)
         .eq("user_id", userId)
         .maybeSingle(),
+      supabase
+        .from("prediction_tiebreak_selections")
+        .select("*")
+        .eq("league_id", leagueId)
+        .eq("user_id", userId)
+        .order("rank"),
     ]);
 
     const matchPredictions = (matchPredictionsResult.data ?? []) as MatchPrediction[];
+    const tiebreakSelections = (tiebreakSelectionsResult.data ?? []) as PredictionTiebreakSelection[];
+    const groupTiebreaks = new Map(
+      groupLetters.map((group) => [
+        group,
+        buildManualRankMap(
+          tiebreakSelections
+            .filter(
+              (selection) =>
+                selection.scope_type === "group" && selection.scope_key === group,
+            )
+            .sort((left, right) => left.rank - right.rank)
+            .map((selection) => selection.team_id),
+        ),
+      ]),
+    );
+    const bestThirdManualRanks = buildManualRankMap(
+      tiebreakSelections
+        .filter(
+          (selection) =>
+            selection.scope_type === "best_third" &&
+            selection.scope_key === BEST_THIRD_SCOPE_KEY,
+        )
+        .sort((left, right) => left.rank - right.rank)
+        .map((selection) => selection.team_id),
+    );
     const groupPredictions = matchPredictions.filter((prediction) => {
       const match = matches.find((item) => item.id === prediction.match_id);
       return match?.stage === "group";
@@ -1035,13 +1090,21 @@ export async function recalculateLeagueScores(leagueId: string) {
       settings,
     );
     const predictedGroups = groupLetters.map((group) =>
-      calculatePredictedGroupStandings(teams, matches, groupPredictions, group),
+      calculatePredictedGroupStandings(teams, matches, groupPredictions, group, {
+        manualRanksByTeamId: groupTiebreaks.get(group),
+      }),
+    );
+    const predictedBestThirdIds = new Set(
+      calculateBestThirdPlacedTeams(predictedGroups, {
+        manualRanksByTeamId: bestThirdManualRanks,
+      }).map((row) => row.team.id),
     );
     const groupPoints = calculateGroupPredictionPoints(
       predictedGroups,
       realGroups,
       settings,
       completedGroups,
+      predictedBestThirdIds,
     );
     const knockoutPoints = knockoutPredictions.reduce((total, prediction) => {
       const match = matches.find((item) => item.id === prediction.match_id);

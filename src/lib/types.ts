@@ -136,6 +136,19 @@ export type MatchPrediction = {
   points: number;
 };
 
+export type PredictionTiebreakScopeType = "group" | "best_third";
+
+export type PredictionTiebreakSelection = {
+  id: string;
+  league_id: string;
+  user_id: string;
+  scope_type: PredictionTiebreakScopeType;
+  scope_key: string;
+  team_id: string;
+  rank: number;
+  created_at: string;
+};
+
 export type PointSettings = {
   id?: string;
   league_id: string;

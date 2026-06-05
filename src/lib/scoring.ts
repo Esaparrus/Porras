@@ -8,6 +8,18 @@ import type {
 } from "@/lib/types";
 import { footballSign } from "@/lib/utils";
 
+type TiebreakCollector = (rows: StandingRow[]) => void;
+
+type GroupStandingOptions = {
+  collectUnresolvedTie?: TiebreakCollector;
+  manualRanksByTeamId?: Map<string, number>;
+};
+
+type BestThirdOptions = {
+  collectUnresolvedTie?: TiebreakCollector;
+  manualRanksByTeamId?: Map<string, number>;
+};
+
 export function calculateMatchPredictionPoints(
   prediction: Pick<
     MatchPrediction,
@@ -73,13 +85,21 @@ export function calculatePredictedGroupStandings(
   >,
   predictions: MatchPrediction[],
   groupLetter: string,
+  options?: GroupStandingOptions,
 ) {
   const predictionByMatchId = new Map(
     predictions.map((prediction) => [prediction.match_id, prediction]),
   );
 
   return calculateStandings(
-    teams.filter((team) => team.group_letter === groupLetter),
+    teams
+      .filter((team) => team.group_letter === groupLetter)
+      .map((team) => ({
+        ...team,
+        fair_play_points: 0,
+        fifa_ranking: null,
+        manual_order: options?.manualRanksByTeamId?.get(team.id) ?? null,
+      })),
     matches
       .filter(
         (match) => match.stage === "group" && match.group_letter === groupLetter,
@@ -94,6 +114,7 @@ export function calculatePredictedGroupStandings(
           is_finished: true,
         };
       }),
+    options,
   );
 }
 
@@ -113,10 +134,46 @@ export function calculateRealGroupStandings(
   );
 }
 
-export function calculateBestThirdPlacedTeams(groups: StandingRow[][]) {
-  return groups
+export function calculateBestThirdPlacedTeams(
+  groups: StandingRow[][],
+  options?: BestThirdOptions,
+) {
+  const thirdRows = groups
     .map((group) => group[2])
     .filter(Boolean)
+    .map((row) => ({
+      ...row,
+      team: {
+        ...row.team,
+        fair_play_points: 0,
+        fifa_ranking: null,
+        manual_order: options?.manualRanksByTeamId?.get(row.team.id) ?? null,
+      },
+    }));
+
+  const orderedBySupportedCriteria = thirdRows
+    .slice()
+    .sort((left, right) =>
+      right.points - left.points ||
+      right.goalDifference - left.goalDifference ||
+      right.goalsFor - left.goalsFor,
+    );
+
+  const tiedGroups = splitStandingGroups(orderedBySupportedCriteria, (left, right) =>
+    right.points - left.points ||
+    right.goalDifference - left.goalDifference ||
+    right.goalsFor - left.goalsFor,
+  );
+  let start = 0;
+  tiedGroups.forEach((group) => {
+    const end = start + group.length;
+    if (group.length > 1 && start < 8 && end > 8) {
+      options?.collectUnresolvedTie?.(group);
+    }
+    start = end;
+  });
+
+  return thirdRows
     .sort(compareStandingRows)
     .slice(0, 8);
 }
@@ -126,6 +183,7 @@ export function calculateGroupPredictionPoints(
   realGroups: StandingRow[][],
   settings: PointSettings,
   completedGroups?: boolean[],
+  predictedBestThirdIds?: Set<string>,
 ) {
   let points = 0;
   const allGroupsCompleted = completedGroups
@@ -136,7 +194,8 @@ export function calculateGroupPredictionPoints(
     ? new Set(calculateBestThirdPlacedTeams(realGroups).map((row) => row.team.id))
     : new Set<string>();
   const predictedBestThirds = allGroupsCompleted
-    ? new Set(
+    ? predictedBestThirdIds ??
+      new Set(
         calculateBestThirdPlacedTeams(predictedGroups).map((row) => row.team.id),
       )
     : new Set<string>();
@@ -338,10 +397,12 @@ function calculateStandings(
     away_score: number | null;
     is_finished?: boolean;
   }>,
+  options?: GroupStandingOptions,
 ) {
   return sortStandingRows(
     calculateStandingsTable(groupTeams, playedMatches),
     playedMatches,
+    options?.collectUnresolvedTie,
   );
 }
 
@@ -414,6 +475,7 @@ function sortStandingRows(
     away_score: number | null;
     is_finished?: boolean;
   }>,
+  collectUnresolvedTie?: TiebreakCollector,
 ) {
   const ordered = rows
     .slice()
@@ -423,7 +485,9 @@ function sortStandingRows(
     if (index > 0 && ordered[index - 1]?.points === row.points) return [];
 
     const tiedRows = ordered.filter((candidate) => candidate.points === row.points);
-    return tiedRows.length > 1 ? breakTieGroup(tiedRows, playedMatches) : [row];
+    return tiedRows.length > 1
+      ? breakTieGroup(tiedRows, playedMatches, collectUnresolvedTie)
+      : [row];
   });
 }
 
@@ -436,6 +500,7 @@ function breakTieGroup(
     away_score: number | null;
     is_finished?: boolean;
   }>,
+  collectUnresolvedTie?: TiebreakCollector,
 ): StandingRow[] {
   const tiedTeamIds = new Set(tiedRows.map((row) => row.team.id));
   const headToHeadMatches = playedMatches.filter(
@@ -460,11 +525,13 @@ function breakTieGroup(
 
   if (groups.length > 1) {
     return groups.flatMap((group) =>
-      group.length === tiedRows.length ? sortByOverallFallback(group) : breakTieGroup(group, playedMatches),
+      group.length === tiedRows.length
+        ? sortByOverallFallback(group, collectUnresolvedTie)
+        : breakTieGroup(group, playedMatches, collectUnresolvedTie),
     );
   }
 
-  return sortByOverallFallback(tiedRows);
+  return sortByOverallFallback(tiedRows, collectUnresolvedTie);
 }
 
 function compareHeadToHeadRows(
@@ -500,7 +567,11 @@ function splitStandingGroups(
   }, []);
 }
 
-function sortByOverallFallback(rows: StandingRow[]) {
+function sortByOverallFallback(
+  rows: StandingRow[],
+  collectUnresolvedTie?: TiebreakCollector,
+) {
+  if (rows.length > 1) collectUnresolvedTie?.(rows);
   return rows.slice().sort(compareStandingRows);
 }
 
@@ -510,6 +581,8 @@ function compareStandingRows(a: StandingRow, b: StandingRow) {
     b.goalDifference - a.goalDifference ||
     b.goalsFor - a.goalsFor ||
     (a.team.fair_play_points ?? 0) - (b.team.fair_play_points ?? 0) ||
+    (a.team.fifa_ranking ?? Number.MAX_SAFE_INTEGER) -
+      (b.team.fifa_ranking ?? Number.MAX_SAFE_INTEGER) ||
     (a.team.manual_order ?? 999) - (b.team.manual_order ?? 999) ||
     a.team.name.localeCompare(b.team.name)
   );

@@ -739,6 +739,69 @@ select.field option {
   text-transform: uppercase;
 }
 
+.manual-tiebreak-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.manual-tiebreak-header {
+  align-items: flex-start;
+  background: rgb(255 122 26 / 0.12);
+  border: 1px solid rgb(255 122 26 / 0.22);
+  border-radius: 20px;
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+}
+
+.manual-tiebreak-header h3 {
+  font-size: 16px;
+  font-weight: 1000;
+}
+
+.manual-tiebreak-header p,
+.manual-tiebreak-copy p {
+  color: rgb(226 232 240);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.manual-tiebreak-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.manual-tiebreak-card {
+  background: rgb(0 0 0 / 0.18);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 20px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.manual-tiebreak-copy h4 {
+  font-size: 15px;
+  font-weight: 1000;
+}
+
+.manual-tiebreak-slots {
+  display: grid;
+  gap: 10px;
+}
+
+.manual-tiebreak-slot {
+  display: grid;
+  gap: 6px;
+}
+
+.manual-tiebreak-slot > span {
+  color: #ffcf9f;
+  font-size: 11px;
+  font-weight: 1000;
+  text-transform: uppercase;
+}
+
 @media (max-width: 640px) {
   .prediction-group-card,
   .prediction-tree-shell {
@@ -816,6 +879,12 @@ select.field option {
 
   .prediction-poster-stack {
     min-height: 620px;
+  }
+
+  .manual-tiebreak-header,
+  .manual-tiebreak-card {
+    border-radius: 18px;
+    padding: 12px;
   }
 }
 

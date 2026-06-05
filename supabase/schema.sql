@@ -101,6 +101,18 @@ create table public.match_predictions (
   unique (league_id, user_id, match_id)
 );
 
+create table public.prediction_tiebreak_selections (
+  id uuid primary key default gen_random_uuid(),
+  league_id uuid not null references public.leagues(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  scope_type text not null check (scope_type in ('group', 'best_third')),
+  scope_key text not null,
+  team_id uuid not null references public.teams(id) on delete cascade,
+  rank int not null check (rank > 0),
+  created_at timestamptz not null default now(),
+  unique (league_id, user_id, scope_type, scope_key, team_id)
+);
+
 create table public.knockout_predictions (
   id uuid primary key default gen_random_uuid(),
   league_id uuid not null references public.leagues(id) on delete cascade,
@@ -299,6 +311,7 @@ alter table public.teams enable row level security;
 alter table public.players enable row level security;
 alter table public.matches enable row level security;
 alter table public.match_predictions enable row level security;
+alter table public.prediction_tiebreak_selections enable row level security;
 alter table public.knockout_predictions enable row level security;
 alter table public.scorer_predictions enable row level security;
 alter table public.award_predictions enable row level security;
@@ -361,6 +374,10 @@ for select using (
     )
   )
 );
+
+create policy "prediction tiebreak selections own" on public.prediction_tiebreak_selections
+for all using (public.is_admin() or user_id = auth.uid())
+with check (public.is_admin() or user_id = auth.uid());
 
 create policy "knockout predictions own" on public.knockout_predictions
 for all using (public.is_admin() or user_id = auth.uid())

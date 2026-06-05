@@ -1,4 +1,5 @@
 import { calculateBestThirdPlacedTeams, calculateRealGroupStandings } from "@/lib/scoring";
+import { getThirdPlaceAssignments } from "@/lib/world-cup-third-place-assignments";
 import type { Match, Team } from "@/lib/types";
 
 type SupabaseAdmin = ReturnType<typeof import("@/lib/supabase/admin").createSupabaseAdminClient>;
@@ -111,11 +112,21 @@ async function fillRoundOf32(supabase: SupabaseAdmin, teams: Team[], matches: Ma
   const thirdRows = calculateBestThirdPlacedTeams(
     GROUPS.map((group) => standingsByGroup.get(group) ?? []),
   );
-  const usedThirds = new Set<string>();
+  const thirdPlaceAssignments = getThirdPlaceAssignments(thirdRows);
 
   for (const [matchNumberText, [homeSlot, awaySlot]] of Object.entries(ROUND_32_SLOTS)) {
-    const homeTeamId = resolveGroupSlot(homeSlot, standingsByGroup, thirdRows, usedThirds);
-    const awayTeamId = resolveGroupSlot(awaySlot, standingsByGroup, thirdRows, usedThirds);
+    const homeTeamId = resolveGroupSlot(
+      homeSlot,
+      awaySlot,
+      standingsByGroup,
+      thirdPlaceAssignments,
+    );
+    const awayTeamId = resolveGroupSlot(
+      awaySlot,
+      homeSlot,
+      standingsByGroup,
+      thirdPlaceAssignments,
+    );
     if (!homeTeamId || !awayTeamId) continue;
 
     await supabase
@@ -127,25 +138,17 @@ async function fillRoundOf32(supabase: SupabaseAdmin, teams: Team[], matches: Ma
 
 function resolveGroupSlot(
   slot: string,
+  pairedSlot: string,
   standingsByGroup: Map<string, ReturnType<typeof calculateRealGroupStandings>>,
-  thirdRows: ReturnType<typeof calculateBestThirdPlacedTeams>,
-  usedThirds: Set<string>,
+  thirdPlaceAssignments: ReturnType<typeof getThirdPlaceAssignments>,
 ) {
   const position = Number(slot[0]);
   if (position === 1 || position === 2) {
     return standingsByGroup.get(slot[1])?.[position - 1]?.team.id ?? null;
   }
 
-  const allowedGroups = new Set(slot.slice(1).split(""));
-  const row = thirdRows.find(
-    (third) =>
-      third.team.group_letter &&
-      allowedGroups.has(third.team.group_letter) &&
-      !usedThirds.has(third.team.id),
-  );
-  if (!row) return null;
-  usedThirds.add(row.team.id);
-  return row.team.id;
+  if (!thirdPlaceAssignments || !pairedSlot.startsWith("1")) return null;
+  return thirdPlaceAssignments.get(pairedSlot)?.team.id ?? null;
 }
 
 async function fillWinnerRounds(supabase: SupabaseAdmin, matchByNumber: Map<number | null, Match>) {
