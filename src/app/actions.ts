@@ -18,7 +18,7 @@ import {
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Match, MatchPrediction, PointSettings } from "@/lib/types";
-import { generateKnockoutFromResults } from "@/lib/world-cup";
+import { generateKnockoutFromResults, getMatchWinner } from "@/lib/world-cup";
 import {
   authEmailForUsername,
   generateLeagueCode,
@@ -37,6 +37,27 @@ const AWARD_REQUEST_FIELDS = [
 const DEFAULT_RESET_PASSWORD = "paquete";
 
 type AwardRequestField = (typeof AWARD_REQUEST_FIELDS)[number];
+type PredictionLockKey = "lock_matches" | "lock_scorers" | "lock_awards" | "lock_knockouts";
+
+async function assertPredictionsOpen(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  leagueId: string,
+  lockKeys: PredictionLockKey[],
+) {
+  const { data: league } = await supabase
+    .from("leagues")
+    .select("status, lock_matches, lock_scorers, lock_awards, lock_knockouts")
+    .eq("id", leagueId)
+    .maybeSingle();
+
+  if (
+    !league ||
+    league.status !== "open" ||
+    lockKeys.some((key) => Boolean(league[key]))
+  ) {
+    throw new Error("Las apuestas estan bloqueadas.");
+  }
+}
 
 function isAwardRequestField(value: string): value is AwardRequestField {
   return AWARD_REQUEST_FIELDS.includes(value as AwardRequestField);
@@ -276,6 +297,7 @@ export async function saveMatchPredictionsAction(formData: FormData) {
   const { user } = await requireUser();
   const supabase = createSupabaseAdminClient();
   const leagueId = String(formData.get("league_id"));
+  await assertPredictionsOpen(supabase, leagueId, ["lock_matches", "lock_knockouts"]);
   const matchIds = String(formData.get("match_ids") ?? "")
     .split(",")
     .filter(Boolean);
@@ -302,6 +324,7 @@ export async function saveScorerPredictionsAction(formData: FormData) {
   const { user } = await requireUser();
   const supabase = createSupabaseAdminClient();
   const leagueId = String(formData.get("league_id"));
+  await assertPredictionsOpen(supabase, leagueId, ["lock_scorers"]);
   const playerIds = ["player_1", "player_2", "player_3"]
     .map((key) => String(formData.get(key) ?? ""))
     .filter(Boolean);
@@ -331,6 +354,7 @@ export async function saveAwardPredictionsAction(formData: FormData) {
   const { user } = await requireUser();
   const supabase = createSupabaseAdminClient();
   const leagueId = String(formData.get("league_id"));
+  await assertPredictionsOpen(supabase, leagueId, ["lock_awards"]);
 
   const selections = Object.fromEntries(
     AWARD_REQUEST_FIELDS.map((field) => [field, readPlayerSelection(formData, field)]),
@@ -1025,6 +1049,30 @@ export async function recalculateLeagueScores(leagueId: string) {
         ? total + calculateLiveKnockoutMatchPoints(prediction, match, settings)
         : total;
     }, 0);
+    const finalMatch = matches.find((match) => match.stage === "final");
+    const finalPrediction = finalMatch
+      ? matchPredictions.find((prediction) => prediction.match_id === finalMatch.id)
+      : null;
+    const realChampion = finalMatch ? getMatchWinner(finalMatch) : null;
+    const predictedChampion =
+      finalPrediction?.predicted_winner_team_id ??
+      (finalMatch &&
+      finalPrediction?.predicted_home_score !== null &&
+      finalPrediction?.predicted_home_score !== undefined &&
+      finalPrediction?.predicted_away_score !== null &&
+      finalPrediction?.predicted_away_score !== undefined
+        ? finalPrediction.predicted_home_score > finalPrediction.predicted_away_score
+          ? finalMatch.home_team_id
+          : finalPrediction.predicted_away_score > finalPrediction.predicted_home_score
+            ? finalMatch.away_team_id
+            : null
+        : null);
+    const championHit = Boolean(
+      realChampion &&
+        predictedChampion &&
+        predictedChampion === realChampion,
+    );
+    const championPoints = championHit ? settings.knockout_champion_points : 0;
     const scorerPoints = calculateScorerPoints(
       scorerPredictionsResult.data ?? [],
       scorerTotals,
@@ -1043,16 +1091,17 @@ export async function recalculateLeagueScores(leagueId: string) {
         total_points: calculateTotalUserScore({
           matchPoints: matchPoints.points,
           groupPoints,
-          knockoutPoints,
+          knockoutPoints: knockoutPoints + championPoints,
           scorerPoints,
           awardPoints,
         }),
         match_points: matchPoints.points,
         group_points: groupPoints,
-        knockout_points: knockoutPoints,
+        knockout_points: knockoutPoints + championPoints,
         scorer_points: scorerPoints,
         award_points: awardPoints,
         exact_scores_count: matchPoints.exactScores,
+        champion_hit: championHit,
       },
       { onConflict: "league_id,user_id" },
     );

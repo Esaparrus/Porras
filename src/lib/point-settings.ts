@@ -12,7 +12,11 @@ export const POINT_SETTING_GROUPS = [
     ],
   ],
   [
-    "Eliminatorias en vivo",
+    "Cuadro inicial",
+    ["knockout_champion_points"],
+  ],
+  [
+    "Partidos de eliminatoria",
     [
       "live_round_32_winner_points",
       "live_round_32_exact_score_bonus",
@@ -58,7 +62,7 @@ export const POINT_SETTING_LABELS: Record<
   knockout_quarter_reached_points: "Llega a cuartos",
   knockout_semi_reached_points: "Llega a semifinales",
   knockout_final_reached_points: "Llega a la final",
-  knockout_champion_points: "Campeón",
+  knockout_champion_points: "Campeón del torneo",
   live_round_32_winner_points: "Dieciseisavos clasificado",
   live_round_32_exact_score_bonus: "Dieciseisavos exacto",
   live_round_16_winner_points: "Octavos clasificado",
@@ -67,7 +71,7 @@ export const POINT_SETTING_LABELS: Record<
   live_quarter_exact_score_bonus: "Cuartos exacto",
   live_semi_winner_points: "Semis clasificado",
   live_semi_exact_score_bonus: "Semis exacto",
-  live_final_winner_points: "Final campeón",
+  live_final_winner_points: "Ganador de la final",
   live_final_exact_score_bonus: "Final exacto",
   scorer_goal_points: "Gol",
   scorer_captain_extra_goal_points: "Extra capitán",
