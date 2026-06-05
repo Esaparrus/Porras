@@ -1,7 +1,7 @@
 import { saveFinalAwardsAction } from "@/app/actions";
 import { AdminLayout } from "@/components/layouts";
 import { PlayerPicker } from "@/components/player-picker";
-import { requireAdmin } from "@/lib/data";
+import { getActivePlayers, requireAdmin } from "@/lib/data";
 
 export default async function AdminAwardsPage({
   params,
@@ -10,8 +10,8 @@ export default async function AdminAwardsPage({
 }) {
   const { leagueId } = await params;
   const { supabase } = await requireAdmin();
-  const [{ data: players }, { data: awards }, { data: teams }] = await Promise.all([
-    supabase.from("players").select("*, teams(*)").eq("is_active", true).order("name"),
+  const [players, { data: awards }, { data: teams }] = await Promise.all([
+    getActivePlayers(supabase),
     supabase.from("final_awards").select("*").eq("league_id", leagueId).maybeSingle(),
     supabase.from("teams").select("*").order("name"),
   ]);

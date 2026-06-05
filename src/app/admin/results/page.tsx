@@ -8,7 +8,7 @@ import {
   setAdminScorerGoalsAction,
 } from "@/app/actions";
 import { STAGE_LABELS } from "@/lib/constants";
-import { requireAdmin } from "@/lib/data";
+import { getActivePlayers, requireAdmin } from "@/lib/data";
 import { calculateRealGroupStandings } from "@/lib/scoring";
 import type { Match, MatchScorer, Player, PlayerSelectionRequest, Team } from "@/lib/types";
 
@@ -77,7 +77,7 @@ export default async function AdminResultsPage() {
   const [
     { data: matchRows },
     { data: teamRows },
-    { data: playerRows },
+    playerRows,
     { data: scorerRows },
     { data: requestRows },
     { data: scorerPredictionRows },
@@ -89,12 +89,7 @@ export default async function AdminResultsPage() {
       .order("match_date", { ascending: true, nullsFirst: false })
       .order("match_number", { ascending: true, nullsFirst: false }),
     supabase.from("teams").select("*").order("name"),
-    supabase
-      .from("players")
-      .select("*, teams(*)")
-      .eq("is_active", true)
-      .order("scorer_rank", { ascending: true, nullsFirst: false })
-      .order("name"),
+    getActivePlayers(supabase),
     supabase.from("match_scorers").select("*, players(*, teams(*))"),
     supabase
       .from("player_selection_requests")

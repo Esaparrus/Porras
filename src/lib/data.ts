@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { League, Profile } from "@/lib/types";
+import type { League, Player, Profile } from "@/lib/types";
+
+type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+
+const SUPABASE_PAGE_SIZE = 1000;
 
 export async function getSessionProfile() {
   const supabase = await createSupabaseServerClient();
@@ -40,4 +44,25 @@ export async function getLeagueOrRedirect(leagueId: string) {
     .single<League>();
   if (!league) redirect("/dashboard");
   return league;
+}
+
+export async function getActivePlayers(supabase: SupabaseServerClient) {
+  const players: Player[] = [];
+
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("players")
+      .select("*, teams(*)")
+      .eq("is_active", true)
+      .order("scorer_rank", { ascending: true, nullsFirst: false })
+      .order("name")
+      .range(from, from + SUPABASE_PAGE_SIZE - 1);
+
+    if (error) throw error;
+
+    const rows = (data ?? []) as Player[];
+    players.push(...rows);
+
+    if (rows.length < SUPABASE_PAGE_SIZE) return players;
+  }
 }

@@ -6,7 +6,7 @@ import { UserLayout } from "@/components/layouts";
 import { PlayerPicker } from "@/components/player-picker";
 import { PredictionWorkflow } from "@/components/prediction-workflow";
 import { PointRulesCard, StageTabs } from "@/components/ui";
-import { requireUser } from "@/lib/data";
+import { getActivePlayers, requireUser } from "@/lib/data";
 import { withDefaultSettings } from "@/lib/scoring";
 import type {
   Match,
@@ -28,7 +28,7 @@ export default async function PredictionsPage({
     { data: matches },
     { data: predictions },
     { data: teams },
-    { data: players },
+    players,
     { data: scorerPredictions },
     { data: awardPrediction },
     { data: requestRows },
@@ -46,12 +46,7 @@ export default async function PredictionsPage({
       .eq("league_id", leagueId)
       .eq("user_id", user.id),
     supabase.from("teams").select("*").order("group_letter").order("manual_order"),
-    supabase
-      .from("players")
-      .select("*, teams(*)")
-      .eq("is_active", true)
-      .order("scorer_rank", { ascending: true, nullsFirst: false })
-      .order("name"),
+    getActivePlayers(supabase),
     supabase
       .from("scorer_predictions")
       .select("*")
