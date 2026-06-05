@@ -7,10 +7,9 @@ const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
 
 const client = new pg.Client({
-  connectionString: process.env.POSTGRES_URL_NON_POOLING.replace(
-    "sslmode=require",
-    "sslmode=no-verify",
-  ),
+  connectionString: process.env.POSTGRES_URL_NON_POOLING
+    .replace(":5432/", ":6543/")
+    .replace("sslmode=require", "sslmode=no-verify"),
   ssl: { rejectUnauthorized: false },
 });
 

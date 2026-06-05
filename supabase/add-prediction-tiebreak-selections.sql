@@ -12,6 +12,17 @@ create table if not exists public.prediction_tiebreak_selections (
 
 alter table public.prediction_tiebreak_selections enable row level security;
 
-create policy "prediction tiebreak selections own" on public.prediction_tiebreak_selections
-for all using (public.is_admin() or user_id = auth.uid())
-with check (public.is_admin() or user_id = auth.uid());
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'prediction_tiebreak_selections'
+      and policyname = 'prediction tiebreak selections own'
+  ) then
+    create policy "prediction tiebreak selections own" on public.prediction_tiebreak_selections
+    for all using (public.is_admin() or user_id = auth.uid())
+    with check (public.is_admin() or user_id = auth.uid());
+  end if;
+end $$;
