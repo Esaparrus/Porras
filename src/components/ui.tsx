@@ -495,7 +495,7 @@ export function PointRulesCard({ settings }: { settings: PointSettings }) {
             Estos valores salen de la configuración actual de la liga.
           </p>
         </div>
-        <span className="badge">En directo</span>
+        <span className="badge">Configuracion</span>
       </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-2">

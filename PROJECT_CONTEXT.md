@@ -282,7 +282,7 @@ Incluye:
 - Partidos
 - Grupos
 - Cuadro inicial
-- Eliminatorias en vivo
+- Partidos de eliminatoria
 - Goleadores
 - Premios
 
@@ -398,21 +398,16 @@ Partidos:
 
 Grupos:
 
-- Posición exacta: 2
-- Ganador de grupo: 3
-- Clasificado: 2
-- Mejor tercero: 3
+- Posición exacta: 1
+- Ganador de grupo: 2
+- Clasificado: 1
+- Mejor tercero: 1
 
 Cuadro inicial:
 
-- Dieciseisavos: 2
-- Octavos: 3
-- Cuartos: 5
-- Semifinales: 8
-- Final: 12
 - Campeón: 30
 
-Eliminatorias en vivo:
+Partidos de eliminatoria:
 
 - Dieciseisavos clasificado: 2
 - Dieciseisavos exacto: 3
@@ -422,21 +417,23 @@ Eliminatorias en vivo:
 - Cuartos exacto: 4
 - Semis clasificado: 5
 - Semis exacto: 4
-- Final campeón: 8
+- Ganador de la final: 8
 - Final exacto: 5
 
 Goleadores:
 
 - Gol: 2
 - Extra capitán: 1
-- Máximo: 50
+- Máximo: 40
 
 Premios:
 
-- Pichichi: 25
-- Mejor jugador: 18
-- Mejor portero: 12
-- Mejor joven: 10
+- Pichichi: 12
+- Mejor jugador: 10
+- Mejor portero: 6
+- Mejor joven: 6
+
+Los defaults recortan grupos y premios para evitar que alguien se descuelgue pronto. El campeón queda en 30 para que sea un acierto fuerte, pero no decisivo por si solo dentro de una porra cerrada desde el inicio.
 
 ## Cómo se calculan los grupos
 

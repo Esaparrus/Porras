@@ -97,6 +97,7 @@ export default async function PredictionsPage({
       prediction.predicted_home_score !== null &&
       prediction.predicted_away_score !== null,
   ).length;
+  const leagueClosed = league?.status !== "open";
 
   return (
     <UserLayout leagueId={leagueId}>
@@ -108,7 +109,7 @@ export default async function PredictionsPage({
           </p>
         </div>
         <span className="badge">
-          {league?.lock_matches ? "Cerrado" : "Abierto"}
+          {leagueClosed || league?.lock_matches ? "Cerrado" : "Abierto"}
         </span>
       </div>
       <StageTabs
@@ -129,7 +130,7 @@ export default async function PredictionsPage({
           predictions={predictionRows}
           teams={teamRows}
           groupLetters={groupLetters}
-          locked={Boolean(league?.lock_matches)}
+          locked={Boolean(leagueClosed || league?.lock_matches || league?.lock_knockouts)}
         />
       </section>
       <section id="puntuacion" className="mt-10">
@@ -161,7 +162,7 @@ export default async function PredictionsPage({
               defaultValue={scorerByIndex.find((row) => row.is_captain)?.player_id}
             />
           </label>
-          <button disabled={league?.lock_scorers} className="btn-primary mt-5 w-full">
+          <button disabled={leagueClosed || league?.lock_scorers} className="btn-primary mt-5 w-full">
             Guardar goleadores
           </button>
         </form>
@@ -224,7 +225,7 @@ export default async function PredictionsPage({
               />
             </label>
           </div>
-          <button disabled={league?.lock_awards} className="btn-primary mt-5 w-full">
+          <button disabled={leagueClosed || league?.lock_awards} className="btn-primary mt-5 w-full">
             Guardar premios
           </button>
         </form>
@@ -235,7 +236,7 @@ export default async function PredictionsPage({
           <div>Partidos completados: {completedMatches}/{matchRows.length}</div>
           <div>Goleadores elegidos: {scorerByIndex.length}/3</div>
           <div>Premios elegidos: {awardPrediction ? "4/4" : "0/4"}</div>
-          <div>Eliminatorias: se actualizan en vivo arriba</div>
+          <div>Eliminatorias: se calculan con tus resultados guardados</div>
         </div>
       </section>
     </UserLayout>

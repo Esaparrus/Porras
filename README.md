@@ -129,32 +129,42 @@ Partidos:
 
 Grupos:
 
-- Posición exacta: 2
-- Ganador de grupo: 3
-- Clasificado: 2
-- Mejor tercero: 3
+- Posición exacta: 1
+- Ganador de grupo: 2
+- Clasificado: 1
+- Mejor tercero: 1
 
-Eliminatorias:
+Cuadro inicial:
 
-- Dieciseisavos: 2
-- Octavos: 3
-- Cuartos: 5
-- Semifinales: 8
-- Final: 12
 - Campeón: 30
+
+Partidos de eliminatoria:
+
+- Dieciseisavos clasificado: 2
+- Dieciseisavos exacto: 3
+- Octavos clasificado: 3
+- Octavos exacto: 3
+- Cuartos clasificado: 4
+- Cuartos exacto: 4
+- Semis clasificado: 5
+- Semis exacto: 4
+- Ganador de la final: 8
+- Final exacto: 5
 
 Goleadores:
 
 - Gol: 2
 - Extra capitán: 1
-- Máximo apartado: 50
+- Máximo apartado: 40
 
 Premios:
 
-- Pichichi: 25
-- Mejor jugador: 18
-- Mejor portero: 12
-- Mejor joven: 10
+- Pichichi: 12
+- Mejor jugador: 10
+- Mejor portero: 6
+- Mejor joven: 6
+
+Reparto pensado para mantener la liga viva: los grupos y premios no abren huecos demasiado grandes al inicio o al cierre, mientras que acertar el campeón pesa más que cualquier premio individual.
 
 Todo se puede cambiar por liga desde `/admin/leagues/[leagueId]/settings`. Al guardar se recalcula el ranking.
 
