@@ -7,6 +7,7 @@ import {
   getPrizeForPosition,
 } from "@/lib/league-insights";
 import { requireUser } from "@/lib/data";
+import { getRankingMovementByUser } from "@/lib/ranking-history";
 import { withDefaultSettings } from "@/lib/scoring";
 import type { LeagueMember, Match, PointSettings, Score, Team } from "@/lib/types";
 
@@ -76,6 +77,7 @@ export default async function LeagueRankingPage({
     Boolean(league?.predictions_visible) ||
     league?.status !== "open" ||
     finishedMatches > 0;
+  const movementByUserId = await getRankingMovementByUser(leagueId, scoreRows);
 
   const rows = scoreRows.map((score, index) => ({
     userId: score.user_id,
@@ -84,6 +86,7 @@ export default async function LeagueRankingPage({
     avatarEmoji: score.profiles?.avatar_emoji ?? null,
     paymentStatus: paymentByUserId.get(score.user_id) ?? "pending",
     prize: getPrizeForPosition(index + 1, prizes),
+    movement: movementByUserId.get(score.user_id) ?? null,
     score,
   }));
 

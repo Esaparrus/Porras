@@ -1,10 +1,11 @@
 ﻿import Link from "next/link";
 import {
   AlertTriangle,
-  BadgeEuro,
-  Crown,
+  ArrowDown,
+  ArrowUp,
   Eye,
   Loader2,
+  Minus,
   ShieldCheck,
   ShieldX,
   Sparkles,
@@ -14,6 +15,7 @@ import {
 import { CopyButton } from "@/components/copy-button";
 import { formatCurrency, getPaymentStatusCopy } from "@/lib/league-insights";
 import { POINT_SETTING_GROUPS, POINT_SETTING_LABELS } from "@/lib/point-settings";
+import type { RankingMovement } from "@/lib/ranking-history";
 import type {
   LeaguePaymentStatus,
   Match,
@@ -242,6 +244,7 @@ type RankingEntry = {
   avatarEmoji?: string | null;
   paymentStatus: LeaguePaymentStatus;
   prize: number;
+  movement?: RankingMovement | null;
   score: Score;
 };
 
@@ -276,13 +279,14 @@ export function PaymentStatusChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black uppercase tracking-wide",
+        "inline-flex items-center rounded-full border font-black uppercase tracking-wide",
+        compact ? "gap-1.5 px-2 py-1 text-[11px]" : "gap-2 px-3 py-2 text-xs",
         status === "paid"
           ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-50"
           : "border-rose-300/35 bg-rose-500/15 text-rose-50",
       )}
     >
-      <Icon className="h-4 w-4" />
+      <Icon className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
       {compact ? copy.short : copy.playful}
     </span>
   );
@@ -346,15 +350,8 @@ export function RankingTable({
         </div>
       </section>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatCard label="Puntos jugados" value={summary.playedPoints} icon={<Trophy />} />
-        <StatCard label="Puntos por jugar" value={summary.remainingPoints} icon={<Sparkles />} />
-        <StatCard label="Premio 1º" value={formatCurrency(summary.prizes.first)} icon={<Crown />} />
-        <StatCard label="Premio 2º-3º" value={`${formatCurrency(summary.prizes.second)} / ${formatCurrency(summary.prizes.third)}`} icon={<BadgeEuro />} />
-      </div>
-
       <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#07111f]/80">
-        <table className="w-full min-w-[980px] text-left text-sm">
+        <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="bg-white/[0.08] text-xs uppercase tracking-[0.2em] text-slate-300">
             <tr>
               <th className="px-4 py-4">#</th>
@@ -362,16 +359,35 @@ export function RankingTable({
               <th className="px-4 py-4">Total</th>
               <th className="px-4 py-4">Premio</th>
               <th className="px-4 py-4">Pago</th>
-              <th className="px-4 py-4">Pts partidos</th>
-              <th className="px-4 py-4">Pts grupos</th>
-              <th className="px-4 py-4">Pts KO</th>
-              <th className="px-4 py-4">Pts goles</th>
-              <th className="px-4 py-4">Pts premios</th>
-              <th className="px-4 py-4">Exactos</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row, index) => {
+              const isPodium = index < 3;
+              const podiumRowClass =
+                index === 0
+                  ? "bg-[linear-gradient(90deg,rgba(255,215,0,0.18),rgba(255,255,255,0.02))]"
+                  : index === 1
+                    ? "bg-[linear-gradient(90deg,rgba(203,213,225,0.18),rgba(255,255,255,0.02))]"
+                    : index === 2
+                      ? "bg-[linear-gradient(90deg,rgba(205,127,50,0.2),rgba(255,255,255,0.02))]"
+                      : "";
+              const podiumBadgeClass =
+                index === 0
+                  ? "bg-[#f6c344] text-[#1f1600]"
+                  : index === 1
+                    ? "bg-[#cbd5e1] text-[#111827]"
+                    : index === 2
+                      ? "bg-[#cd7f32] text-[#1f1307]"
+                      : "bg-white/10 text-[#27e7ff]";
+              const podiumPrizeClass =
+                index === 0
+                  ? "text-[#f6c344]"
+                  : index === 1
+                    ? "text-[#dbe4f0]"
+                    : index === 2
+                      ? "text-[#d69659]"
+                      : "text-[#27e7ff]";
               const playerHref = `/league/${leagueId}/players/${row.userId}`;
               const playerLabel = (
                 <span className="inline-flex min-w-0 items-center gap-2">
@@ -390,15 +406,28 @@ export function RankingTable({
               ) : playerLabel;
 
               return (
-                <tr key={row.userId} className="border-t border-white/10 align-top">
+                <tr
+                  key={row.userId}
+                  className={cn("border-t border-white/10 align-top", podiumRowClass)}
+                >
                   <td className="px-4 py-4">
-                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 font-black text-[#27e7ff]">
-                      {index + 1}
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={cn(
+                          "inline-flex h-10 w-10 items-center justify-center rounded-2xl font-black",
+                          podiumBadgeClass,
+                        )}
+                      >
+                        {index + 1}
+                      </div>
+                      <RankingMovementChip movement={row.movement ?? null} />
                     </div>
                   </td>
                   <td className="px-4 py-4">
                     <div className="space-y-2">
-                      <div className="font-black text-white">{playerName}</div>
+                      <div className={cn("font-black text-white", isPodium && "tracking-[0.02em]")}>
+                        {playerName}
+                      </div>
                       {row.username ? (
                         <div className="text-xs font-semibold text-slate-400">@{row.username}</div>
                       ) : null}
@@ -419,18 +448,12 @@ export function RankingTable({
                       puntos
                     </div>
                   </td>
-                  <td className="px-4 py-4 font-black text-[#27e7ff]">
+                  <td className={cn("px-4 py-4 font-black", podiumPrizeClass)}>
                     {row.prize ? formatCurrency(row.prize) : "-"}
                   </td>
                   <td className="px-4 py-4">
-                    <PaymentStatusChip status={row.paymentStatus} />
+                    <PaymentStatusChip status={row.paymentStatus} compact />
                   </td>
-                  <td className="px-4 py-4">{row.score.match_points}</td>
-                  <td className="px-4 py-4">{row.score.group_points}</td>
-                  <td className="px-4 py-4">{row.score.knockout_points}</td>
-                  <td className="px-4 py-4">{row.score.scorer_points}</td>
-                  <td className="px-4 py-4">{row.score.award_points}</td>
-                  <td className="px-4 py-4">{row.score.exact_scores_count}</td>
                 </tr>
               );
             })}
@@ -472,6 +495,39 @@ export function GroupStandingTable({ rows }: { rows: StandingRow[] }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+function RankingMovementChip({
+  movement,
+}: {
+  movement?: RankingMovement | null;
+}) {
+  if (!movement) return null;
+
+  if (movement.direction === "same") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-xs font-black text-slate-300">
+        <Minus className="h-3 w-3" />
+        =
+      </span>
+    );
+  }
+
+  if (movement.direction === "up") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-1 text-xs font-black text-emerald-300">
+        <ArrowUp className="h-3 w-3" />
+        {movement.delta}
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2 py-1 text-xs font-black text-rose-300">
+      <ArrowDown className="h-3 w-3" />
+      {movement.delta}
+    </span>
   );
 }
 
