@@ -280,13 +280,13 @@ export function PaymentStatusChip({
     <span
       className={cn(
         "inline-flex items-center rounded-full border font-black uppercase tracking-wide",
-        compact ? "gap-1.5 px-2 py-1 text-[11px]" : "gap-2 px-3 py-2 text-xs",
+        compact ? "gap-0.5 px-1 py-0.5 text-[8px] sm:gap-1.5 sm:px-2 sm:py-1 sm:text-[11px]" : "gap-2 px-3 py-2 text-xs",
         status === "paid"
           ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-50"
           : "border-rose-300/35 bg-rose-500/15 text-rose-50",
       )}
     >
-      <Icon className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
+      <Icon className={compact ? "hidden sm:block sm:h-3.5 sm:w-3.5" : "h-4 w-4"} />
       {compact ? copy.short : copy.playful}
     </span>
   );
@@ -324,14 +324,14 @@ export function RankingTable({
                   {summary.totalMatches > 0 ? ` Quedan ${summary.totalMatches - summary.finishedMatches} por decidir.` : ""}
                 </p>
               </div>
-              <div className="min-w-[220px] rounded-[1.75rem] border border-white/10 bg-black/25 p-4">
+              <div className="min-w-[180px] rounded-[1.75rem] border border-white/10 bg-black/25 p-4 sm:min-w-[220px]">
                 <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">
                   Bote total
                 </div>
-                <div className="mt-2 text-3xl font-black text-[#27e7ff]">
+                <div className="mt-2 text-2xl font-black text-[#27e7ff] sm:text-3xl">
                   {formatCurrency(summary.totalPot)}
                 </div>
-                <div className="mt-2 text-sm text-slate-300">
+                <div className="mt-2 text-xs text-slate-300 sm:text-sm">
                   {summary.memberCount} jugadores x {formatCurrency(summary.entryPrice)}
                 </div>
               </div>
@@ -351,14 +351,19 @@ export function RankingTable({
       </section>
 
       <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#07111f]/80">
-        <table className="w-full min-w-[720px] text-left text-sm">
-          <thead className="bg-white/[0.08] text-xs uppercase tracking-[0.2em] text-slate-300">
+        <table className="w-full min-w-0 table-fixed text-left text-xs sm:min-w-[720px] sm:text-sm">
+          <colgroup>
+            <col className="w-[28%] sm:w-[18%]" />
+            <col className="w-[32%] sm:w-[38%]" />
+            <col className="w-[17%] sm:w-[20%]" />
+            <col className="w-[23%] sm:w-[24%]" />
+          </colgroup>
+          <thead className="bg-white/[0.08] text-[9px] uppercase tracking-[0.08em] text-slate-300 sm:text-xs sm:tracking-[0.2em]">
             <tr>
-              <th className="px-4 py-4">#</th>
-              <th className="px-4 py-4">Jugador</th>
-              <th className="px-4 py-4">Total</th>
-              <th className="px-4 py-4">Premio</th>
-              <th className="px-4 py-4">Pago</th>
+              <th className="px-0.5 py-3 text-left sm:px-4 sm:py-4" aria-label="Posicion" />
+              <th className="px-0 py-3 pl-3 sm:px-4 sm:py-4">Jugador</th>
+              <th className="px-0 py-3 text-center sm:px-4 sm:py-4 sm:text-left">Total</th>
+              <th className="px-0 py-3 text-center sm:px-4 sm:py-4 sm:text-left">Premio</th>
             </tr>
           </thead>
           <tbody>
@@ -366,11 +371,11 @@ export function RankingTable({
               const isPodium = index < 3;
               const podiumRowClass =
                 index === 0
-                  ? "bg-[linear-gradient(90deg,rgba(255,215,0,0.18),rgba(255,255,255,0.02))]"
+                  ? "bg-[linear-gradient(90deg,rgba(255,215,0,0.3),rgba(255,215,0,0.12),rgba(255,255,255,0.03))]"
                   : index === 1
-                    ? "bg-[linear-gradient(90deg,rgba(203,213,225,0.18),rgba(255,255,255,0.02))]"
+                    ? "bg-[linear-gradient(90deg,rgba(203,213,225,0.28),rgba(203,213,225,0.11),rgba(255,255,255,0.03))]"
                     : index === 2
-                      ? "bg-[linear-gradient(90deg,rgba(205,127,50,0.2),rgba(255,255,255,0.02))]"
+                      ? "bg-[linear-gradient(90deg,rgba(205,127,50,0.32),rgba(205,127,50,0.13),rgba(255,255,255,0.03))]"
                       : "";
               const podiumBadgeClass =
                 index === 0
@@ -390,9 +395,9 @@ export function RankingTable({
                       : "text-[#27e7ff]";
               const playerHref = `/league/${leagueId}/players/${row.userId}`;
               const playerLabel = (
-                <span className="inline-flex min-w-0 items-center gap-2">
+                <span className="inline-flex min-w-0 items-center gap-1 sm:gap-2">
                   {row.avatarEmoji ? (
-                    <span className="text-xl leading-none" aria-hidden="true">
+                    <span className="text-sm leading-none sm:text-xl" aria-hidden="true">
                       {row.avatarEmoji}
                     </span>
                   ) : null}
@@ -410,31 +415,41 @@ export function RankingTable({
                   key={row.userId}
                   className={cn("border-t border-white/10 align-top", podiumRowClass)}
                 >
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-2">
+                  <td className="px-0.5 py-3 pl-2 sm:px-4 sm:py-4">
+                    <div className="flex items-center justify-start gap-1.5 sm:gap-2">
                       <div
                         className={cn(
-                          "inline-flex h-10 w-10 items-center justify-center rounded-2xl font-black",
+                          "inline-flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-black sm:h-10 sm:w-10 sm:rounded-2xl sm:text-base",
                           podiumBadgeClass,
                         )}
                       >
                         {index + 1}
                       </div>
-                      <RankingMovementChip movement={row.movement ?? null} />
+                      <RankingMovementChip movement={row.movement ?? null} compact />
                     </div>
                   </td>
-                  <td className="px-4 py-4">
-                    <div className="space-y-2">
-                      <div className={cn("font-black text-white", isPodium && "tracking-[0.02em]")}>
+                  <td className="px-0 py-3 pl-3 sm:px-4 sm:py-4">
+                    <div className="space-y-1 sm:space-y-2">
+                      <div
+                        className={cn(
+                          "text-[13px] font-black text-white sm:text-base",
+                          isPodium && "tracking-[0.02em]",
+                        )}
+                      >
                         {playerName}
                       </div>
-                      {row.username ? (
-                        <div className="text-xs font-semibold text-slate-400">@{row.username}</div>
-                      ) : null}
+                      <div
+                        className={cn(
+                          "text-[10px] font-black uppercase tracking-wide sm:text-xs",
+                          row.paymentStatus === "paid" ? "text-emerald-300" : "text-rose-300",
+                        )}
+                      >
+                        {row.paymentStatus === "paid" ? "Pagado" : "Moroso"}
+                      </div>
                       {allowPlayerLinks ? (
                         <Link
                           href={playerHref}
-                          className="inline-flex items-center gap-2 rounded-full border border-[#27e7ff]/40 bg-[#27e7ff]/10 px-3 py-1 text-xs font-black uppercase text-[#27e7ff] hover:bg-[#27e7ff] hover:text-black"
+                          className="inline-flex items-center gap-1 rounded-full border border-[#27e7ff]/40 bg-[#27e7ff]/10 px-2 py-1 text-[10px] font-black uppercase text-[#27e7ff] hover:bg-[#27e7ff] hover:text-black sm:gap-2 sm:px-3 sm:text-xs"
                         >
                           <Eye className="h-3.5 w-3.5" />
                           Ver apuestas
@@ -442,17 +457,21 @@ export function RankingTable({
                       ) : null}
                     </div>
                   </td>
-                  <td className="px-4 py-4">
-                    <div className="text-3xl font-black text-white">{row.score.total_points}</div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <td className="px-0 py-3 text-center sm:px-4 sm:py-4 sm:text-left">
+                    <div className="text-[19px] font-black text-white sm:text-3xl">
+                      {row.score.total_points}
+                    </div>
+                    <div className="hidden text-[10px] font-semibold uppercase tracking-wide text-slate-400 sm:block sm:text-xs">
                       puntos
                     </div>
                   </td>
-                  <td className={cn("px-4 py-4 font-black", podiumPrizeClass)}>
+                  <td
+                    className={cn(
+                      "px-0 py-3 text-center text-[10px] font-black sm:px-4 sm:py-4 sm:text-left sm:text-base",
+                      podiumPrizeClass,
+                    )}
+                  >
                     {row.prize ? formatCurrency(row.prize) : "-"}
-                  </td>
-                  <td className="px-4 py-4">
-                    <PaymentStatusChip status={row.paymentStatus} compact />
                   </td>
                 </tr>
               );
@@ -500,14 +519,21 @@ export function GroupStandingTable({ rows }: { rows: StandingRow[] }) {
 
 function RankingMovementChip({
   movement,
+  compact = false,
 }: {
   movement?: RankingMovement | null;
+  compact?: boolean;
 }) {
   if (!movement) return null;
 
   if (movement.direction === "same") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-xs font-black text-slate-300">
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full bg-white/10 font-black text-slate-300",
+          compact ? "px-1.5 py-1 text-[10px] sm:px-2 sm:text-[11px]" : "px-2 py-1 text-xs",
+        )}
+      >
         <Minus className="h-3 w-3" />
         =
       </span>
@@ -516,7 +542,12 @@ function RankingMovementChip({
 
   if (movement.direction === "up") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-1 text-xs font-black text-emerald-300">
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full bg-emerald-500/15 font-black text-emerald-300",
+          compact ? "px-1.5 py-1 text-[10px] sm:px-2 sm:text-[11px]" : "px-2 py-1 text-xs",
+        )}
+      >
         <ArrowUp className="h-3 w-3" />
         {movement.delta}
       </span>
@@ -524,7 +555,12 @@ function RankingMovementChip({
   }
 
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2 py-1 text-xs font-black text-rose-300">
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full bg-rose-500/15 font-black text-rose-300",
+        compact ? "px-1.5 py-1 text-[10px] sm:px-2 sm:text-[11px]" : "px-2 py-1 text-xs",
+      )}
+    >
       <ArrowDown className="h-3 w-3" />
       {movement.delta}
     </span>
