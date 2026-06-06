@@ -409,6 +409,22 @@ export function RankingTable({
                   {playerLabel}
                 </Link>
               ) : playerLabel;
+              const gapReference =
+                index === 0
+                  ? null
+                  : index === 1
+                    ? { label: "vs 1º", score: rows[0]?.score.total_points }
+                    : index === 2
+                      ? { label: "vs 2º", score: rows[1]?.score.total_points }
+                      : { label: "podio", score: rows[2]?.score.total_points };
+              const pointsGap =
+                gapReference?.score === undefined
+                  ? null
+                  : Math.max(0, gapReference.score - row.score.total_points);
+              const pointsGapLabel =
+                gapReference && pointsGap !== null
+                  ? `${pointsGap === 0 ? "=" : `-${pointsGap}`} ${gapReference.label}`
+                  : null;
 
               return (
                 <tr
@@ -432,7 +448,7 @@ export function RankingTable({
                     <div className="space-y-1 sm:space-y-2">
                       <div
                         className={cn(
-                          "text-[13px] font-black text-white sm:text-base",
+                          "text-[14px] font-black text-white sm:text-base",
                           isPodium && "tracking-[0.02em]",
                         )}
                       >
@@ -461,13 +477,18 @@ export function RankingTable({
                     <div className="text-[19px] font-black text-white sm:text-3xl">
                       {row.score.total_points}
                     </div>
+                    {pointsGapLabel ? (
+                      <div className="mt-0.5 text-[8px] font-black uppercase leading-none tracking-tight text-slate-300/90 sm:text-[10px] sm:tracking-wide">
+                        {pointsGapLabel}
+                      </div>
+                    ) : null}
                     <div className="hidden text-[10px] font-semibold uppercase tracking-wide text-slate-400 sm:block sm:text-xs">
                       puntos
                     </div>
                   </td>
                   <td
                     className={cn(
-                      "px-0 py-3 text-center text-[10px] font-black sm:px-4 sm:py-4 sm:text-left sm:text-base",
+                      "px-0 py-3 text-center text-[13px] font-black sm:px-4 sm:py-4 sm:text-left sm:text-base",
                       podiumPrizeClass,
                     )}
                   >
