@@ -77,6 +77,12 @@ export function UserLayout({
                 Apuestas
               </Link>
               <Link
+                href={`/league/${leagueId}/points`}
+                className="btn-secondary nav-action-button py-2"
+              >
+                Puntuaciones
+              </Link>
+              <Link
                 href={`/league/${leagueId}/ranking`}
                 className="btn-secondary nav-action-button py-2"
               >

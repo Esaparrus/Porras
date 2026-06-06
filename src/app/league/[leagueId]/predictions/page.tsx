@@ -5,13 +5,11 @@ import {
 import { UserLayout } from "@/components/layouts";
 import { PlayerPicker } from "@/components/player-picker";
 import { PredictionWorkflow } from "@/components/prediction-workflow";
-import { PointRulesCard, StageTabs } from "@/components/ui";
+import { StageTabs } from "@/components/ui";
 import { getActivePlayers, requireUser } from "@/lib/data";
-import { withDefaultSettings } from "@/lib/scoring";
 import type {
   Match,
   MatchPrediction,
-  PointSettings,
   PredictionTiebreakSelection,
   PlayerSelectionRequest,
   Team,
@@ -34,7 +32,6 @@ export default async function PredictionsPage({
     { data: awardPrediction },
     { data: requestRows },
     { data: tiebreakRows },
-    { data: settings },
   ] = await Promise.all([
     supabase.from("leagues").select("*").eq("id", leagueId).single(),
     supabase
@@ -71,20 +68,11 @@ export default async function PredictionsPage({
       .eq("league_id", leagueId)
       .eq("user_id", user.id)
       .order("rank"),
-    supabase
-      .from("league_point_settings")
-      .select("*")
-      .eq("league_id", leagueId)
-      .maybeSingle(),
   ]);
 
   const matchRows = (matches ?? []) as Match[];
   const predictionRows = (predictions ?? []) as MatchPrediction[];
   const teamRows = (teams ?? []) as Team[];
-  const pointSettings = withDefaultSettings({
-    league_id: leagueId,
-    ...(settings ?? {}),
-  }) as PointSettings;
   const groupLetters = Array.from(
     new Set(teamRows.map((team) => team.group_letter).filter(Boolean)),
   ) as string[];
@@ -120,7 +108,6 @@ export default async function PredictionsPage({
           { href: "#grupos", label: "Grupos" },
           { href: "#partidos", label: "Partidos" },
           { href: "#eliminatorias", label: "Eliminatorias" },
-          { href: "#puntuacion", label: "Puntuacion" },
           { href: "#goleadores", label: "Jugadores" },
           { href: "#premios", label: "Premios" },
           { href: "#resumen", label: "Resumen" },
@@ -136,9 +123,6 @@ export default async function PredictionsPage({
           groupLetters={groupLetters}
           locked={Boolean(leagueClosed || league?.lock_matches || league?.lock_knockouts)}
         />
-      </section>
-      <section id="puntuacion" className="mt-10">
-        <PointRulesCard settings={pointSettings} />
       </section>
       <section id="goleadores" className="mt-10">
         <form action={saveScorerPredictionsAction} className="glass rounded-3xl p-5">
