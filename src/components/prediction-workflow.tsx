@@ -819,8 +819,9 @@ function ManualTiebreakPanel({
         <div>
           <h3>Desempates manuales</h3>
           <p>
-            Aquí no metes tarjetas amarillas. Si tus resultados llegan al fair
-            play, ordénalo a mano para cerrar los cruces.
+            Solo aparecen si tus resultados dejan equipos empatados en los criterios
+            principales. Como no metemos tarjetas de fair play en la porra, elige a
+            mano el orden que quieres aplicar.
           </p>
         </div>
       </div>
@@ -834,26 +835,40 @@ function ManualTiebreakPanel({
                 <p>{prompt.description}</p>
               </div>
               <div className="manual-tiebreak-slots">
-                {prompt.teams.map((_, index) => (
-                  <label key={`${prompt.scopeId}-${index}`} className="manual-tiebreak-slot">
-                    <span>{index + 1}.º desempate</span>
-                    <select
-                      className="field"
-                      disabled={disabled}
-                      value={orderedTeamIds[index] ?? ""}
-                      onChange={(event) =>
-                        onChange(prompt.scopeId, index, event.target.value)
-                      }
-                    >
-                      <option value="">Elige selección</option>
-                      {prompt.teams.map((team) => (
-                        <option key={team.id} value={team.id}>
-                          {team.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ))}
+                {prompt.teams.map((_, index) => {
+                  const selectedTeamId = orderedTeamIds[index] ?? "";
+                  return (
+                    <div key={`${prompt.scopeId}-${index}`} className="manual-tiebreak-slot">
+                      <span>{index + 1}.º puesto del desempate</span>
+                      <div className="manual-tiebreak-team-grid">
+                        {prompt.teams.map((team) => {
+                          const selectedElsewhere = orderedTeamIds.some(
+                            (teamId, teamIndex) => teamId === team.id && teamIndex !== index,
+                          );
+                          const selectedHere = selectedTeamId === team.id;
+                          return (
+                            <button
+                              key={team.id}
+                              type="button"
+                              className={
+                                selectedHere
+                                  ? "manual-tiebreak-team manual-tiebreak-team-selected"
+                                  : "manual-tiebreak-team"
+                              }
+                              disabled={disabled || selectedElsewhere}
+                              aria-pressed={selectedHere}
+                              onClick={() => onChange(prompt.scopeId, index, team.id)}
+                            >
+                              <span>{team.flag_emoji}</span>
+                              <strong>{team.name}</strong>
+                              {selectedElsewhere ? <small>Ya elegido</small> : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </article>
           );
