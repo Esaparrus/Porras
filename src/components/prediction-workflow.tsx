@@ -957,10 +957,13 @@ function TiebreakTeamChoices({
               }
               disabled={disabled || selectedElsewhere}
               aria-pressed={selectedHere}
-              onClick={() => onChange(prompt.scopeId, position, team.id)}
+              onClick={() =>
+                onChange(prompt.scopeId, position, selectedHere ? "" : team.id)
+              }
             >
               <span>{team.flag_emoji}</span>
               <strong>{team.name}</strong>
+              {selectedHere ? <small>Seleccionado</small> : null}
               {selectedElsewhere ? <small>Ya elegido</small> : null}
             </button>
           );
