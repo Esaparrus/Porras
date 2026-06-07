@@ -145,24 +145,16 @@ export function calculateBestThirdPlacedTeams(
       ...row,
       team: {
         ...row.team,
-        fair_play_points: 0,
-        fifa_ranking: null,
         manual_order: options?.manualRanksByTeamId?.get(row.team.id) ?? null,
       },
     }));
 
   const orderedBySupportedCriteria = thirdRows
     .slice()
-    .sort((left, right) =>
-      right.points - left.points ||
-      right.goalDifference - left.goalDifference ||
-      right.goalsFor - left.goalsFor,
-    );
+    .sort(compareBestThirdAutomaticRows);
 
   const tiedGroups = splitStandingGroups(orderedBySupportedCriteria, (left, right) =>
-    right.points - left.points ||
-    right.goalDifference - left.goalDifference ||
-    right.goalsFor - left.goalsFor,
+    compareBestThirdAutomaticRows(left, right),
   );
   let start = 0;
   tiedGroups.forEach((group) => {
@@ -570,6 +562,17 @@ function sortByOverallFallback(
 ) {
   if (rows.length > 1) collectUnresolvedTie?.(rows);
   return rows.slice().sort(compareStandingRows);
+}
+
+function compareBestThirdAutomaticRows(a: StandingRow, b: StandingRow) {
+  return (
+    b.points - a.points ||
+    b.goalDifference - a.goalDifference ||
+    b.goalsFor - a.goalsFor ||
+    (a.team.fair_play_points ?? 0) - (b.team.fair_play_points ?? 0) ||
+    (a.team.fifa_ranking ?? Number.MAX_SAFE_INTEGER) -
+      (b.team.fifa_ranking ?? Number.MAX_SAFE_INTEGER)
+  );
 }
 
 function compareStandingRows(a: StandingRow, b: StandingRow) {
