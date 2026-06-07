@@ -8,6 +8,7 @@ export default async function RegisterPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const params = await searchParams;
+
   return (
     <Shell>
       <PublicHeader />
@@ -43,6 +44,18 @@ export default async function RegisterPage({
                 minLength={4}
                 required
                 className="field mt-2"
+                autoComplete="new-password"
+              />
+            </label>
+            <label>
+              <span className="label">Repite la contraseña</span>
+              <input
+                name="password_confirmation"
+                type="password"
+                minLength={4}
+                required
+                className="field mt-2"
+                autoComplete="new-password"
               />
             </label>
             <label>

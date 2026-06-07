@@ -130,6 +130,7 @@ export async function registerAction(formData: FormData) {
   const admin = createSupabaseAdminClient();
   const username = normalizeUsername(String(formData.get("username") ?? ""));
   const password = String(formData.get("password") ?? "");
+  const passwordConfirmation = String(formData.get("password_confirmation") ?? "");
   const code = String(formData.get("league_code") ?? "").trim().toUpperCase();
 
   if (!isValidUsername(username)) {
@@ -138,6 +139,10 @@ export async function registerAction(formData: FormData) {
 
   if (password.length < 4) {
     redirect("/register?error=La contraseña debe tener al menos 4 caracteres");
+  }
+
+  if (password !== passwordConfirmation) {
+    redirect("/register?error=Las contraseñas no coinciden");
   }
 
   const { data: existingProfile } = await admin
