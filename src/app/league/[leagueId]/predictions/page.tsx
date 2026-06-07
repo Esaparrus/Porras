@@ -127,11 +127,11 @@ export default async function PredictionsPage({
       <section id="goleadores" className="mt-10">
         <form action={saveScorerPredictionsAction} className="glass rounded-3xl p-5">
           <input type="hidden" name="league_id" value={leagueId} />
-          <h2 className="text-2xl font-black">Jugadores individuales</h2>
+          <h2 className="text-2xl font-black">⚽ Goleadores</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-3">
             {[0, 1, 2].map((index) => (
               <label key={index}>
-                <span className="label">Jugador {index + 1}</span>
+                <span className="label">Goleador {index + 1}</span>
                 <PlayerPicker
                   name={`player_${index + 1}`}
                   players={players ?? []}
@@ -141,15 +141,6 @@ export default async function PredictionsPage({
               </label>
             ))}
           </div>
-          <label className="mt-4 block">
-            <span className="label">Capitan</span>
-            <PlayerPicker
-              name="captain_id"
-              players={players ?? []}
-              teams={teamRows}
-              defaultValue={scorerByIndex.find((row) => row.is_captain)?.player_id}
-            />
-          </label>
           <button disabled={leagueClosed || league?.lock_scorers} className="btn-primary mt-5 w-full">
             Guardar goleadores
           </button>
@@ -158,10 +149,10 @@ export default async function PredictionsPage({
       <section id="premios" className="mt-10">
         <form action={saveAwardPredictionsAction} className="glass rounded-3xl p-5">
           <input type="hidden" name="league_id" value={leagueId} />
-          <h2 className="text-2xl font-black">Premios</h2>
+          <h2 className="text-2xl font-black">🏆 Premios</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <label>
-              <span className="label">Pichichi</span>
+              <span className="label">⚽ Pichichi</span>
               <PlayerPicker
                 name="top_scorer_player_id"
                 players={players ?? []}
@@ -174,7 +165,7 @@ export default async function PredictionsPage({
               />
             </label>
             <label>
-              <span className="label">Mejor jugador</span>
+              <span className="label">🌟 Mejor jugador</span>
               <PlayerPicker
                 name="best_player_id"
                 players={players ?? []}
@@ -187,7 +178,7 @@ export default async function PredictionsPage({
               />
             </label>
             <label>
-              <span className="label">Mejor portero</span>
+              <span className="label">🧤 Mejor portero</span>
               <PlayerPicker
                 name="best_goalkeeper_id"
                 players={players ?? []}
@@ -200,7 +191,7 @@ export default async function PredictionsPage({
               />
             </label>
             <label>
-              <span className="label">Mejor joven</span>
+              <span className="label">🧒 Mejor joven</span>
               <PlayerPicker
                 name="best_young_player_id"
                 players={players ?? []}
@@ -221,10 +212,10 @@ export default async function PredictionsPage({
       <section id="resumen" className="mt-10 glass rounded-3xl p-5">
         <h2 className="text-2xl font-black">Resumen final</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div>Partidos completados: {completedMatches}/{matchRows.length}</div>
-          <div>Goleadores elegidos: {scorerByIndex.length}/3</div>
-          <div>Premios elegidos: {awardPrediction ? "4/4" : "0/4"}</div>
-          <div>Eliminatorias: se calculan con tus resultados guardados</div>
+          <div>📅 Partidos completados: {completedMatches}/{matchRows.length}</div>
+          <div>⚽ Goleadores elegidos: {scorerByIndex.length}/3</div>
+          <div>🏆 Premios elegidos: {awardPrediction ? "4/4" : "0/4"}</div>
+          <div>🔀 Eliminatorias: se calculan con tus resultados guardados</div>
         </div>
       </section>
     </UserLayout>

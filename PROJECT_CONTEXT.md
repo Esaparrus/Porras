@@ -230,9 +230,6 @@ Tres goleadores elegidos por usuario.
 Campos importantes:
 
 - `player_id`
-- `is_captain`
-
-Hay índice parcial para que solo exista un capitán por usuario y liga.
 
 ### `league_player_goals`
 

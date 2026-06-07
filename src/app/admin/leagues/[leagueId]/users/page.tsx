@@ -47,7 +47,7 @@ export default async function AdminUsersPage({
       .eq("league_id", leagueId),
     supabase
       .from("scorer_predictions")
-      .select("user_id, player_id, is_captain")
+      .select("user_id, player_id")
       .eq("league_id", leagueId),
     supabase
       .from("award_predictions")
@@ -67,7 +67,7 @@ export default async function AdminUsersPage({
   const knockoutMatchIds = new Set(
     matchRows.filter((match) => match.stage !== "group").map((match) => match.id),
   );
-  const totalPredictionSlots = totalMatchSlots + 4 + AWARD_FIELDS.length;
+  const totalPredictionSlots = totalMatchSlots + 3 + AWARD_FIELDS.length;
   const predictionsByUser = groupByUser(matchPredictions ?? []);
   const scorersByUser = groupByUser(scorerPredictions ?? []);
   const awardsByUser = new Map((awardPredictions ?? []).map((row) => [row.user_id, row]));
@@ -98,9 +98,7 @@ export default async function AdminUsersPage({
     }).length;
     const userScorers = scorersByUser.get(member.user_id) ?? [];
     const uniqueScorers = new Set(userScorers.map((prediction) => prediction.player_id));
-    const completedScorerSlots =
-      Math.min(3, uniqueScorers.size) +
-      (userScorers.some((prediction) => prediction.is_captain) ? 1 : 0);
+    const completedScorerSlots = Math.min(3, uniqueScorers.size);
     const userAward = awardsByUser.get(member.user_id);
     const userAwardRequests = awardRequestsByUser.get(member.user_id) ?? [];
     const completedAwardSlots = AWARD_FIELDS.filter((field) => {

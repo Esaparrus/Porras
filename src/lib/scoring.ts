@@ -302,16 +302,13 @@ export function calculateLiveKnockoutMatchPoints(
 }
 
 export function calculateScorerPoints(
-  scorerPredictions: Array<{ player_id: string; is_captain: boolean }>,
+  scorerPredictions: Array<{ player_id: string }>,
   scorerTotals: Map<string, number>,
   settings: PointSettings,
 ) {
   const total = scorerPredictions.reduce((acc, prediction) => {
     const goals = scorerTotals.get(prediction.player_id) ?? 0;
-    const perGoal =
-      settings.scorer_goal_points +
-      (prediction.is_captain ? settings.scorer_captain_extra_goal_points : 0);
-    return acc + goals * perGoal;
+    return acc + goals * settings.scorer_goal_points;
   }, 0);
   return Math.min(total, settings.scorer_max_points);
 }

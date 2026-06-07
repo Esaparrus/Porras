@@ -130,15 +130,10 @@ create table public.scorer_predictions (
   league_id uuid not null references public.leagues(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
   player_id uuid not null references public.players(id) on delete cascade,
-  is_captain boolean not null default false,
   points int not null default 0,
   created_at timestamptz not null default now(),
   unique (league_id, user_id, player_id)
 );
-
-create unique index one_captain_per_user_league
-on public.scorer_predictions (league_id, user_id)
-where is_captain;
 
 create table public.award_predictions (
   id uuid primary key default gen_random_uuid(),
@@ -226,7 +221,6 @@ create table public.league_point_settings (
   live_final_winner_points int not null default 8,
   live_final_exact_score_bonus int not null default 5,
   scorer_goal_points int not null default 2,
-  scorer_captain_extra_goal_points int not null default 1,
   scorer_max_points int not null default 40,
   award_top_scorer_points int not null default 12,
   award_best_player_points int not null default 10,

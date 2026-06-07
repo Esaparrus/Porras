@@ -149,11 +149,9 @@ export function calculateLeaguePointProgress({
     remainingPoints += bestThirdBundle;
   }
 
-  const scorerCeilingPerGoal =
-    settings.scorer_goal_points + settings.scorer_captain_extra_goal_points;
   const scorerPlayed = Math.min(
     settings.scorer_max_points,
-    totalGoalsScored * scorerCeilingPerGoal,
+    totalGoalsScored * settings.scorer_goal_points,
   );
   playedPoints += scorerPlayed;
   remainingPoints += Math.max(0, settings.scorer_max_points - scorerPlayed);

@@ -42,7 +42,6 @@ const DEFAULT_POINT_SETTINGS = {
   live_final_winner_points: 8,
   live_final_exact_score_bonus: 5,
   scorer_goal_points: 2,
-  scorer_captain_extra_goal_points: 1,
   scorer_max_points: 40,
   award_top_scorer_points: 12,
   award_best_player_points: 10,
@@ -96,7 +95,6 @@ const DEMO_LEAGUES = [
 const PLAYER_PICK_SETS = [
   {
     scorers: ["Kylian Mbappe", "Lamine Yamal", "Erling Haaland"],
-    captain: "Kylian Mbappe",
     awards: {
       top_scorer: "Kylian Mbappe",
       best_player: "Lamine Yamal",
@@ -106,7 +104,6 @@ const PLAYER_PICK_SETS = [
   },
   {
     scorers: ["Ferran Torres", "Mohamed Salah", "Darwin Nunez"],
-    captain: "Mohamed Salah",
     awards: {
       top_scorer: "Mohamed Salah",
       best_player: "Mohamed Salah",
@@ -116,7 +113,6 @@ const PLAYER_PICK_SETS = [
   },
   {
     scorers: ["Mehdi Taremi", "Sadio Mane", "Lamine Yamal"],
-    captain: "Lamine Yamal",
     awards: {
       top_scorer: "Mehdi Taremi",
       best_player: "Sadio Mane",
@@ -126,7 +122,6 @@ const PLAYER_PICK_SETS = [
   },
   {
     scorers: ["Darwin Nunez", "Kylian Mbappe", "Mohamed Salah"],
-    captain: "Darwin Nunez",
     awards: {
       top_scorer: "Darwin Nunez",
       best_player: "Kylian Mbappe",
@@ -136,7 +131,6 @@ const PLAYER_PICK_SETS = [
   },
   {
     scorers: ["Erling Haaland", "Salem Al-Dawsari", "Sadio Mane"],
-    captain: "Erling Haaland",
     awards: {
       top_scorer: "Erling Haaland",
       best_player: "Erling Haaland",
@@ -434,15 +428,11 @@ async function main() {
       const scorerIds = pickSet.scorers
         .map((name) => findPlayerByName(name, activePlayers, playerByNormalizedName)?.id)
         .filter(Boolean);
-      const captainId =
-        findPlayerByName(pickSet.captain, activePlayers, playerByNormalizedName)?.id ?? null;
-
       scorerIds.forEach((playerId) => {
         scorerPredictionRows.push({
           league_id: league.id,
           user_id: user.id,
           player_id: playerId,
-          is_captain: playerId === captainId,
           points: 0,
         });
       });

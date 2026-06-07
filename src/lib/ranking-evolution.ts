@@ -31,7 +31,6 @@ export type RankingEvolutionMember = {
 type ScorerPrediction = {
   user_id: string;
   player_id: string;
-  is_captain: boolean;
 };
 
 type AwardPrediction = {

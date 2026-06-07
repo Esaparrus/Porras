@@ -372,7 +372,7 @@ async function getLeaguePredictionPendingMessage(leagueId: string) {
       .eq("league_id", leagueId),
     supabase
       .from("scorer_predictions")
-      .select("user_id, player_id, is_captain")
+      .select("user_id, player_id")
       .eq("league_id", leagueId),
     supabase
       .from("award_predictions")
@@ -424,8 +424,7 @@ async function getLeaguePredictionPendingMessage(leagueId: string) {
 
       const userScorers = scorersByUser.get(userId) ?? [];
       const uniqueScorers = new Set(userScorers.map((prediction) => prediction.player_id));
-      const hasCaptain = userScorers.some((prediction) => prediction.is_captain);
-      const missingScorers = Math.max(0, 3 - uniqueScorers.size) + (hasCaptain ? 0 : 1);
+      const missingScorers = Math.max(0, 3 - uniqueScorers.size);
 
       const userAward = awardsByUser.get(userId);
       const userAwardRequests = awardRequestsByUser.get(userId) ?? [];
@@ -438,7 +437,7 @@ async function getLeaguePredictionPendingMessage(leagueId: string) {
 
       const pendingParts = [
         missingMatches ? `${missingMatches} resultados` : "",
-        missingScorers ? `${missingScorers} goleadores/capitan` : "",
+        missingScorers ? `${missingScorers} goleadores` : "",
         missingAwards ? `${missingAwards} premios` : "",
       ].filter(Boolean);
 
@@ -510,8 +509,6 @@ export async function saveScorerPredictionsAction(formData: FormData) {
   const playerIds = ["player_1", "player_2", "player_3"]
     .map((key) => String(formData.get(key) ?? ""))
     .filter(Boolean);
-  const captainId = String(formData.get("captain_id") ?? "");
-
   await supabase
     .from("scorer_predictions")
     .delete()
@@ -524,7 +521,6 @@ export async function saveScorerPredictionsAction(formData: FormData) {
         league_id: leagueId,
         user_id: user.id,
         player_id: playerId,
-        is_captain: playerId === captainId,
       })),
     );
   }
@@ -1280,7 +1276,7 @@ export async function recalculateLeagueScores(leagueId: string) {
         .eq("user_id", userId),
       supabase
         .from("scorer_predictions")
-        .select("player_id, is_captain")
+        .select("player_id")
         .eq("league_id", leagueId)
         .eq("user_id", userId),
       supabase

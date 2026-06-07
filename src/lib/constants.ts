@@ -24,7 +24,6 @@ export const DEFAULT_POINT_SETTINGS: Omit<PointSettings, "id" | "league_id"> = {
   live_final_winner_points: 8,
   live_final_exact_score_bonus: 5,
   scorer_goal_points: 2,
-  scorer_captain_extra_goal_points: 1,
   scorer_max_points: 40,
   award_top_scorer_points: 12,
   award_best_player_points: 10,

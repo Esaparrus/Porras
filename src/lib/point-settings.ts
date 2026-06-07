@@ -32,7 +32,7 @@ export const POINT_SETTING_GROUPS = [
   ],
   [
     "Goleadores",
-    ["scorer_goal_points", "scorer_captain_extra_goal_points", "scorer_max_points"],
+    ["scorer_goal_points", "scorer_max_points"],
   ],
   [
     "Premios",
@@ -74,7 +74,6 @@ export const POINT_SETTING_LABELS: Record<
   live_final_winner_points: "Ganador de la final",
   live_final_exact_score_bonus: "Final exacto",
   scorer_goal_points: "Gol",
-  scorer_captain_extra_goal_points: "Extra capitán",
   scorer_max_points: "Máximo goleadores",
   award_top_scorer_points: "Pichichi",
   award_best_player_points: "Mejor jugador",

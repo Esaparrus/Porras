@@ -176,7 +176,6 @@ export type PointSettings = {
   live_final_winner_points: number;
   live_final_exact_score_bonus: number;
   scorer_goal_points: number;
-  scorer_captain_extra_goal_points: number;
   scorer_max_points: number;
   award_top_scorer_points: number;
   award_best_player_points: number;

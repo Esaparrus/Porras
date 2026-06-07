@@ -15,7 +15,6 @@ type LeaderboardEntry = {
 
 type AdminScorerPlayer = Player & {
   pickCount?: number;
-  captainCount?: number;
 };
 
 type AdminMatchEditorProps = {
@@ -94,7 +93,6 @@ function InlineScorerPicker({
             </span>
             <span className="text-right text-xs text-slate-300">
               {player.pickCount ?? 0} eleg.
-              {player.captainCount ? ` · ${player.captainCount} cap.` : ""}
             </span>
           </button>
         ))}

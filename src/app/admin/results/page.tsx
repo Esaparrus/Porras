@@ -22,19 +22,16 @@ type LeaderboardEntry = {
   flag: string;
   teamName: string;
   pickCount: number;
-  captainCount: number;
   goals: number;
   manualOverride: number | null;
 };
 
 type ScorerPredictionSummary = {
   player_id: string;
-  is_captain: boolean;
 };
 
 type AdminScorerPlayer = Player & {
   pickCount: number;
-  captainCount: number;
 };
 
 const SPAIN_DATE_FORMAT = new Intl.DateTimeFormat("es-ES", {
@@ -95,7 +92,7 @@ export default async function AdminResultsPage() {
       .from("player_selection_requests")
       .select("*, teams(*), profiles(*), resolved_player:players(*, teams(*))")
       .order("created_at", { ascending: false }),
-    supabase.from("scorer_predictions").select("player_id, is_captain"),
+    supabase.from("scorer_predictions").select("player_id"),
     supabase.from("league_player_goals").select("player_id, goals, manual_goals_override"),
   ]);
 
@@ -115,12 +112,11 @@ export default async function AdminResultsPage() {
     goalTotalsByPlayer.set(row.player_id, { goals, manualOverride });
   });
   const pickedPlayerIds = new Set(scorerPredictions.map((row) => row.player_id));
-  const pickStatsByPlayer = new Map<string, { pickCount: number; captainCount: number }>();
+  const pickStatsByPlayer = new Map<string, { pickCount: number }>();
 
   scorerPredictions.forEach((row) => {
-    const stats = pickStatsByPlayer.get(row.player_id) ?? { pickCount: 0, captainCount: 0 };
+    const stats = pickStatsByPlayer.get(row.player_id) ?? { pickCount: 0 };
     stats.pickCount += 1;
-    if (row.is_captain) stats.captainCount += 1;
     pickStatsByPlayer.set(row.player_id, stats);
   });
 
@@ -129,13 +125,10 @@ export default async function AdminResultsPage() {
     .map((player) => ({
       ...player,
       pickCount: pickStatsByPlayer.get(player.id)?.pickCount ?? 0,
-      captainCount: pickStatsByPlayer.get(player.id)?.captainCount ?? 0,
     }))
     .sort(
       (left, right) =>
-        right.pickCount - left.pickCount ||
-        right.captainCount - left.captainCount ||
-        left.name.localeCompare(right.name),
+        right.pickCount - left.pickCount || left.name.localeCompare(right.name),
     );
   const pickedPlayersByTeam = new Map<string, AdminScorerPlayer[]>();
   pickedPlayers.forEach((player) => {
@@ -155,7 +148,6 @@ export default async function AdminResultsPage() {
       flag: player.teams?.flag_emoji ?? "",
       teamName: player.teams?.name ?? "",
       pickCount: player.pickCount,
-      captainCount: player.captainCount,
       goals: goalTotals?.goals ?? 0,
       manualOverride: goalTotals?.manualOverride ?? null,
     });
@@ -177,7 +169,6 @@ export default async function AdminResultsPage() {
       flag: player.teams?.flag_emoji ?? "",
       teamName: player.teams?.name ?? "",
       pickCount: pickStats?.pickCount ?? 0,
-      captainCount: pickStats?.captainCount ?? 0,
       goals: 0,
       manualOverride: null,
     };
@@ -316,7 +307,6 @@ export default async function AdminResultsPage() {
                         </div>
                         <div className="text-xs text-slate-300">
                           {entry.teamName} · {entry.pickCount} eleg.
-                          {entry.captainCount ? ` · ${entry.captainCount} cap.` : ""}
                           {entry.manualOverride !== null ? " · manual" : ""}
                         </div>
                       </div>

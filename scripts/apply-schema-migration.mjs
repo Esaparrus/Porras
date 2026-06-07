@@ -20,6 +20,7 @@ try {
   await client.query(await readFile("supabase/add-prediction-tiebreak-selections.sql", "utf8"));
   await client.query(await readFile("supabase/add-manual-scorer-goal-overrides.sql", "utf8"));
   await client.query(await readFile("supabase/rebalance-point-settings.sql", "utf8"));
+  await client.query(await readFile("supabase/remove-scorer-captain.sql", "utf8"));
   await client.query(await readFile("supabase/profile-display-customization.sql", "utf8"));
   await client.query(await readFile("supabase/ranking-daily-snapshots.sql", "utf8"));
   await client.query(`

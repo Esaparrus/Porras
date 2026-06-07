@@ -46,7 +46,7 @@ export default async function LeagueRankingEvolutionPage({
     supabase.from("match_predictions").select("*").eq("league_id", leagueId),
     supabase
       .from("scorer_predictions")
-      .select("user_id, player_id, is_captain")
+      .select("user_id, player_id")
       .eq("league_id", leagueId),
     supabase
       .from("award_predictions")
