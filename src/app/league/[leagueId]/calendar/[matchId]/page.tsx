@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeftRight, BarChart3, CalendarDays, Users } from "lucide-react";
-import { PredictionScorePill } from "@/components/match-calendar";
+import { MatchPredictionScorePill, PredictionScorePill } from "@/components/match-calendar";
 import { UserLayout } from "@/components/layouts";
 import { MatchTeamLabel } from "@/components/ui";
 import { requireUser } from "@/lib/data";
@@ -197,9 +197,11 @@ export default async function MatchCalendarDetailPage({
             <div className="text-xs font-black uppercase tracking-[0.18em] text-[#ffc4f3]">
               Tu resultado
             </div>
-            <PredictionScorePill
+            <MatchPredictionScorePill
               homeScore={ownPrediction?.predicted_home_score}
               awayScore={ownPrediction?.predicted_away_score}
+              homeTeam={match.home_team}
+              awayTeam={match.away_team}
               large
               className="mt-4"
             />
@@ -253,9 +255,11 @@ export default async function MatchCalendarDetailPage({
                           {compareMeta.displayName}
                         </div>
                       </div>
-                      <PredictionScorePill
+                      <MatchPredictionScorePill
                         homeScore={comparePrediction.predicted_home_score}
                         awayScore={comparePrediction.predicted_away_score}
+                        homeTeam={match.home_team}
+                        awayTeam={match.away_team}
                       />
                     </div>
                     <div className="rounded-2xl border border-[#27e7ff]/20 bg-[#27e7ff]/8 px-4 py-3 text-sm font-semibold text-slate-200">
@@ -307,9 +311,11 @@ export default async function MatchCalendarDetailPage({
                     className="flex items-center justify-between gap-3 rounded-[1.4rem] border border-white/10 bg-black/20 px-4 py-3"
                   >
                     <div className="flex items-center gap-3">
-                      <PredictionScorePill
+                      <MatchPredictionScorePill
                         homeScore={score.homeScore}
                         awayScore={score.awayScore}
+                        homeTeam={match.home_team}
+                        awayTeam={match.away_team}
                       />
                       <div>
                         <div className="text-sm font-black text-white">

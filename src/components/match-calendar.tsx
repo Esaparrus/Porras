@@ -302,3 +302,35 @@ export function PredictionScorePill({
     </div>
   );
 }
+
+export function MatchPredictionScorePill({
+  homeScore,
+  awayScore,
+  homeTeam,
+  awayTeam,
+  large = false,
+  className,
+}: {
+  homeScore: number | null | undefined;
+  awayScore: number | null | undefined;
+  homeTeam?: Team | null;
+  awayTeam?: Team | null;
+  large?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "inline-flex items-center justify-center gap-3 rounded-[1.15rem] border border-[#ff2bd6]/25 bg-[#ff2bd6]/12 font-black text-white",
+        large ? "min-w-[176px] px-5 py-4 text-3xl" : "min-w-[112px] px-3 py-2 text-sm",
+        className,
+      )}
+    >
+      <CompactFlag team={homeTeam} />
+      <span>
+        {homeScore ?? "-"} <span className="mx-1.5 text-[#ff9deb]">-</span> {awayScore ?? "-"}
+      </span>
+      <CompactFlag team={awayTeam} />
+    </div>
+  );
+}
