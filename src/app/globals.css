@@ -153,11 +153,25 @@ select.field option {
 }
 
 .nav-action-button {
-  font-size: 13px;
-  min-height: 38px;
-  min-width: 112px;
-  padding: 7px 12px;
+  border-width: 3px;
+  box-shadow: 4px 4px 0 #000;
+  font-size: 11px;
+  gap: 7px;
+  letter-spacing: 0.08em;
+  min-height: 40px;
+  min-width: 102px;
+  padding: 9px 12px;
   white-space: nowrap;
+}
+
+.nav-action-button:hover:not(:disabled) {
+  box-shadow: 6px 6px 0 #000;
+  transform: translate(-1px, -1px);
+}
+
+.nav-action-button:active:not(:disabled) {
+  box-shadow: 2px 2px 0 #000;
+  transform: translate(2px, 2px);
 }
 
 .stage-tabs {

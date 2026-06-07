@@ -75,41 +75,41 @@ export function UserLayout({
         <nav className="mobile-action-grid">
           {leagueId ? (
             <>
-              <Link href={`/league/${leagueId}`} className="btn-secondary nav-action-button py-2">
+              <Link href={`/league/${leagueId}`} className="btn-secondary nav-action-button">
                 <House className="h-4 w-4" />
                 Liga
               </Link>
               <Link
                 href={`/league/${leagueId}/predictions`}
-                className="btn-secondary nav-action-button py-2"
+                className="btn-secondary nav-action-button"
               >
                 <ClipboardPen className="h-4 w-4" />
                 Apuestas
               </Link>
               <Link
                 href={`/league/${leagueId}/points`}
-                className="btn-secondary nav-action-button py-2"
+                className="btn-secondary nav-action-button"
               >
                 <Medal className="h-4 w-4" />
                 Puntuaciones
               </Link>
               <Link
                 href={`/league/${leagueId}/calendar`}
-                className="btn-secondary nav-action-button py-2"
+                className="btn-secondary nav-action-button"
               >
                 <CalendarDays className="h-4 w-4" />
                 Calendario
               </Link>
               <Link
                 href={`/league/${leagueId}/ranking`}
-                className="btn-secondary nav-action-button py-2"
+                className="btn-secondary nav-action-button"
               >
                 <Trophy className="h-4 w-4" />
                 Ranking
               </Link>
               <Link
                 href={`/league/${leagueId}/profile`}
-                className="btn-secondary nav-action-button py-2"
+                className="btn-secondary nav-action-button"
               >
                 <UserRound className="h-4 w-4" />
                 Perfil
@@ -117,7 +117,7 @@ export function UserLayout({
             </>
           ) : null}
           <form action={logoutAction} className="contents">
-            <button className="btn-secondary nav-action-button py-2">
+            <button className="btn-secondary nav-action-button">
               <LogOut className="h-4 w-4" />
               Salir
             </button>
