@@ -105,6 +105,15 @@ export function StatCard({
   );
 }
 
+function PositionOrdinal({ value }: { value: number }) {
+  return (
+    <>
+      {value}
+      <span className="align-super text-[0.72em] leading-none">º</span>
+    </>
+  );
+}
+
 export function EmptyState({
   title,
   text,
@@ -465,18 +474,14 @@ export function RankingTable({
                 index === 0
                   ? null
                   : index === 1
-                    ? { label: "vs 1o", score: rows[0]?.score.total_points }
+                    ? { label: <>vs <PositionOrdinal value={1} /></>, score: rows[0]?.score.total_points }
                     : index === 2
-                      ? { label: "vs 2o", score: rows[1]?.score.total_points }
+                      ? { label: <>vs <PositionOrdinal value={2} /></>, score: rows[1]?.score.total_points }
                       : { label: "podio", score: rows[2]?.score.total_points };
               const pointsGap =
                 gapReference?.score === undefined
                   ? null
                   : Math.max(0, gapReference.score - row.score.total_points);
-              const pointsGapLabel =
-                gapReference && pointsGap !== null
-                  ? `${pointsGap === 0 ? "=" : `-${pointsGap}`} ${gapReference.label}`
-                  : null;
 
               return (
                 <tr
@@ -529,9 +534,9 @@ export function RankingTable({
                     <div className="text-[19px] font-black text-white sm:text-3xl">
                       {row.score.total_points}
                     </div>
-                    {pointsGapLabel ? (
+                    {gapReference && pointsGap !== null ? (
                       <div className="mt-0.5 text-[8px] font-black uppercase leading-none tracking-tight text-slate-300/90 sm:text-[10px] sm:tracking-wide">
-                        {pointsGapLabel}
+                        {pointsGap === 0 ? "=" : `-${pointsGap}`} {gapReference.label}
                       </div>
                     ) : null}
                     <div className="hidden text-[10px] font-semibold uppercase tracking-wide text-slate-400 sm:block sm:text-xs">
