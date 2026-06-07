@@ -823,6 +823,63 @@ export async function resetUserPasswordAction(formData: FormData) {
   revalidatePath(`/admin/leagues/${leagueId}/users`);
 }
 
+export async function deleteLeagueUserAction(formData: FormData) {
+  const { user } = await requireAdmin();
+  const supabase = createSupabaseAdminClient();
+  const leagueId = String(formData.get("league_id"));
+  const targetUserId = String(formData.get("target_user_id"));
+
+  const { data: membership } = await supabase
+    .from("league_members")
+    .select("id")
+    .eq("league_id", leagueId)
+    .eq("user_id", targetUserId)
+    .maybeSingle();
+
+  if (!membership) {
+    redirect(`/admin/leagues/${leagueId}/users?error=Usuario no encontrado en esta liga`);
+  }
+
+  const leagueScopedTables = [
+    "match_predictions",
+    "prediction_tiebreak_selections",
+    "knockout_predictions",
+    "scorer_predictions",
+    "award_predictions",
+    "player_selection_requests",
+    "scores",
+  ];
+
+  for (const table of leagueScopedTables) {
+    await supabase
+      .from(table)
+      .delete()
+      .eq("league_id", leagueId)
+      .eq("user_id", targetUserId);
+  }
+
+  await supabase
+    .from("league_members")
+    .delete()
+    .eq("league_id", leagueId)
+    .eq("user_id", targetUserId);
+
+  await supabase.from("admin_logs").insert({
+    league_id: leagueId,
+    admin_user_id: user.id,
+    target_user_id: targetUserId,
+    action_type: "delete_league_user",
+    description: "Usuario eliminado de la liga",
+  });
+
+  revalidatePath(`/admin/leagues/${leagueId}`);
+  revalidatePath(`/admin/leagues/${leagueId}/users`);
+  revalidatePath(`/admin/leagues/${leagueId}/ranking`);
+  revalidatePath(`/league/${leagueId}`);
+  revalidatePath(`/league/${leagueId}/ranking`);
+  revalidatePath(`/league/${leagueId}/profile`);
+}
+
 export async function recalculateLeagueScoresAction(formData: FormData) {
   await requireAdmin();
   const leagueId = String(formData.get("league_id"));

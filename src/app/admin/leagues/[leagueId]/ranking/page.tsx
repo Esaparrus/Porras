@@ -8,6 +8,7 @@ import {
   getPrizeForPosition,
 } from "@/lib/league-insights";
 import { requireAdmin } from "@/lib/data";
+import { getRankingMovementByUser } from "@/lib/ranking-history";
 import { withDefaultSettings } from "@/lib/scoring";
 import type { LeagueMember, Match, PointSettings, Score, Team } from "@/lib/types";
 
@@ -70,15 +71,21 @@ export default async function AdminRankingPage({
   });
   const finishedMatches = matchesRows.filter((match) => match.is_finished).length;
   const totalMatches = matchesRows.length;
+  const groupStageMatches = matchesRows.filter((match) => match.stage === "group").length;
+  const knockoutStageMatches = totalMatches - groupStageMatches;
   const matchProgressPercentage = totalMatches
     ? Math.round((finishedMatches / totalMatches) * 100)
     : 0;
+  const movementByUserId = await getRankingMovementByUser(leagueId, scoreRows);
 
   const rows = scoreRows.map((score, index) => ({
     userId: score.user_id,
-    displayName: score.profiles?.display_name ?? "Jugador",
+    displayName: score.profiles?.display_name || score.profiles?.username || "Jugador",
+    username: score.profiles?.username ?? null,
+    avatarEmoji: score.profiles?.avatar_emoji ?? null,
     paymentStatus: paymentByUserId.get(score.user_id) ?? "pending",
     prize: getPrizeForPosition(index + 1, prizes),
+    movement: movementByUserId.get(score.user_id) ?? null,
     score,
   }));
 
@@ -105,6 +112,8 @@ export default async function AdminRankingPage({
             finishedMatches,
             totalMatches,
             matchProgressPercentage,
+            groupStageMatches,
+            knockoutStageMatches,
             prizes,
           }}
           title="Clasificacion admin"

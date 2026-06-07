@@ -249,6 +249,21 @@ create table public.scores (
   unique (league_id, user_id)
 );
 
+create table public.ranking_daily_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  league_id uuid not null references public.leagues(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  snapshot_date date not null,
+  position int not null check (position > 0),
+  total_points int not null default 0,
+  exact_scores_count int not null default 0,
+  created_at timestamptz not null default now(),
+  unique (league_id, snapshot_date, user_id)
+);
+
+create index ranking_daily_snapshots_league_date_idx
+on public.ranking_daily_snapshots (league_id, snapshot_date desc, position asc);
+
 create table public.admin_logs (
   id uuid primary key default gen_random_uuid(),
   league_id uuid references public.leagues(id) on delete set null,
@@ -320,6 +335,7 @@ alter table public.league_player_goals enable row level security;
 alter table public.final_awards enable row level security;
 alter table public.league_point_settings enable row level security;
 alter table public.scores enable row level security;
+alter table public.ranking_daily_snapshots enable row level security;
 alter table public.admin_logs enable row level security;
 alter table public.player_selection_requests enable row level security;
 
@@ -418,6 +434,11 @@ for all using (public.is_admin()) with check (public.is_admin());
 create policy "scores read" on public.scores
 for select using (public.is_admin() or public.is_league_member(league_id));
 create policy "scores admin all" on public.scores
+for all using (public.is_admin()) with check (public.is_admin());
+
+create policy "ranking snapshots read" on public.ranking_daily_snapshots
+for select using (public.is_admin() or public.is_league_member(league_id));
+create policy "ranking snapshots admin all" on public.ranking_daily_snapshots
 for all using (public.is_admin()) with check (public.is_admin());
 
 create policy "logs admin read" on public.admin_logs

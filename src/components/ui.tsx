@@ -1,10 +1,11 @@
 ﻿import Link from "next/link";
 import {
   AlertTriangle,
-  BadgeEuro,
-  Crown,
+  ArrowDown,
+  ArrowUp,
   Eye,
   Loader2,
+  Minus,
   ShieldCheck,
   ShieldX,
   Sparkles,
@@ -14,6 +15,7 @@ import {
 import { CopyButton } from "@/components/copy-button";
 import { formatCurrency, getPaymentStatusCopy } from "@/lib/league-insights";
 import { POINT_SETTING_GROUPS, POINT_SETTING_LABELS } from "@/lib/point-settings";
+import type { RankingMovement } from "@/lib/ranking-history";
 import type {
   LeaguePaymentStatus,
   Match,
@@ -238,8 +240,11 @@ export function PredictionInput({ match }: { match: Match }) {
 type RankingEntry = {
   userId: string;
   displayName: string;
+  username?: string | null;
+  avatarEmoji?: string | null;
   paymentStatus: LeaguePaymentStatus;
   prize: number;
+  movement?: RankingMovement | null;
   score: Score;
 };
 
@@ -253,6 +258,8 @@ type RankingSummary = {
   finishedMatches: number;
   totalMatches: number;
   matchProgressPercentage: number;
+  groupStageMatches: number;
+  knockoutStageMatches: number;
   prizes: {
     first: number;
     second: number;
@@ -274,13 +281,14 @@ export function PaymentStatusChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black uppercase tracking-wide",
+        "inline-flex items-center rounded-full border font-black uppercase tracking-wide",
+        compact ? "gap-0.5 px-1 py-0.5 text-[8px] sm:gap-1.5 sm:px-2 sm:py-1 sm:text-[11px]" : "gap-2 px-3 py-2 text-xs",
         status === "paid"
           ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-50"
           : "border-rose-300/35 bg-rose-500/15 text-rose-50",
       )}
     >
-      <Icon className="h-4 w-4" />
+      <Icon className={compact ? "hidden sm:block sm:h-3.5 sm:w-3.5" : "h-4 w-4"} />
       {compact ? copy.short : copy.playful}
     </span>
   );
@@ -299,13 +307,24 @@ export function RankingTable({
   title: string;
   allowPlayerLinks?: boolean;
 }) {
+  const groupBoundaryPercentage = summary.totalMatches
+    ? (summary.groupStageMatches / summary.totalMatches) * 100
+    : 0;
+  const groupFillPercentage = Math.min(summary.matchProgressPercentage, groupBoundaryPercentage);
+  const knockoutFillPercentage =
+    summary.matchProgressPercentage > groupBoundaryPercentage
+      ? summary.matchProgressPercentage - groupBoundaryPercentage
+      : 0;
+  const isKnockoutPhaseVisible =
+    summary.knockoutStageMatches > 0 && summary.finishedMatches >= summary.groupStageMatches;
+
   return (
     <div className="space-y-6">
       <section className="glass overflow-hidden rounded-[2rem] border-white/15">
         <div className="bg-gradient-to-r from-[#27e7ff] via-[#ff4d2d] to-[#ef4444] p-[1px]">
           <div className="bg-[#07111f]/96 px-5 py-6 sm:px-7">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
+            <div className="space-y-5">
+              <div className="max-w-2xl">
                 <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-black uppercase tracking-[0.22em] text-[#27e7ff]">
                   <Sparkles className="h-4 w-4" />
                   {title}
@@ -313,86 +332,193 @@ export function RankingTable({
                 <h2 className="mt-3 text-3xl font-black sm:text-4xl">
                   La pelea por la gloria
                 </h2>
-                <p className="mt-2 max-w-2xl text-sm text-slate-300">
+                <p className="mt-2 text-sm text-slate-300">
                   {summary.finishedMatches} de {summary.totalMatches} partidos ya estan cerrados.
                   {summary.totalMatches > 0 ? ` Quedan ${summary.totalMatches - summary.finishedMatches} por decidir.` : ""}
                 </p>
               </div>
-              <div className="min-w-[220px] rounded-[1.75rem] border border-white/10 bg-black/25 p-4">
-                <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">
-                  Bote total
+
+              <div className="grid gap-4">
+                <div className="rounded-[1.5rem] border border-emerald-400/15 bg-emerald-500/8 p-4">
+                  <div className="flex items-center justify-between gap-3 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-200">
+                    <span>Progreso partidos</span>
+                    <span>{summary.matchProgressPercentage}%</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                    <span>Grupos</span>
+                    <span className={cn(isKnockoutPhaseVisible && "text-amber-300")}>KO</span>
+                  </div>
+                  <div className="relative mt-3 h-3 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="absolute inset-y-0 left-0 bg-emerald-500/10"
+                      style={{ width: `${groupBoundaryPercentage}%` }}
+                    />
+                    <div
+                      className="absolute inset-y-0 right-0 bg-amber-500/10"
+                      style={{ width: `${Math.max(0, 100 - groupBoundaryPercentage)}%` }}
+                    />
+                    {summary.knockoutStageMatches > 0 ? (
+                      <div
+                        className="absolute inset-y-[-2px] z-10 w-[2px] rounded-full bg-white/70"
+                        style={{ left: `${groupBoundaryPercentage}%` }}
+                      />
+                    ) : null}
+                    <div
+                      className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#16a34a] via-[#4ade80] to-[#bbf7d0]"
+                      style={{ width: `${groupFillPercentage}%` }}
+                    />
+                    {knockoutFillPercentage > 0 ? (
+                      <div
+                        className="absolute inset-y-0 rounded-full bg-gradient-to-r from-[#f59e0b] via-[#fb923c] to-[#f97316]"
+                        style={{
+                          left: `${groupBoundaryPercentage}%`,
+                          width: `${knockoutFillPercentage}%`,
+                        }}
+                      />
+                    ) : null}
+                  </div>
+                  <div className="mt-2 text-xs font-semibold text-slate-300">
+                    {summary.finishedMatches}/{summary.totalMatches} partidos cerrados
+                  </div>
                 </div>
-                <div className="mt-2 text-3xl font-black text-[#27e7ff]">
-                  {formatCurrency(summary.totalPot)}
-                </div>
-                <div className="mt-2 text-sm text-slate-300">
-                  {summary.memberCount} jugadores x {formatCurrency(summary.entryPrice)}
+
+                <div className="rounded-[1.5rem] border border-cyan-400/15 bg-cyan-500/8 p-4">
+                  <div className="flex items-center justify-between gap-3 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                    <span>Progreso puntos</span>
+                    <span>{summary.progressPercentage}%</span>
+                  </div>
+                  <div className="mt-3 h-3 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-[#06b6d4] via-[#27e7ff] to-[#60a5fa]"
+                      style={{ width: `${summary.progressPercentage}%` }}
+                    />
+                  </div>
+                  <div className="mt-2 text-xs font-semibold text-slate-300">
+                    {summary.playedPoints} pts resueltos, {summary.remainingPoints} pts en juego
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="mt-6 h-4 overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-[#3bd16f] via-[#27e7ff] to-[#ff4d2d]"
-                style={{ width: `${summary.matchProgressPercentage}%` }}
-              />
-            </div>
-            <div className="mt-3 flex flex-wrap justify-between gap-3 text-xs font-bold uppercase tracking-wide text-slate-300">
-              <span>{summary.matchProgressPercentage}% de partidos cerrados</span>
-              <span>{summary.playedPoints} pts resueltos, {summary.remainingPoints} pts en juego</span>
             </div>
           </div>
         </div>
       </section>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatCard label="Puntos jugados" value={summary.playedPoints} icon={<Trophy />} />
-        <StatCard label="Puntos por jugar" value={summary.remainingPoints} icon={<Sparkles />} />
-        <StatCard label="Premio 1º" value={formatCurrency(summary.prizes.first)} icon={<Crown />} />
-        <StatCard label="Premio 2º-3º" value={`${formatCurrency(summary.prizes.second)} / ${formatCurrency(summary.prizes.third)}`} icon={<BadgeEuro />} />
-      </div>
-
       <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#07111f]/80">
-        <table className="w-full min-w-[980px] text-left text-sm">
-          <thead className="bg-white/[0.08] text-xs uppercase tracking-[0.2em] text-slate-300">
+        <table className="w-full min-w-0 table-fixed text-left text-xs sm:min-w-[720px] sm:text-sm">
+          <colgroup>
+            <col className="w-[28%] sm:w-[18%]" />
+            <col className="w-[32%] sm:w-[38%]" />
+            <col className="w-[17%] sm:w-[20%]" />
+            <col className="w-[23%] sm:w-[24%]" />
+          </colgroup>
+          <thead className="bg-white/[0.08] text-[9px] uppercase tracking-[0.08em] text-slate-300 sm:text-xs sm:tracking-[0.2em]">
             <tr>
-              <th className="px-4 py-4">#</th>
-              <th className="px-4 py-4">Jugador</th>
-              <th className="px-4 py-4">Total</th>
-              <th className="px-4 py-4">Premio</th>
-              <th className="px-4 py-4">Pago</th>
-              <th className="px-4 py-4">Pts partidos</th>
-              <th className="px-4 py-4">Pts grupos</th>
-              <th className="px-4 py-4">Pts KO</th>
-              <th className="px-4 py-4">Pts goles</th>
-              <th className="px-4 py-4">Pts premios</th>
-              <th className="px-4 py-4">Exactos</th>
+              <th className="px-0.5 py-3 text-left sm:px-4 sm:py-4" aria-label="Posicion" />
+              <th className="px-0 py-3 pl-3 sm:px-4 sm:py-4">Jugador</th>
+              <th className="px-0 py-3 text-center sm:px-4 sm:py-4 sm:text-left">Total</th>
+              <th className="px-0 py-3 text-center sm:px-4 sm:py-4 sm:text-left">Premio</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row, index) => {
+              const isPodium = index < 3;
+              const podiumRowClass =
+                index === 0
+                  ? "bg-[linear-gradient(90deg,rgba(255,215,0,0.3),rgba(255,215,0,0.12),rgba(255,255,255,0.03))]"
+                  : index === 1
+                    ? "bg-[linear-gradient(90deg,rgba(203,213,225,0.28),rgba(203,213,225,0.11),rgba(255,255,255,0.03))]"
+                    : index === 2
+                      ? "bg-[linear-gradient(90deg,rgba(205,127,50,0.32),rgba(205,127,50,0.13),rgba(255,255,255,0.03))]"
+                      : "";
+              const podiumBadgeClass =
+                index === 0
+                  ? "bg-[#f6c344] text-[#1f1600]"
+                  : index === 1
+                    ? "bg-[#cbd5e1] text-[#111827]"
+                    : index === 2
+                      ? "bg-[#cd7f32] text-[#1f1307]"
+                      : "bg-white/10 text-[#27e7ff]";
+              const podiumPrizeClass =
+                index === 0
+                  ? "text-[#f6c344]"
+                  : index === 1
+                    ? "text-[#dbe4f0]"
+                    : index === 2
+                      ? "text-[#d69659]"
+                      : "text-[#27e7ff]";
               const playerHref = `/league/${leagueId}/players/${row.userId}`;
-              const playerName = allowPlayerLinks ? (
-                <Link href={playerHref} className="hover:text-[#27e7ff]">
-                  {row.displayName}
-                </Link>
-              ) : (
-                row.displayName
+              const playerLabel = (
+                <span className="inline-flex min-w-0 items-center gap-1 sm:gap-2">
+                  {row.avatarEmoji ? (
+                    <span className="text-sm leading-none sm:text-xl" aria-hidden="true">
+                      {row.avatarEmoji}
+                    </span>
+                  ) : null}
+                  <span className="truncate">{row.displayName}</span>
+                </span>
               );
+              const playerName = allowPlayerLinks ? (
+                <Link href={playerHref} className="inline-flex min-w-0 hover:text-[#27e7ff]">
+                  {playerLabel}
+                </Link>
+              ) : playerLabel;
+              const gapReference =
+                index === 0
+                  ? null
+                  : index === 1
+                    ? { label: "vs 1o", score: rows[0]?.score.total_points }
+                    : index === 2
+                      ? { label: "vs 2o", score: rows[1]?.score.total_points }
+                      : { label: "podio", score: rows[2]?.score.total_points };
+              const pointsGap =
+                gapReference?.score === undefined
+                  ? null
+                  : Math.max(0, gapReference.score - row.score.total_points);
+              const pointsGapLabel =
+                gapReference && pointsGap !== null
+                  ? `${pointsGap === 0 ? "=" : `-${pointsGap}`} ${gapReference.label}`
+                  : null;
 
               return (
-                <tr key={row.userId} className="border-t border-white/10 align-top">
-                  <td className="px-4 py-4">
-                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 font-black text-[#27e7ff]">
-                      {index + 1}
+                <tr
+                  key={row.userId}
+                  className={cn("border-t border-white/10 align-top", podiumRowClass)}
+                >
+                  <td className="px-0.5 py-3 pl-2 sm:px-4 sm:py-4">
+                    <div className="flex items-center justify-start gap-1.5 sm:gap-2">
+                      <div
+                        className={cn(
+                          "inline-flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-black sm:h-10 sm:w-10 sm:rounded-2xl sm:text-base",
+                          podiumBadgeClass,
+                        )}
+                      >
+                        {index + 1}
+                      </div>
+                      <RankingMovementChip movement={row.movement ?? null} compact />
                     </div>
                   </td>
-                  <td className="px-4 py-4">
-                    <div className="space-y-2">
-                      <div className="font-black text-white">{playerName}</div>
+                  <td className="px-0 py-3 pl-3 sm:px-4 sm:py-4">
+                    <div className="space-y-1 sm:space-y-2">
+                      <div
+                        className={cn(
+                          "text-[14px] font-black text-white sm:text-base",
+                          isPodium && "tracking-[0.02em]",
+                        )}
+                      >
+                        {playerName}
+                      </div>
+                      <div
+                        className={cn(
+                          "text-[10px] font-black uppercase tracking-wide sm:text-xs",
+                          row.paymentStatus === "paid" ? "text-emerald-300" : "text-rose-300",
+                        )}
+                      >
+                        {row.paymentStatus === "paid" ? "Pagado" : "Moroso"}
+                      </div>
                       {allowPlayerLinks ? (
                         <Link
                           href={playerHref}
-                          className="inline-flex items-center gap-2 rounded-full border border-[#27e7ff]/40 bg-[#27e7ff]/10 px-3 py-1 text-xs font-black uppercase text-[#27e7ff] hover:bg-[#27e7ff] hover:text-black"
+                          className="inline-flex items-center gap-1 rounded-full border border-[#27e7ff]/40 bg-[#27e7ff]/10 px-2 py-1 text-[10px] font-black uppercase text-[#27e7ff] hover:bg-[#27e7ff] hover:text-black sm:gap-2 sm:px-3 sm:text-xs"
                         >
                           <Eye className="h-3.5 w-3.5" />
                           Ver apuestas
@@ -400,24 +526,27 @@ export function RankingTable({
                       ) : null}
                     </div>
                   </td>
-                  <td className="px-4 py-4">
-                    <div className="text-3xl font-black text-white">{row.score.total_points}</div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <td className="px-0 py-3 text-center sm:px-4 sm:py-4 sm:text-left">
+                    <div className="text-[19px] font-black text-white sm:text-3xl">
+                      {row.score.total_points}
+                    </div>
+                    {pointsGapLabel ? (
+                      <div className="mt-0.5 text-[8px] font-black uppercase leading-none tracking-tight text-slate-300/90 sm:text-[10px] sm:tracking-wide">
+                        {pointsGapLabel}
+                      </div>
+                    ) : null}
+                    <div className="hidden text-[10px] font-semibold uppercase tracking-wide text-slate-400 sm:block sm:text-xs">
                       puntos
                     </div>
                   </td>
-                  <td className="px-4 py-4 font-black text-[#27e7ff]">
+                  <td
+                    className={cn(
+                      "px-0 py-3 text-center text-[13px] font-black sm:px-4 sm:py-4 sm:text-left sm:text-base",
+                      podiumPrizeClass,
+                    )}
+                  >
                     {row.prize ? formatCurrency(row.prize) : "-"}
                   </td>
-                  <td className="px-4 py-4">
-                    <PaymentStatusChip status={row.paymentStatus} />
-                  </td>
-                  <td className="px-4 py-4">{row.score.match_points}</td>
-                  <td className="px-4 py-4">{row.score.group_points}</td>
-                  <td className="px-4 py-4">{row.score.knockout_points}</td>
-                  <td className="px-4 py-4">{row.score.scorer_points}</td>
-                  <td className="px-4 py-4">{row.score.award_points}</td>
-                  <td className="px-4 py-4">{row.score.exact_scores_count}</td>
                 </tr>
               );
             })}
@@ -459,6 +588,56 @@ export function GroupStandingTable({ rows }: { rows: StandingRow[] }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+function RankingMovementChip({
+  movement,
+  compact = false,
+}: {
+  movement?: RankingMovement | null;
+  compact?: boolean;
+}) {
+  if (!movement) return null;
+
+  if (movement.direction === "same") {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full bg-white/10 font-black text-slate-300",
+          compact ? "px-1.5 py-1 text-[10px] sm:px-2 sm:text-[11px]" : "px-2 py-1 text-xs",
+        )}
+      >
+        <Minus className="h-3 w-3" />
+        =
+      </span>
+    );
+  }
+
+  if (movement.direction === "up") {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full bg-emerald-500/15 font-black text-emerald-300",
+          compact ? "px-1.5 py-1 text-[10px] sm:px-2 sm:text-[11px]" : "px-2 py-1 text-xs",
+        )}
+      >
+        <ArrowUp className="h-3 w-3" />
+        {movement.delta}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full bg-rose-500/15 font-black text-rose-300",
+        compact ? "px-1.5 py-1 text-[10px] sm:px-2 sm:text-[11px]" : "px-2 py-1 text-xs",
+      )}
+    >
+      <ArrowDown className="h-3 w-3" />
+      {movement.delta}
+    </span>
   );
 }
 
