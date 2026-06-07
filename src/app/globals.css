@@ -849,6 +849,60 @@ select.field option {
   gap: 10px;
 }
 
+.manual-tiebreak-context {
+  display: grid;
+  gap: 8px;
+}
+
+.manual-tiebreak-row {
+  align-items: stretch;
+  background: rgb(15 23 42 / 0.54);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(190px, 0.7fr) minmax(0, 1fr);
+  padding: 10px;
+}
+
+.manual-tiebreak-row-active {
+  background: rgb(255 122 26 / 0.1);
+  border-color: rgb(255 122 26 / 0.28);
+}
+
+.manual-tiebreak-fixed-team {
+  align-content: center;
+  display: grid;
+  gap: 3px;
+}
+
+.manual-tiebreak-fixed-team > span,
+.manual-tiebreak-fixed-label {
+  color: #ffcf9f;
+  font-size: 11px;
+  font-weight: 1000;
+  text-transform: uppercase;
+}
+
+.manual-tiebreak-fixed-team strong {
+  color: white;
+  font-size: 13px;
+  font-weight: 1000;
+  line-height: 1.15;
+}
+
+.manual-tiebreak-fixed-team small {
+  color: rgb(203 213 225);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.manual-tiebreak-fixed-label {
+  align-self: center;
+  justify-self: start;
+  opacity: 0.72;
+}
+
 .manual-tiebreak-slot {
   display: grid;
   gap: 6px;
@@ -1010,9 +1064,14 @@ select.field option {
   }
 
   .manual-tiebreak-header,
-  .manual-tiebreak-card {
+  .manual-tiebreak-card,
+  .manual-tiebreak-row {
     border-radius: 18px;
     padding: 12px;
+  }
+
+  .manual-tiebreak-row {
+    grid-template-columns: 1fr;
   }
 }
 

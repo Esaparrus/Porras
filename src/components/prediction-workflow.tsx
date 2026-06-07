@@ -21,6 +21,7 @@ import {
   calculateBestThirdPlacedTeams,
   calculatePredictedGroupStandings,
   calculateRealGroupStandings,
+  calculateThirdPlacedTeamRanking,
 } from "@/lib/scoring";
 import { getThirdPlaceAssignments } from "@/lib/world-cup-third-place-assignments";
 import type {
@@ -264,18 +265,29 @@ export function PredictionWorkflow({
   const predictionSections =
     matchSortMode === "group" ? groupedPredictionMatches : datedPredictionMatches;
   const predictedBestThirdState = useMemo(() => {
-    const unresolvedBestThirdTies: StandingRow[][] = [];
+    const unresolvedBestThirdTies: Array<{ rows: StandingRow[]; qualifyingSlots: number }> = [];
+    const bestThirdManualRanks = buildManualRankMap(
+      tiebreakDraft[getTiebreakScopeId("best_third", BEST_THIRD_SCOPE_KEY)],
+    );
+    const bestThirdContextRows = calculateThirdPlacedTeamRanking(
+      Array.from(standingsByGroup.values()),
+      bestThirdManualRanks,
+    );
     const bestThirds = calculateBestThirdPlacedTeams(
       Array.from(standingsByGroup.values()),
       {
-        manualRanksByTeamId: buildManualRankMap(
-          tiebreakDraft[getTiebreakScopeId("best_third", BEST_THIRD_SCOPE_KEY)],
-        ),
-        collectUnresolvedTie: (rows) => pushUniqueTieGroup(unresolvedBestThirdTies, rows),
+        manualRanksByTeamId: bestThirdManualRanks,
+        collectUnresolvedTie: (rows, meta) =>
+          pushUniqueBestThirdTie(
+            unresolvedBestThirdTies,
+            rows,
+            meta?.qualifyingSlots ?? rows.length,
+          ),
       },
     );
     return {
       bestThirds,
+      bestThirdContextRows,
       unresolvedBestThirdTies,
       thirdPlaceAssignments: getThirdPlaceAssignments(bestThirds),
     };
@@ -283,14 +295,22 @@ export function PredictionWorkflow({
   const tiebreakPrompts = useMemo(() => {
     const prompts = predictedGroupState.unresolvedGroupTies
       .filter(({ group }) => completedGroups.has(group))
-      .map(({ group, rows }) => buildGroupTiebreakPrompt(group, rows));
+      .map(({ group, rows }) =>
+        buildGroupTiebreakPrompt(
+          group,
+          rows,
+          standingsByGroup.get(group) ?? [],
+        ),
+      );
     if (
       allGroupsPredicted &&
       predictedBestThirdState.unresolvedBestThirdTies.length
     ) {
       prompts.push(
         buildBestThirdTiebreakPrompt(
-          predictedBestThirdState.unresolvedBestThirdTies[0] ?? [],
+          predictedBestThirdState.unresolvedBestThirdTies[0]?.rows ?? [],
+          predictedBestThirdState.bestThirdContextRows,
+          predictedBestThirdState.unresolvedBestThirdTies[0]?.qualifyingSlots ?? 1,
         ),
       );
     }
@@ -298,6 +318,8 @@ export function PredictionWorkflow({
   }, [
     allGroupsPredicted,
     completedGroups,
+    standingsByGroup,
+    predictedBestThirdState.bestThirdContextRows,
     predictedBestThirdState.unresolvedBestThirdTies,
     predictedGroupState.unresolvedGroupTies,
   ]);
@@ -828,54 +850,133 @@ function ManualTiebreakPanel({
       <div className="manual-tiebreak-grid">
         {prompts.map((prompt) => {
           const orderedTeamIds = draft[prompt.scopeId] ?? [];
+          const tiedTeamIds = new Set(prompt.teams.map((team) => team.id));
+          const contextRows = prompt.contextRows ?? [];
+          const tiedContextRows = contextRows.filter((row) => tiedTeamIds.has(row.team.id));
           return (
             <article key={prompt.scopeId} className="manual-tiebreak-card">
               <div className="manual-tiebreak-copy">
                 <h4>{prompt.title}</h4>
                 <p>{prompt.description}</p>
               </div>
-              <div className="manual-tiebreak-slots">
-                {prompt.teams.map((_, index) => {
-                  const selectedTeamId = orderedTeamIds[index] ?? "";
-                  return (
-                    <div key={`${prompt.scopeId}-${index}`} className="manual-tiebreak-slot">
-                      <span>{index + 1}.º puesto del desempate</span>
-                      <div className="manual-tiebreak-team-grid">
-                        {prompt.teams.map((team) => {
-                          const selectedElsewhere = orderedTeamIds.some(
-                            (teamId, teamIndex) => teamId === team.id && teamIndex !== index,
-                          );
-                          const selectedHere = selectedTeamId === team.id;
-                          return (
-                            <button
-                              key={team.id}
-                              type="button"
-                              className={
-                                selectedHere
-                                  ? "manual-tiebreak-team manual-tiebreak-team-selected"
-                                  : "manual-tiebreak-team"
-                              }
-                              disabled={disabled || selectedElsewhere}
-                              aria-pressed={selectedHere}
-                              onClick={() => onChange(prompt.scopeId, index, team.id)}
-                            >
-                              <span>{team.flag_emoji}</span>
-                              <strong>{team.name}</strong>
-                              {selectedElsewhere ? <small>Ya elegido</small> : null}
-                            </button>
-                          );
-                        })}
+              {prompt.scopeType === "group" && contextRows.length ? (
+                <div className="manual-tiebreak-context">
+                  {contextRows.map((row, rowIndex) => {
+                    const tieIndex = tiedContextRows.findIndex(
+                      (candidate) => candidate.team.id === row.team.id,
+                    );
+                    const isTiedRow = tieIndex >= 0;
+                    return (
+                      <div
+                        key={`${prompt.scopeId}-${row.team.id}`}
+                        className={
+                          isTiedRow
+                            ? "manual-tiebreak-row manual-tiebreak-row-active"
+                            : "manual-tiebreak-row"
+                        }
+                      >
+                        <div className="manual-tiebreak-fixed-team">
+                          <span>{rowIndex + 1}.º</span>
+                          <strong>{row.team.flag_emoji} {row.team.name}</strong>
+                          <small>
+                            {row.points} pts · DG {formatSignedNumber(row.goalDifference)} · GF {row.goalsFor}
+                          </small>
+                        </div>
+                        {isTiedRow ? (
+                          <TiebreakTeamChoices
+                            disabled={disabled}
+                            label={`${rowIndex + 1}.º puesto del grupo`}
+                            orderedTeamIds={orderedTeamIds}
+                            position={tieIndex}
+                            prompt={prompt}
+                            onChange={onChange}
+                          />
+                        ) : (
+                          <span className="manual-tiebreak-fixed-label">Fijo</span>
+                        )}
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="manual-tiebreak-slots">
+                  {prompt.teams.map((_, index) => (
+                    <TiebreakTeamChoices
+                      key={`${prompt.scopeId}-${index}`}
+                      disabled={disabled}
+                      label={getBestThirdSlotLabel(index, prompt.qualifyingSlots ?? 1)}
+                      orderedTeamIds={orderedTeamIds}
+                      position={index}
+                      prompt={prompt}
+                      onChange={onChange}
+                    />
+                  ))}
+                </div>
+              )}
             </article>
           );
         })}
       </div>
     </section>
   );
+}
+
+function TiebreakTeamChoices({
+  disabled,
+  label,
+  orderedTeamIds,
+  position,
+  prompt,
+  onChange,
+}: {
+  disabled: boolean;
+  label: string;
+  orderedTeamIds: string[];
+  position: number;
+  prompt: PredictionTiebreakPrompt;
+  onChange: (scopeId: string, position: number, teamId: string) => void;
+}) {
+  const selectedTeamId = orderedTeamIds[position] ?? "";
+  return (
+    <div className="manual-tiebreak-slot">
+      <span>{label}</span>
+      <div className="manual-tiebreak-team-grid">
+        {prompt.teams.map((team) => {
+          const selectedElsewhere = orderedTeamIds.some(
+            (teamId, teamIndex) => teamId === team.id && teamIndex !== position,
+          );
+          const selectedHere = selectedTeamId === team.id;
+          return (
+            <button
+              key={team.id}
+              type="button"
+              className={
+                selectedHere
+                  ? "manual-tiebreak-team manual-tiebreak-team-selected"
+                  : "manual-tiebreak-team"
+              }
+              disabled={disabled || selectedElsewhere}
+              aria-pressed={selectedHere}
+              onClick={() => onChange(prompt.scopeId, position, team.id)}
+            >
+              <span>{team.flag_emoji}</span>
+              <strong>{team.name}</strong>
+              {selectedElsewhere ? <small>Ya elegido</small> : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function getBestThirdSlotLabel(index: number, qualifyingSlots: number) {
+  if (index < qualifyingSlots) {
+    return qualifyingSlots === 1
+      ? "Plaza que pasa a eliminatorias"
+      : `Plaza ${index + 1} que pasa a eliminatorias`;
+  }
+  return `${index + 1}.º del empate, no pasa`;
 }
 
 function BracketSide({
@@ -1238,10 +1339,33 @@ function resolveLoser(match: KnockoutMatch, draft?: DraftPrediction) {
   return null;
 }
 
+function pushUniqueBestThirdTie(
+  groups: Array<{ rows: StandingRow[]; qualifyingSlots: number }>,
+  rows: StandingRow[],
+  qualifyingSlots: number,
+) {
+  const signature = rows
+    .map((row) => row.team.id)
+    .sort()
+    .join(":");
+  const exists = groups.some(
+    (group) =>
+      group.rows
+        .map((row) => row.team.id)
+        .sort()
+        .join(":") === signature,
+  );
+  if (!exists) groups.push({ rows, qualifyingSlots });
+}
+
 function numberOrNull(value?: string) {
   if (value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 && Number.isInteger(parsed) ? parsed : null;
+}
+
+function formatSignedNumber(value: number) {
+  return value > 0 ? `+${value}` : value.toString();
 }
 
 function buildPredictionFormData(

@@ -8,7 +8,10 @@ import type {
 } from "@/lib/types";
 import { footballSign } from "@/lib/utils";
 
-type TiebreakCollector = (rows: StandingRow[]) => void;
+type TiebreakCollector = (
+  rows: StandingRow[],
+  meta?: { qualifyingSlots?: number },
+) => void;
 
 type GroupStandingOptions = {
   collectUnresolvedTie?: TiebreakCollector;
@@ -138,20 +141,8 @@ export function calculateBestThirdPlacedTeams(
   groups: StandingRow[][],
   options?: BestThirdOptions,
 ) {
-  const thirdRows = groups
-    .map((group) => group[2])
-    .filter(Boolean)
-    .map((row) => ({
-      ...row,
-      team: {
-        ...row.team,
-        manual_order: options?.manualRanksByTeamId?.get(row.team.id) ?? null,
-      },
-    }));
-
-  const orderedBySupportedCriteria = thirdRows
-    .slice()
-    .sort(compareBestThirdAutomaticRows);
+  const thirdRows = getThirdPlacedRows(groups, options?.manualRanksByTeamId);
+  const orderedBySupportedCriteria = thirdRows.slice().sort(compareBestThirdAutomaticRows);
 
   const tiedGroups = splitStandingGroups(orderedBySupportedCriteria, (left, right) =>
     compareBestThirdAutomaticRows(left, right),
@@ -160,7 +151,7 @@ export function calculateBestThirdPlacedTeams(
   tiedGroups.forEach((group) => {
     const end = start + group.length;
     if (group.length > 1 && start < 8 && end > 8) {
-      options?.collectUnresolvedTie?.(group);
+      options?.collectUnresolvedTie?.(group, { qualifyingSlots: 8 - start });
     }
     start = end;
   });
@@ -168,6 +159,13 @@ export function calculateBestThirdPlacedTeams(
   return thirdRows
     .sort(compareStandingRows)
     .slice(0, 8);
+}
+
+export function calculateThirdPlacedTeamRanking(
+  groups: StandingRow[][],
+  manualRanksByTeamId?: Map<string, number>,
+) {
+  return getThirdPlacedRows(groups, manualRanksByTeamId).sort(compareStandingRows);
 }
 
 export function calculateGroupPredictionPoints(
@@ -562,6 +560,22 @@ function sortByOverallFallback(
 ) {
   if (rows.length > 1) collectUnresolvedTie?.(rows);
   return rows.slice().sort(compareStandingRows);
+}
+
+function getThirdPlacedRows(
+  groups: StandingRow[][],
+  manualRanksByTeamId?: Map<string, number>,
+) {
+  return groups
+    .map((group) => group[2])
+    .filter(Boolean)
+    .map((row) => ({
+      ...row,
+      team: {
+        ...row.team,
+        manual_order: manualRanksByTeamId?.get(row.team.id) ?? null,
+      },
+    }));
 }
 
 function compareBestThirdAutomaticRows(a: StandingRow, b: StandingRow) {

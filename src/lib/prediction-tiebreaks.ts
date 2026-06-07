@@ -16,6 +16,8 @@ export type PredictionTiebreakPrompt = {
   title: string;
   description: string;
   teams: Team[];
+  contextRows?: StandingRow[];
+  qualifyingSlots?: number;
 };
 
 export function getTiebreakScopeId(
@@ -93,6 +95,7 @@ export function pushUniqueTieGroup(
 export function buildGroupTiebreakPrompt(
   groupLetter: string,
   rows: StandingRow[],
+  contextRows: StandingRow[],
 ): PredictionTiebreakPrompt {
   return {
     scopeId: getTiebreakScopeId("group", groupLetter),
@@ -102,11 +105,14 @@ export function buildGroupTiebreakPrompt(
     description:
       "Estos equipos estan empatados en puntos, golaverage y los demas criterios de la tabla. El siguiente criterio FIFA seria el fair play, asi que aqui lo resolvemos a mano: marca quien debe quedar por delante.",
     teams: rows.map((row) => row.team),
+    contextRows,
   };
 }
 
 export function buildBestThirdTiebreakPrompt(
   rows: StandingRow[],
+  contextRows: StandingRow[],
+  qualifyingSlots: number,
 ): PredictionTiebreakPrompt {
   return {
     scopeId: getTiebreakScopeId("best_third", BEST_THIRD_SCOPE_KEY),
@@ -114,7 +120,11 @@ export function buildBestThirdTiebreakPrompt(
     scopeKey: BEST_THIRD_SCOPE_KEY,
     title: "Desempate manual de mejores terceros",
     description:
-      "Estos terceros estan empatados en puntos, golaverage y goles a favor justo en la frontera de pasar a eliminatorias. El siguiente criterio FIFA seria el fair play, asi que aqui lo resolvemos a mano: marca quien debe quedar por delante.",
+      qualifyingSlots === 1
+        ? "Estos terceros estan empatados en puntos, golaverage y goles a favor para la ultima plaza de eliminatorias. El siguiente criterio FIFA seria el fair play, asi que aqui lo resolvemos a mano: marca quien debe pasar."
+        : `Estos terceros estan empatados en puntos, golaverage y goles a favor para ${qualifyingSlots} plazas de eliminatorias. El siguiente criterio FIFA seria el fair play, asi que aqui lo resolvemos a mano: marca quienes deben pasar primero.`,
     teams: rows.map((row) => row.team),
+    contextRows,
+    qualifyingSlots,
   };
 }
