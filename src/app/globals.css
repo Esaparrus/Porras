@@ -153,7 +153,8 @@ select.field option {
 }
 
 .nav-action-button {
-  min-width: 136px;
+  font-size: 13px;
+  min-width: 124px;
   white-space: nowrap;
 }
 
@@ -861,6 +862,11 @@ select.field option {
 }
 
 @media (max-width: 640px) {
+  .grass-shell > div {
+    padding-bottom: 16px;
+    padding-top: 16px;
+  }
+
   .prediction-group-card,
   .prediction-tree-shell {
     border-radius: 18px;
@@ -968,20 +974,28 @@ select.field option {
   .btn-primary,
   .btn-secondary,
   .btn-danger {
+    border-width: 3px;
     box-shadow: 4px 4px 0 #000;
-    min-height: 44px;
-    padding-left: 14px;
-    padding-right: 14px;
+    font-size: 12px;
+    gap: 6px;
+    min-height: 40px;
+    padding-bottom: 9px;
+    padding-left: 12px;
+    padding-right: 12px;
+    padding-top: 9px;
   }
 
   .mobile-action-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
     width: 100%;
   }
 
   .mobile-action-grid .nav-action-button {
+    font-size: 11px;
     min-width: 0;
+    text-align: center;
     width: 100%;
   }
 

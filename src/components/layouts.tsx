@@ -25,8 +25,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
 function BrandLogo({ label }: { label: string }) {
   return (
-    <span className="flex items-center gap-3 font-black">
-      <span className="grid h-11 w-20 place-items-center border-4 border-black bg-black p-1 shadow-[5px_5px_0_#000]">
+    <span className="flex items-center gap-2 text-sm font-black sm:gap-3 sm:text-base">
+      <span className="grid h-9 w-16 place-items-center border-3 border-black bg-black p-1 shadow-[4px_4px_0_#000] sm:h-11 sm:w-20 sm:border-4 sm:shadow-[5px_5px_0_#000]">
         <Image
           src="/world-cup-logo.png"
           alt=""
@@ -43,15 +43,18 @@ function BrandLogo({ label }: { label: string }) {
 
 export function PublicHeader() {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-4 py-4">
+    <header className="flex flex-wrap items-center justify-between gap-3 py-3 sm:gap-4 sm:py-4">
       <Link href="/">
         <BrandLogo label="Porra Mundial 2026" />
       </Link>
       <div className="flex w-full gap-2 sm:w-auto">
-        <Link href="/login" className="btn-secondary flex-1 py-2 sm:flex-none">
+        <Link href="/login" className="btn-secondary flex-1 py-2 text-xs sm:flex-none sm:text-sm">
           Entrar
         </Link>
-        <Link href="/register" className="btn-primary flex-1 py-2 sm:flex-none">
+        <Link
+          href="/register"
+          className="btn-primary flex-1 py-2 text-xs sm:flex-none sm:text-sm"
+        >
           Registrarse
         </Link>
       </div>
@@ -68,7 +71,7 @@ export function UserLayout({
 }) {
   return (
     <Shell>
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <header className="mb-5 flex flex-wrap items-center justify-between gap-3 sm:mb-6">
         <Link href="/dashboard">
           <BrandLogo label="Mi porra" />
         </Link>
