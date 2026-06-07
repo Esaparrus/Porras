@@ -1,12 +1,25 @@
 import Link from "next/link";
-import { Eye, Pencil, ShieldCheck, ShieldX, Trophy } from "lucide-react";
+import {
+  BadgeEuro,
+  CalendarDays,
+  Eye,
+  Pencil,
+  ShieldCheck,
+  ShieldX,
+  Trophy,
+  Users,
+} from "lucide-react";
 import { UserLayout } from "@/components/layouts";
-import { GroupStandingTable, ScoreBreakdownCard, StatCard } from "@/components/ui";
+import { LeagueCodeBox, ScoreBreakdownCard, StatCard } from "@/components/ui";
 import { STATUS_LABELS } from "@/lib/constants";
 import { requireUser } from "@/lib/data";
-import { getPaymentStatusCopy } from "@/lib/league-insights";
-import { calculateRealGroupStandings } from "@/lib/scoring";
-import type { Match, Team } from "@/lib/types";
+import {
+  calculateLeaguePot,
+  calculatePrizeBreakdown,
+  formatCurrency,
+  getPaymentStatusCopy,
+} from "@/lib/league-insights";
+import type { LeagueMember } from "@/lib/types";
 
 export default async function LeagueHomePage({
   params,
@@ -19,9 +32,9 @@ export default async function LeagueHomePage({
     { data: league },
     { data: score },
     { data: ranking },
-    { data: teams },
     { data: matches },
     { data: membership },
+    { data: members },
   ] = await Promise.all([
     supabase.from("leagues").select("*").eq("id", leagueId).single(),
     supabase
@@ -35,22 +48,27 @@ export default async function LeagueHomePage({
       .select("user_id,total_points")
       .eq("league_id", leagueId)
       .order("total_points", { ascending: false }),
-    supabase.from("teams").select("*").order("group_letter").order("manual_order"),
-    supabase.from("matches").select("*").eq("stage", "group"),
+    supabase.from("matches").select("id,is_finished"),
     supabase
       .from("league_members")
       .select("*")
       .eq("league_id", leagueId)
       .eq("user_id", user.id)
       .maybeSingle(),
+    supabase.from("league_members").select("*").eq("league_id", leagueId),
   ]);
 
   const position = (ranking ?? []).findIndex((row) => row.user_id === user.id) + 1;
-  const teamRows = (teams ?? []) as Team[];
-  const matchRows = (matches ?? []) as Match[];
-  const groupLetters = Array.from(
-    new Set(teamRows.map((team) => team.group_letter).filter(Boolean)),
-  ) as string[];
+  const memberRows = (members ?? []) as LeagueMember[];
+  const memberCount = memberRows.length;
+  const paidCount = memberRows.filter((member) => member.payment_status === "paid").length;
+  const pendingCount = Math.max(0, memberCount - paidCount);
+  const finishedMatches = (matches ?? []).filter((match) => match.is_finished).length;
+  const totalMatches = matches?.length ?? 0;
+  const totalPot = league ? calculateLeaguePot(league, memberCount) : 0;
+  const prizes = league
+    ? calculatePrizeBreakdown(league, totalPot)
+    : { first: 0, second: 0, third: 0, remainder: 0 };
   const paymentStatus = membership?.payment_status ?? "pending";
   const paymentCopy = getPaymentStatusCopy(paymentStatus);
   const PaymentIcon = paymentStatus === "paid" ? ShieldCheck : ShieldX;
@@ -111,25 +129,73 @@ export default async function LeagueHomePage({
         </div>
       </div>
 
-      <section className="mt-8">
+      <section className="mt-8 space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-black">Tablas del Mundial</h2>
+            <h2 className="text-2xl font-black">Datos de la liga</h2>
             <p className="mt-1 text-sm font-semibold text-slate-300">
-              Se actualizan solas al guardar resultados reales.
+              Resumen rapido de bote, premios, participantes y estado.
             </p>
           </div>
-          <span className="badge">{groupLetters.length} grupos</span>
+          <span className="badge">{league?.code}</span>
         </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          {groupLetters.map((group) => (
-            <div key={group} className="glass rounded-2xl p-4">
-              <h3 className="mb-3 font-black">Grupo {group}</h3>
-              <GroupStandingTable
-                rows={calculateRealGroupStandings(teamRows, matchRows, group)}
-              />
+
+        {league ? <LeagueCodeBox code={league.code} /> : null}
+
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Participantes" value={memberCount} icon={<Users />} />
+          <StatCard label="Entrada" value={formatCurrency(league?.entry_price ?? 0)} icon={<BadgeEuro />} />
+          <StatCard label="Bote" value={formatCurrency(totalPot)} icon={<Trophy />} />
+          <StatCard label="Partidos cerrados" value={`${finishedMatches}/${totalMatches}`} icon={<CalendarDays />} />
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+          <div className="glass rounded-3xl p-5">
+            <h3 className="text-xl font-black">Premios</h3>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl bg-black/25 p-4">
+                <div className="text-sm font-semibold text-slate-300">1º puesto</div>
+                <div className="mt-1 text-2xl font-black text-[#f6c344]">
+                  {formatCurrency(prizes.first)}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-black/25 p-4">
+                <div className="text-sm font-semibold text-slate-300">2º puesto</div>
+                <div className="mt-1 text-2xl font-black text-[#dbe4f0]">
+                  {formatCurrency(prizes.second)}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-black/25 p-4">
+                <div className="text-sm font-semibold text-slate-300">3º puesto</div>
+                <div className="mt-1 text-2xl font-black text-[#d69659]">
+                  {formatCurrency(prizes.third)}
+                </div>
+              </div>
             </div>
-          ))}
+            {prizes.remainder ? (
+              <p className="mt-3 text-sm font-semibold text-slate-300">
+                Resto sin asignar: {formatCurrency(prizes.remainder)}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="glass rounded-3xl p-5">
+            <h3 className="text-xl font-black">Participantes y pagos</h3>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl bg-emerald-400/15 p-4">
+                <div className="text-sm font-semibold text-emerald-100">Pagados</div>
+                <div className="mt-1 text-3xl font-black">{paidCount}</div>
+              </div>
+              <div className="rounded-2xl bg-rose-500/15 p-4">
+                <div className="text-sm font-semibold text-rose-100">Pendientes</div>
+                <div className="mt-1 text-3xl font-black">{pendingCount}</div>
+              </div>
+            </div>
+            <div className="mt-4 rounded-2xl bg-black/25 p-4 text-sm font-semibold text-slate-300">
+              Liga {STATUS_LABELS[league?.status ?? "open"]}. Las apuestas estan{" "}
+              {league?.predictions_visible ? "visibles" : "ocultas"} para los jugadores.
+            </div>
+          </div>
         </div>
       </section>
     </UserLayout>

@@ -92,9 +92,9 @@ export default async function PredictionsPage({
 
   return (
     <UserLayout leagueId={leagueId}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="page-title-panel mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-black">Mis apuestas</h1>
+          <h1 className="text-3xl font-black drop-shadow-[0_2px_8px_rgb(0_0_0_/_0.8)]">Mis apuestas</h1>
           <p className="mt-2 text-slate-300">
             Partidos completados: {completedMatches}/{matchRows.length}
           </p>
