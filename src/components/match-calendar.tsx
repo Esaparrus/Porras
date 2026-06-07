@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronDown, Clock3 } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import type { Match, MatchPrediction, Team } from "@/lib/types";
 import { cn, getTeamFlagImageUrl } from "@/lib/utils";
 
@@ -114,23 +114,15 @@ function CalendarDayCell({
           <Link
             key={match.id}
             href={`/league/${leagueId}/calendar/${match.id}`}
-            className="block rounded-2xl border border-white/10 bg-black/20 p-2 transition hover:border-[#27e7ff]/45 hover:bg-[#27e7ff]/10"
+            className="flex items-center justify-between gap-2 rounded-2xl border border-white/10 bg-black/20 px-2.5 py-2 transition hover:border-[#27e7ff]/45 hover:bg-[#27e7ff]/10"
           >
-            <div className="flex items-center justify-between gap-2">
-              <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.12em] text-[#ffcf9f]">
-                <Clock3 className="h-3.5 w-3.5" />
-                {formatMatchTime(match.match_date)}
-              </span>
-              <span className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-300">
-                {getStageShortLabel(match.stage)}
-              </span>
+            <div className="flex min-w-0 items-center gap-2">
+              <CompactFlag team={match.home_team} />
+              <span className="text-xs font-black text-slate-500">vs</span>
+              <CompactFlag team={match.away_team} />
             </div>
-            <div className="mt-2 space-y-1.5">
-              <CompactTeamRow team={match.home_team} placeholder={match.home_placeholder} />
-              <CompactTeamRow team={match.away_team} placeholder={match.away_placeholder} />
-            </div>
-            <div className="mt-2 rounded-xl border border-[#27e7ff]/18 bg-[#07111f]/70 px-2 py-1.5 text-center text-[11px] font-black text-[#27e7ff]">
-              Tu resultado: {formatPredictionScore(match.prediction)}
+            <div className="rounded-xl border border-[#27e7ff]/18 bg-[#07111f]/70 px-2.5 py-1 text-center text-[11px] font-black text-[#27e7ff]">
+              {formatPredictionScore(match.prediction)}
             </div>
           </Link>
         ))}
@@ -139,17 +131,11 @@ function CalendarDayCell({
   );
 }
 
-function CompactTeamRow({
-  team,
-  placeholder,
-}: {
-  team?: Team | null;
-  placeholder?: string | null;
-}) {
+function CompactFlag({ team }: { team?: Team | null }) {
   const flagUrl = getTeamFlagImageUrl(team);
 
   return (
-    <div className="flex items-center gap-2 text-sm font-black text-white">
+    <div className="flex items-center justify-center">
       {team ? (
         flagUrl ? (
           <span
@@ -165,7 +151,6 @@ function CompactTeamRow({
           ?
         </span>
       )}
-      <span className="truncate">{team?.name ?? placeholder ?? "Por definir"}</span>
     </div>
   );
 }
@@ -283,15 +268,6 @@ function getMadridMonthKey(value: string) {
   return `${year}-${month}`;
 }
 
-function formatMatchTime(value: string | null) {
-  if (!value) return "Hora por confirmar";
-  return new Intl.DateTimeFormat("es-ES", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: MADRID_TIME_ZONE,
-  }).format(new Date(value));
-}
-
 function formatPredictionScore(prediction?: MatchPrediction | null) {
   if (
     !prediction ||
@@ -303,21 +279,6 @@ function formatPredictionScore(prediction?: MatchPrediction | null) {
 
   return `${prediction.predicted_home_score} - ${prediction.predicted_away_score}`;
 }
-
-function getStageShortLabel(stage: Match["stage"]) {
-  const labels: Record<Match["stage"], string> = {
-    group: "Grupos",
-    round_32: "1/32",
-    round_16: "1/16",
-    quarter_final: "1/4",
-    semi_final: "Semi",
-    third_place: "3er puesto",
-    final: "Final",
-  };
-
-  return labels[stage];
-}
-
 export function PredictionScorePill({
   homeScore,
   awayScore,
