@@ -98,7 +98,8 @@ export default async function AdminUsersPage({
     }).length;
     const userScorers = scorersByUser.get(member.user_id) ?? [];
     const uniqueScorers = new Set(userScorers.map((prediction) => prediction.player_id));
-    const completedScorerSlots = Math.min(3, uniqueScorers.size) +
+    const completedScorerSlots =
+      Math.min(3, uniqueScorers.size) +
       (userScorers.some((prediction) => prediction.is_captain) ? 1 : 0);
     const userAward = awardsByUser.get(member.user_id);
     const userAwardRequests = awardRequestsByUser.get(member.user_id) ?? [];
@@ -128,7 +129,7 @@ export default async function AdminUsersPage({
     <AdminLayout leagueId={leagueId}>
       <h1 className="text-3xl font-black">Usuarios</h1>
       <p className="mt-2 text-sm text-slate-300">
-        Quién se ha unido, cuándo entró y si ya ha pagado la liga.
+        Quien se ha unido, cuando entro y si ya ha pagado la liga.
       </p>
 
       <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -253,8 +254,8 @@ export default async function AdminUsersPage({
           ))
         ) : (
           <EmptyState
-            title="Todavía no hay usuarios"
-            text="Cuando alguien entre con el código de la liga aparecerá aquí para gestionar su pago."
+            title="Todavia no hay usuarios"
+            text="Cuando alguien entre con el codigo de la liga aparecera aqui para gestionar su pago."
           />
         )}
       </div>

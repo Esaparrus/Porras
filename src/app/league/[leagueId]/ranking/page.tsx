@@ -70,6 +70,8 @@ export default async function LeagueRankingPage({
   });
   const finishedMatches = matchesRows.filter((match) => match.is_finished).length;
   const totalMatches = matchesRows.length;
+  const groupStageMatches = matchesRows.filter((match) => match.stage === "group").length;
+  const knockoutStageMatches = totalMatches - groupStageMatches;
   const matchProgressPercentage = totalMatches
     ? Math.round((finishedMatches / totalMatches) * 100)
     : 0;
@@ -105,6 +107,8 @@ export default async function LeagueRankingPage({
           finishedMatches,
           totalMatches,
           matchProgressPercentage,
+          groupStageMatches,
+          knockoutStageMatches,
           prizes,
         }}
         title="Clasificacion"

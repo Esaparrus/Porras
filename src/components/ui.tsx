@@ -258,6 +258,8 @@ type RankingSummary = {
   finishedMatches: number;
   totalMatches: number;
   matchProgressPercentage: number;
+  groupStageMatches: number;
+  knockoutStageMatches: number;
   prizes: {
     first: number;
     second: number;
@@ -305,13 +307,24 @@ export function RankingTable({
   title: string;
   allowPlayerLinks?: boolean;
 }) {
+  const groupBoundaryPercentage = summary.totalMatches
+    ? (summary.groupStageMatches / summary.totalMatches) * 100
+    : 0;
+  const groupFillPercentage = Math.min(summary.matchProgressPercentage, groupBoundaryPercentage);
+  const knockoutFillPercentage =
+    summary.matchProgressPercentage > groupBoundaryPercentage
+      ? summary.matchProgressPercentage - groupBoundaryPercentage
+      : 0;
+  const isKnockoutPhaseVisible =
+    summary.knockoutStageMatches > 0 && summary.finishedMatches >= summary.groupStageMatches;
+
   return (
     <div className="space-y-6">
       <section className="glass overflow-hidden rounded-[2rem] border-white/15">
         <div className="bg-gradient-to-r from-[#27e7ff] via-[#ff4d2d] to-[#ef4444] p-[1px]">
           <div className="bg-[#07111f]/96 px-5 py-6 sm:px-7">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
+            <div className="space-y-5">
+              <div className="max-w-2xl">
                 <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-black uppercase tracking-[0.22em] text-[#27e7ff]">
                   <Sparkles className="h-4 w-4" />
                   {title}
@@ -319,32 +332,71 @@ export function RankingTable({
                 <h2 className="mt-3 text-3xl font-black sm:text-4xl">
                   La pelea por la gloria
                 </h2>
-                <p className="mt-2 max-w-2xl text-sm text-slate-300">
+                <p className="mt-2 text-sm text-slate-300">
                   {summary.finishedMatches} de {summary.totalMatches} partidos ya estan cerrados.
                   {summary.totalMatches > 0 ? ` Quedan ${summary.totalMatches - summary.finishedMatches} por decidir.` : ""}
                 </p>
               </div>
-              <div className="min-w-[180px] rounded-[1.75rem] border border-white/10 bg-black/25 p-4 sm:min-w-[220px]">
-                <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">
-                  Bote total
+              <div className="grid gap-4">
+                <div className="rounded-[1.5rem] border border-emerald-400/15 bg-emerald-500/8 p-4">
+                  <div className="flex items-center justify-between gap-3 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-200">
+                    <span>Progreso partidos</span>
+                    <span>{summary.matchProgressPercentage}%</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                    <span>Grupos</span>
+                    <span className={cn(isKnockoutPhaseVisible && "text-amber-300")}>KO</span>
+                  </div>
+                  <div className="relative mt-3 h-3 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="absolute inset-y-0 left-0 bg-emerald-500/10"
+                      style={{ width: `${groupBoundaryPercentage}%` }}
+                    />
+                    <div
+                      className="absolute inset-y-0 right-0 bg-amber-500/10"
+                      style={{ width: `${Math.max(0, 100 - groupBoundaryPercentage)}%` }}
+                    />
+                    {summary.knockoutStageMatches > 0 ? (
+                      <div
+                        className="absolute inset-y-[-2px] z-10 w-[2px] rounded-full bg-white/70"
+                        style={{ left: `${groupBoundaryPercentage}%` }}
+                      />
+                    ) : null}
+                    <div
+                      className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#16a34a] via-[#4ade80] to-[#bbf7d0]"
+                      style={{ width: `${groupFillPercentage}%` }}
+                    />
+                    {knockoutFillPercentage > 0 ? (
+                      <div
+                        className="absolute inset-y-0 rounded-full bg-gradient-to-r from-[#f59e0b] via-[#fb923c] to-[#f97316]"
+                        style={{
+                          left: `${groupBoundaryPercentage}%`,
+                          width: `${knockoutFillPercentage}%`,
+                        }}
+                      />
+                    ) : null}
+                  </div>
+                  <div className="mt-2 text-xs font-semibold text-slate-300">
+                    {summary.finishedMatches}/{summary.totalMatches} partidos cerrados
+                  </div>
                 </div>
-                <div className="mt-2 text-2xl font-black text-[#27e7ff] sm:text-3xl">
-                  {formatCurrency(summary.totalPot)}
-                </div>
-                <div className="mt-2 text-xs text-slate-300 sm:text-sm">
-                  {summary.memberCount} jugadores x {formatCurrency(summary.entryPrice)}
+
+                <div className="rounded-[1.5rem] border border-cyan-400/15 bg-cyan-500/8 p-4">
+                  <div className="flex items-center justify-between gap-3 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                    <span>Progreso puntos</span>
+                    <span>{summary.progressPercentage}%</span>
+                  </div>
+                  <div className="mt-3 h-3 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-[#06b6d4] via-[#27e7ff] to-[#60a5fa]"
+                      style={{ width: `${summary.progressPercentage}%` }}
+                    />
+                  </div>
+                  <div className="mt-2 text-xs font-semibold text-slate-300">
+                    {summary.playedPoints} pts resueltos, {summary.remainingPoints} pts en juego
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="mt-6 h-4 overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-[#3bd16f] via-[#27e7ff] to-[#ff4d2d]"
-                style={{ width: `${summary.matchProgressPercentage}%` }}
-              />
-            </div>
-            <div className="mt-3 flex flex-wrap justify-between gap-3 text-xs font-bold uppercase tracking-wide text-slate-300">
-              <span>{summary.matchProgressPercentage}% de partidos cerrados</span>
-              <span>{summary.playedPoints} pts resueltos, {summary.remainingPoints} pts en juego</span>
             </div>
           </div>
         </div>
@@ -413,9 +465,9 @@ export function RankingTable({
                 index === 0
                   ? null
                   : index === 1
-                    ? { label: "vs 1º", score: rows[0]?.score.total_points }
+                    ? { label: "vs 1o", score: rows[0]?.score.total_points }
                     : index === 2
-                      ? { label: "vs 2º", score: rows[1]?.score.total_points }
+                      ? { label: "vs 2o", score: rows[1]?.score.total_points }
                       : { label: "podio", score: rows[2]?.score.total_points };
               const pointsGap =
                 gapReference?.score === undefined
