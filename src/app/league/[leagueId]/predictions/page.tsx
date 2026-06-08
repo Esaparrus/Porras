@@ -78,6 +78,10 @@ export default async function PredictionsPage({
     new Set(teamRows.map((team) => team.group_letter).filter(Boolean)),
   ) as string[];
   const scorerByIndex = scorerPredictions ?? [];
+  const completedScorerSlots = Math.min(
+    3,
+    new Set(scorerByIndex.map((row) => row.player_id)).size,
+  );
   const manualRequests = new Map(
     ((requestRows ?? []) as PlayerSelectionRequest[]).map((request) => [
       request.field_key,
@@ -210,7 +214,7 @@ export default async function PredictionsPage({
         <h2 className="text-2xl font-black">Resumen final</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div>📅 Partidos completados: {completedMatches}/{matchRows.length}</div>
-          <div>⚽ Goleadores elegidos: {scorerByIndex.length}/3</div>
+          <div>⚽ Goleadores elegidos: {completedScorerSlots}/3</div>
           <div>🏆 Premios elegidos: {awardPrediction ? "4/4" : "0/4"}</div>
           <div>🔀 Eliminatorias: se calculan con tus resultados guardados</div>
         </div>

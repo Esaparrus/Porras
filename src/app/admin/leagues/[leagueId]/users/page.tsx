@@ -20,26 +20,49 @@ const AWARD_FIELDS = [
 ] as const;
 const SUPABASE_PAGE_SIZE = 1000;
 
-async function getLeagueMatchPredictions(
-  supabase: Awaited<ReturnType<typeof requireAdmin>>["supabase"],
-  leagueId: string,
-) {
-  const rows: MatchPrediction[] = [];
+type AwardRow = { user_id: string } & Record<(typeof AWARD_FIELDS)[number], string | null>;
+
+type LeagueMemberRow = {
+  id: string;
+  user_id: string;
+  joined_at: string | null;
+  payment_status: "paid" | "pending" | null;
+  profiles: Profile | Profile[] | null;
+};
+
+// Supabase corta cualquier select en 1000 filas por defecto. Todas las tablas que
+// crecen con el numero de usuarios (predicciones, goleadores, desempates...) deben
+// paginarse o algunos miembros saldrian con datos truncados sin avisar.
+async function fetchAllRows<Row>(
+  buildPage: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: Row[] | null; error: unknown }>,
+): Promise<Row[]> {
+  const rows: Row[] = [];
 
   for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from("match_predictions")
-      .select("*")
-      .eq("league_id", leagueId)
-      .range(from, from + SUPABASE_PAGE_SIZE - 1);
-
+    const { data, error } = await buildPage(from, from + SUPABASE_PAGE_SIZE - 1);
     if (error) throw error;
 
-    const page = (data ?? []) as MatchPrediction[];
+    const page = (data ?? []) as Row[];
     rows.push(...page);
 
     if (page.length < SUPABASE_PAGE_SIZE) return rows;
   }
+}
+
+function getLeagueMatchPredictions(
+  supabase: Awaited<ReturnType<typeof requireAdmin>>["supabase"],
+  leagueId: string,
+) {
+  return fetchAllRows<MatchPrediction>((from, to) =>
+    supabase
+      .from("match_predictions")
+      .select("*")
+      .eq("league_id", leagueId)
+      .range(from, to),
+  );
 }
 
 export default async function AdminUsersPage({
@@ -49,65 +72,91 @@ export default async function AdminUsersPage({
 }) {
   const { leagueId } = await params;
   const { supabase } = await requireAdmin();
-  const matchPredictionsPromise = getLeagueMatchPredictions(supabase, leagueId);
   const [
-    { data: members },
-    { data: scores },
-    { data: matches },
-    { data: teams },
-    { data: tiebreakSelections },
-    { data: scorerPredictions },
-    { data: awardPredictions },
-    { data: awardRequests },
+    members,
+    scores,
+    matches,
+    teams,
+    tiebreakSelections,
+    scorerPredictions,
+    awardPredictions,
+    awardRequests,
     matchPredictions,
   ] = await Promise.all([
-    supabase
-      .from("league_members")
-      .select("*, profiles(*)")
-      .eq("league_id", leagueId)
-      .order("joined_at", { ascending: false }),
-    supabase.from("scores").select("*").eq("league_id", leagueId),
-    supabase.from("matches").select("*"),
-    supabase.from("teams").select("*"),
-    supabase
-      .from("prediction_tiebreak_selections")
-      .select("*")
-      .eq("league_id", leagueId),
-    supabase
-      .from("scorer_predictions")
-      .select("user_id, player_id")
-      .eq("league_id", leagueId),
-    supabase
-      .from("award_predictions")
-      .select("user_id, top_scorer_player_id, best_player_id, best_goalkeeper_id, best_young_player_id")
-      .eq("league_id", leagueId),
-    supabase
-      .from("player_selection_requests")
-      .select("user_id, field_key, player_name, status")
-      .eq("league_id", leagueId),
-    matchPredictionsPromise,
+    fetchAllRows<LeagueMemberRow>((from, to) =>
+      supabase
+        .from("league_members")
+        .select("*, profiles(*)")
+        .eq("league_id", leagueId)
+        .order("joined_at", { ascending: false })
+        .order("user_id", { ascending: true })
+        .range(from, to),
+    ),
+    fetchAllRows<Score>((from, to) =>
+      supabase.from("scores").select("*").eq("league_id", leagueId).range(from, to),
+    ),
+    fetchAllRows<Match>((from, to) =>
+      supabase.from("matches").select("*").range(from, to),
+    ),
+    fetchAllRows<Team>((from, to) =>
+      supabase.from("teams").select("*").range(from, to),
+    ),
+    fetchAllRows<PredictionTiebreakSelection>((from, to) =>
+      supabase
+        .from("prediction_tiebreak_selections")
+        .select("*")
+        .eq("league_id", leagueId)
+        .range(from, to),
+    ),
+    fetchAllRows<{ user_id: string; player_id: string }>((from, to) =>
+      supabase
+        .from("scorer_predictions")
+        .select("user_id, player_id")
+        .eq("league_id", leagueId)
+        .range(from, to),
+    ),
+    fetchAllRows<AwardRow>((from, to) =>
+      supabase
+        .from("award_predictions")
+        .select("user_id, top_scorer_player_id, best_player_id, best_goalkeeper_id, best_young_player_id")
+        .eq("league_id", leagueId)
+        .range(from, to),
+    ),
+    fetchAllRows<{
+      user_id: string;
+      field_key: string;
+      player_name: string | null;
+      status: string;
+    }>((from, to) =>
+      supabase
+        .from("player_selection_requests")
+        .select("user_id, field_key, player_name, status")
+        .eq("league_id", leagueId)
+        .range(from, to),
+    ),
+    getLeagueMatchPredictions(supabase, leagueId),
   ]);
 
-  const scoreByUserId = new Map(
-    ((scores ?? []) as Score[]).map((score) => [score.user_id, score]),
-  );
-  const matchRows = (matches ?? []) as Match[];
-  const teamRows = (teams ?? []) as Team[];
+  const scoreByUserId = new Map(scores.map((score) => [score.user_id, score]));
+  const matchRows = matches;
+  const teamRows = teams;
   const groupLetters = Array.from(
     new Set(teamRows.map((team) => team.group_letter).filter(Boolean)),
   ) as string[];
   const totalMatchSlots = matchRows.length;
+  const groupMatchRows = matchRows.filter((match) => match.stage === "group");
+  const groupMatchTotal = groupMatchRows.length;
+  const knockoutMatchTotal = totalMatchSlots - groupMatchTotal;
+  const matchStageById = new Map(matchRows.map((match) => [match.id, match.stage]));
   const predictionsByUser = groupByUser(matchPredictions);
-  const tiebreaksByUser = groupByUser(
-    (tiebreakSelections ?? []) as PredictionTiebreakSelection[],
-  );
-  const scorersByUser = groupByUser(scorerPredictions ?? []);
-  const awardsByUser = new Map((awardPredictions ?? []).map((row) => [row.user_id, row]));
+  const tiebreaksByUser = groupByUser(tiebreakSelections);
+  const scorersByUser = groupByUser(scorerPredictions);
+  const awardsByUser = new Map(awardPredictions.map((row) => [row.user_id, row]));
   const awardRequestsByUser = groupByUser(
-    (awardRequests ?? []).filter((row) => row.status !== "rejected"),
+    awardRequests.filter((row) => row.status !== "rejected"),
   );
 
-  const normalizedMembers = (members ?? []).map((member) => {
+  const normalizedMembers = members.map((member) => {
     const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
     const score = scoreByUserId.get(member.user_id);
     const userMatchPredictions = predictionsByUser.get(member.user_id) ?? [];
@@ -118,20 +167,40 @@ export default async function AdminUsersPage({
       teams: teamRows,
       tiebreakSelections: tiebreaksByUser.get(member.user_id) ?? [],
     });
-    const completedMatches = userMatchPredictions.filter(
-      (prediction) =>
-        prediction.predicted_home_score !== null &&
-        prediction.predicted_away_score !== null,
-    ).length;
+    let completedGroupMatches = 0;
+    let completedKnockoutMatches = 0;
+    for (const prediction of userMatchPredictions) {
+      if (
+        prediction.predicted_home_score === null ||
+        prediction.predicted_away_score === null
+      ) {
+        continue;
+      }
+      if (matchStageById.get(prediction.match_id) === "group") {
+        completedGroupMatches += 1;
+      } else {
+        completedKnockoutMatches += 1;
+      }
+    }
+    const completedMatches = completedGroupMatches + completedKnockoutMatches;
     const userScorers = scorersByUser.get(member.user_id) ?? [];
     const uniqueScorers = new Set(userScorers.map((prediction) => prediction.player_id));
     const completedScorerSlots = Math.min(3, uniqueScorers.size);
     const userAward = awardsByUser.get(member.user_id);
     const userAwardRequests = awardRequestsByUser.get(member.user_id) ?? [];
-    const completedAwardSlots = AWARD_FIELDS.filter((field) => {
-      if (userAward?.[field]) return true;
+    // Solo cuenta como hecho lo confirmado: el valor en award_predictions (que se
+    // escribe al aprobar una peticion manual). Las peticiones aun pendientes de
+    // revisar se reportan aparte para no inflar el "X/4".
+    const completedAwardSlots = AWARD_FIELDS.filter((field) =>
+      Boolean(userAward?.[field]),
+    ).length;
+    const pendingAwardSlots = AWARD_FIELDS.filter((field) => {
+      if (userAward?.[field]) return false;
       return userAwardRequests.some(
-        (request) => request.field_key === field && request.player_name,
+        (request) =>
+          request.field_key === field &&
+          request.player_name &&
+          request.status === "pending",
       );
     }).length;
 
@@ -142,12 +211,17 @@ export default async function AdminUsersPage({
       bets: {
         completed: completedMatches,
         total: totalMatchSlots,
+        groupCompleted: completedGroupMatches,
+        groupTotal: groupMatchTotal,
+        knockoutCompleted: completedKnockoutMatches,
+        knockoutTotal: knockoutMatchTotal,
       },
       extras: {
         scorersCompleted: completedScorerSlots,
         scorersTotal: 3,
         awardsCompleted: completedAwardSlots,
         awardsTotal: AWARD_FIELDS.length,
+        awardsPending: pendingAwardSlots,
       },
       pendingManualTiebreaks: manualTiebreakStatus.pendingCount,
     };
@@ -208,7 +282,13 @@ export default async function AdminUsersPage({
                     {member.bets.completed}/{member.bets.total}
                   </div>
                   <p className="mt-2 text-xs font-bold text-slate-300">
+                    Grupos {member.bets.groupCompleted}/{member.bets.groupTotal} · Eliminatorias {member.bets.knockoutCompleted}/{member.bets.knockoutTotal}
+                  </p>
+                  <p className="mt-1 text-xs font-bold text-slate-300">
                     Goleadores {member.extras.scorersCompleted}/{member.extras.scorersTotal} · Premios {member.extras.awardsCompleted}/{member.extras.awardsTotal}
+                    {member.extras.awardsPending
+                      ? ` (${member.extras.awardsPending} pendiente(s) de aprobar)`
+                      : ""}
                   </p>
                   {member.pendingManualTiebreaks ? (
                     <p className="mt-2 text-xs font-bold text-[#ffcf9f]">
