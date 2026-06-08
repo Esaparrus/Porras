@@ -1,4 +1,5 @@
 ﻿import { AdminMatchEditor } from "@/components/admin-match-editor";
+import { AdminBestThirdOrderEditor } from "@/components/admin-best-third-order-editor";
 import { AdminGroupOrderEditor } from "@/components/admin-group-order-editor";
 import { AdminLayout } from "@/components/layouts";
 import { PlayerPicker } from "@/components/player-picker";
@@ -10,8 +11,37 @@ import {
 } from "@/app/actions";
 import { STAGE_LABELS } from "@/lib/constants";
 import { getActivePlayers, requireAdmin } from "@/lib/data";
-import { calculateRealGroupStandings } from "@/lib/scoring";
-import type { Match, MatchScorer, Player, PlayerSelectionRequest, Team } from "@/lib/types";
+import { calculateBestThirdPlacedTeams, calculateRealGroupStandings } from "@/lib/scoring";
+import { getAdminBestThirdManualRanks } from "@/lib/world-cup";
+import type {
+  Match,
+  MatchScorer,
+  Player,
+  PlayerSelectionRequest,
+  StandingRow,
+  Team,
+} from "@/lib/types";
+
+type BestThirdTie = { rows: StandingRow[]; qualifyingSlots: number };
+
+function pushUniqueBestThirdTie(
+  ties: BestThirdTie[],
+  rows: StandingRow[],
+  qualifyingSlots: number,
+) {
+  const signature = rows
+    .map((row) => row.team.id)
+    .sort()
+    .join(":");
+  const exists = ties.some(
+    (tie) =>
+      tie.rows
+        .map((row) => row.team.id)
+        .sort()
+        .join(":") === signature,
+  );
+  if (!exists) ties.push({ rows, qualifyingSlots });
+}
 
 type MatchScorerRow = MatchScorer & {
   players?: Player | Player[] | null;
@@ -196,6 +226,36 @@ export default async function AdminResultsPage() {
     new Set(teams.map((team) => team.group_letter).filter(Boolean)),
   ).sort() as string[];
 
+  // Solo tiene sentido resolver empates de terceros cuando la fase de grupos ha
+  // terminado: antes, los "terceros" todavia pueden cambiar.
+  const groupMatches = matches.filter((match) => match.stage === "group");
+  const groupStageFinished =
+    groupMatches.length > 0 && groupMatches.every((match) => match.is_finished);
+  const bestThirdTies: BestThirdTie[] = [];
+
+  if (groupStageFinished) {
+    const adminBestThirdRanks = await getAdminBestThirdManualRanks(supabase);
+    const realGroups = groupLetters.map((groupLetter) =>
+      calculateRealGroupStandings(teams, matches, groupLetter),
+    );
+    calculateBestThirdPlacedTeams(realGroups, {
+      manualRanksByTeamId: adminBestThirdRanks,
+      collectUnresolvedTie: (rows, meta) =>
+        pushUniqueBestThirdTie(
+          bestThirdTies,
+          // Prefill con el orden ya guardado (manual_order) y, si no, alfabetico.
+          rows
+            .slice()
+            .sort(
+              (left, right) =>
+                (left.team.manual_order ?? 999) - (right.team.manual_order ?? 999) ||
+                left.team.name.localeCompare(right.team.name),
+            ),
+          meta?.qualifyingSlots ?? rows.length,
+        ),
+    });
+  }
+
   return (
     <AdminLayout>
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -258,6 +318,26 @@ export default async function AdminResultsPage() {
               })}
             </section>
           ))}
+
+          {bestThirdTies.length > 0 && (
+            <section className="glass rounded-3xl border border-[#ff7a1a]/40 p-5">
+              <h2 className="text-2xl font-black">Resolver empates de terceros</h2>
+              <p className="mt-2 text-sm text-slate-300">
+                Hay terceros empatados en la frontera de clasificación. El siguiente
+                criterio FIFA sería fair play y no metemos tarjetas, así que decide a
+                mano quién pasa a dieciseisavos.
+              </p>
+              <div className="mt-4 grid gap-4">
+                {bestThirdTies.map((tie) => (
+                  <AdminBestThirdOrderEditor
+                    key={tie.rows.map((row) => row.team.id).join("-")}
+                    rows={tie.rows}
+                    qualifyingSlots={tie.qualifyingSlots}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="glass rounded-3xl p-5">
             <h2 className="text-2xl font-black">Grupos</h2>

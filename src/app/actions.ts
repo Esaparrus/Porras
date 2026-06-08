@@ -34,7 +34,12 @@ import type {
   PredictionTiebreakSelection,
   Team,
 } from "@/lib/types";
-import { generateKnockoutFromResults, getMatchLoser, getMatchWinner } from "@/lib/world-cup";
+import {
+  generateKnockoutFromResults,
+  getAdminBestThirdManualRanks,
+  getMatchLoser,
+  getMatchWinner,
+} from "@/lib/world-cup";
 import {
   authEmailForUsername,
   generateLeagueCode,
@@ -872,6 +877,37 @@ export async function saveGroupManualOrderAction(formData: FormData) {
   revalidatePath("/admin/results");
 }
 
+export async function saveAdminBestThirdOrderAction(formData: FormData) {
+  const { user } = await requireAdmin();
+  const supabase = createSupabaseAdminClient();
+  const teamIds = String(formData.get("team_ids") ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (!teamIds.length) return;
+
+  // Solo se reescriben los equipos de este empate; manual_order actua como
+  // desempate residual dentro del grupo de iguales, asi que el rango puede
+  // reiniciarse en 1 por cada empate sin afectar a otros equipos.
+  await supabase.from("admin_best_third_order").delete().in("team_id", teamIds);
+  await supabase.from("admin_best_third_order").insert(
+    teamIds.map((teamId, index) => ({ team_id: teamId, rank: index + 1 })),
+  );
+
+  await generateKnockoutFromResults(supabase);
+  await supabase.from("admin_logs").insert({
+    league_id: null,
+    admin_user_id: user.id,
+    action_type: "update_best_third_order",
+    description: `Orden manual de mejores terceros actualizado (${teamIds.length} equipos)`,
+  });
+  await recalculateAllLeagueScores();
+  await revalidateAllLeagueViews();
+  revalidatePath("/admin");
+  revalidatePath("/admin/results");
+}
+
 export async function saveFinalAwardsAction(formData: FormData) {
   const { user } = await requireAdmin();
   const supabase = createSupabaseAdminClient();
@@ -1308,6 +1344,12 @@ export async function recalculateLeagueScores(leagueId: string) {
   const realGroups = groupLetters.map((group) =>
     calculateRealGroupStandings(teams, matches, group),
   );
+  const adminBestThirdRanks = await getAdminBestThirdManualRanks(supabase);
+  const realBestThirdIds = new Set(
+    calculateBestThirdPlacedTeams(realGroups, {
+      manualRanksByTeamId: adminBestThirdRanks,
+    }).map((row) => row.team.id),
+  );
   const scorerTotals = new Map<string, number>(
     (scorerTotalsResult.data ?? []).map((row) => [row.player_id, row.goals]),
   );
@@ -1400,6 +1442,7 @@ export async function recalculateLeagueScores(leagueId: string) {
       settings,
       completedGroups,
       predictedBestThirdIds,
+      realBestThirdIds,
     );
     const knockoutPoints = knockoutPredictions.reduce((total, prediction) => {
       const match = matches.find((item) => item.id === prediction.match_id);

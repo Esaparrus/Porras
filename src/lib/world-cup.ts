@@ -1,3 +1,4 @@
+import { buildManualRankMap } from "@/lib/prediction-tiebreaks";
 import { calculateBestThirdPlacedTeams, calculateRealGroupStandings } from "@/lib/scoring";
 import { getThirdPlaceAssignments } from "@/lib/world-cup-third-place-assignments";
 import type { Match, Team } from "@/lib/types";
@@ -56,6 +57,15 @@ export const KNOCKOUT_STAGES = [
   "final",
 ] as const;
 
+// Orden manual global del admin para desempatar mejores terceros reales.
+export async function getAdminBestThirdManualRanks(supabase: SupabaseAdmin) {
+  const { data } = await supabase
+    .from("admin_best_third_order")
+    .select("team_id, rank")
+    .order("rank", { ascending: true });
+  return buildManualRankMap((data ?? []).map((row) => row.team_id as string));
+}
+
 export function getMatchWinner(match: Pick<Match, "home_team_id" | "away_team_id" | "home_score" | "away_score" | "winner_team_id" | "is_finished">) {
   if (!match.is_finished) return null;
   if (match.winner_team_id) return match.winner_team_id;
@@ -109,8 +119,10 @@ async function fillRoundOf32(supabase: SupabaseAdmin, teams: Team[], matches: Ma
   const standingsByGroup = new Map(
     GROUPS.map((group) => [group, calculateRealGroupStandings(teams, matches, group)]),
   );
+  const manualRanksByTeamId = await getAdminBestThirdManualRanks(supabase);
   const thirdRows = calculateBestThirdPlacedTeams(
     GROUPS.map((group) => standingsByGroup.get(group) ?? []),
+    { manualRanksByTeamId },
   );
   const thirdPlaceAssignments = getThirdPlaceAssignments(thirdRows);
 
