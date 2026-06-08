@@ -212,34 +212,6 @@ export default async function AdminResultsPage() {
       </div>
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.65fr_0.95fr]">
-        <div className="xl:col-span-2">
-          <section className="glass rounded-3xl p-5">
-            <h2 className="text-2xl font-black">Grupos</h2>
-            <p className="mt-2 text-sm text-slate-300">
-              Vista rápida de clasificación. El orden manual se usa solo como último desempate.
-            </p>
-            <div className="mt-4 grid gap-4 xl:grid-cols-4">
-              {groupLetters.map((groupLetter) => {
-                const rows = calculateRealGroupStandings(teams, matches, groupLetter);
-                const rowsKey = rows
-                  .map(
-                    (row) =>
-                      `${row.team.id}:${row.points}:${row.goalDifference}:${row.goalsFor}:${row.goalsAgainst}`,
-                  )
-                  .join("|");
-
-                return (
-                  <AdminGroupOrderEditor
-                    key={`${groupLetter}-${rowsKey}`}
-                    groupLetter={groupLetter}
-                    rows={rows}
-                  />
-                );
-              })}
-            </div>
-          </section>
-        </div>
-
         <div className="grid gap-6">
           {orderedDateGroups.map(([dateKey, dateMatches]) => (
             <section key={dateKey} className="grid gap-4">
@@ -286,6 +258,32 @@ export default async function AdminResultsPage() {
               })}
             </section>
           ))}
+
+          <section className="glass rounded-3xl p-5">
+            <h2 className="text-2xl font-black">Grupos</h2>
+            <p className="mt-2 text-sm text-slate-300">
+              Vista rápida de clasificación. El orden manual se usa solo como último desempate.
+            </p>
+            <div className="mt-4 grid gap-4 xl:grid-cols-4">
+              {groupLetters.map((groupLetter) => {
+                const rows = calculateRealGroupStandings(teams, matches, groupLetter);
+                const rowsKey = rows
+                  .map(
+                    (row) =>
+                      `${row.team.id}:${row.points}:${row.goalDifference}:${row.goalsFor}:${row.goalsAgainst}`,
+                  )
+                  .join("|");
+
+                return (
+                  <AdminGroupOrderEditor
+                    key={`${groupLetter}-${rowsKey}`}
+                    groupLetter={groupLetter}
+                    rows={rows}
+                  />
+                );
+              })}
+            </div>
+          </section>
         </div>
 
         <div className="grid content-start gap-6">
