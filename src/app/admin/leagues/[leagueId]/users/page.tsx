@@ -76,9 +76,6 @@ export default async function AdminUsersPage({
     new Set(teamRows.map((team) => team.group_letter).filter(Boolean)),
   ) as string[];
   const totalMatchSlots = matchRows.length;
-  const knockoutMatchIds = new Set(
-    matchRows.filter((match) => match.stage !== "group").map((match) => match.id),
-  );
   const predictionsByUser = groupByUser((matchPredictions ?? []) as MatchPrediction[]);
   const tiebreaksByUser = groupByUser(
     (tiebreakSelections ?? []) as PredictionTiebreakSelection[],
@@ -100,30 +97,11 @@ export default async function AdminUsersPage({
       teams: teamRows,
       tiebreakSelections: tiebreaksByUser.get(member.user_id) ?? [],
     });
-    const completedMatches = userMatchPredictions.filter((prediction) => {
-      if (
-        prediction.predicted_home_score === null ||
-        prediction.predicted_away_score === null
-      ) {
-        return false;
-      }
-
-      if (
-        knockoutMatchIds.has(prediction.match_id) &&
-        manualTiebreakStatus.pendingCount > 0
-      ) {
-        return false;
-      }
-
-      if (
-        knockoutMatchIds.has(prediction.match_id) &&
-        prediction.predicted_home_score === prediction.predicted_away_score
-      ) {
-        return Boolean(prediction.predicted_winner_team_id);
-      }
-
-      return true;
-    }).length;
+    const completedMatches = userMatchPredictions.filter(
+      (prediction) =>
+        prediction.predicted_home_score !== null &&
+        prediction.predicted_away_score !== null,
+    ).length;
     const userScorers = scorersByUser.get(member.user_id) ?? [];
     const uniqueScorers = new Set(userScorers.map((prediction) => prediction.player_id));
     const completedScorerSlots = Math.min(3, uniqueScorers.size);

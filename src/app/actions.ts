@@ -401,9 +401,6 @@ async function getLeaguePredictionPendingMessage(leagueId: string) {
     new Set(teamRows.map((team) => team.group_letter).filter(Boolean)),
   ) as string[];
   const totalMatches = matchRows.length;
-  const knockoutMatchIds = new Set(
-    matchRows.filter((match) => match.stage !== "group").map((match) => match.id),
-  );
   const predictionsByUser = groupByUser((matchPredictions ?? []) as MatchPrediction[]);
   const tiebreaksByUser = groupByUser(
     (tiebreakSelections ?? []) as PredictionTiebreakSelection[],
@@ -432,25 +429,11 @@ async function getLeaguePredictionPendingMessage(leagueId: string) {
           .filter(
             (prediction) =>
               prediction.predicted_home_score !== null &&
-              prediction.predicted_away_score !== null &&
-              !(
-                manualTiebreakStatus.pendingCount > 0 &&
-                knockoutMatchIds.has(prediction.match_id)
-              ),
+              prediction.predicted_away_score !== null,
           )
           .map((prediction) => prediction.match_id),
       );
-      const tiedKnockoutsWithoutWinner = userMatchPredictions.filter(
-        (prediction) =>
-          knockoutMatchIds.has(prediction.match_id) &&
-          manualTiebreakStatus.pendingCount === 0 &&
-          prediction.predicted_home_score !== null &&
-          prediction.predicted_away_score !== null &&
-          prediction.predicted_home_score === prediction.predicted_away_score &&
-          !prediction.predicted_winner_team_id,
-      ).length;
-      const missingMatches =
-        Math.max(0, totalMatches - completedMatchIds.size) + tiedKnockoutsWithoutWinner;
+      const missingMatches = Math.max(0, totalMatches - completedMatchIds.size);
 
       const userScorers = scorersByUser.get(userId) ?? [];
       const uniqueScorers = new Set(userScorers.map((prediction) => prediction.player_id));
