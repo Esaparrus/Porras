@@ -79,7 +79,6 @@ export default async function AdminUsersPage({
   const knockoutMatchIds = new Set(
     matchRows.filter((match) => match.stage !== "group").map((match) => match.id),
   );
-  const totalPredictionSlots = totalMatchSlots + 3 + AWARD_FIELDS.length;
   const predictionsByUser = groupByUser((matchPredictions ?? []) as MatchPrediction[]);
   const tiebreaksByUser = groupByUser(
     (tiebreakSelections ?? []) as PredictionTiebreakSelection[],
@@ -141,9 +140,15 @@ export default async function AdminUsersPage({
       ...member,
       profile: profile as Profile | null,
       scoreSummary: getMemberScore(score),
-      completion: {
-        completed: completedMatches + completedScorerSlots + completedAwardSlots,
-        total: totalPredictionSlots,
+      bets: {
+        completed: completedMatches,
+        total: totalMatchSlots,
+      },
+      extras: {
+        scorersCompleted: completedScorerSlots,
+        scorersTotal: 3,
+        awardsCompleted: completedAwardSlots,
+        awardsTotal: AWARD_FIELDS.length,
       },
       pendingManualTiebreaks: manualTiebreakStatus.pendingCount,
     };
@@ -198,11 +203,14 @@ export default async function AdminUsersPage({
 
                 <div className="mt-4 rounded-2xl bg-black/20 p-3">
                   <div className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                    Porra rellenada
+                    Apuestas hechas
                   </div>
                   <div className="mt-1 text-2xl font-black">
-                    {member.completion.completed}/{member.completion.total}
+                    {member.bets.completed}/{member.bets.total}
                   </div>
+                  <p className="mt-2 text-xs font-bold text-slate-300">
+                    Goleadores {member.extras.scorersCompleted}/{member.extras.scorersTotal} · Premios {member.extras.awardsCompleted}/{member.extras.awardsTotal}
+                  </p>
                   {member.pendingManualTiebreaks ? (
                     <p className="mt-2 text-xs font-bold text-[#ffcf9f]">
                       Tiene {member.pendingManualTiebreaks} desempate(s) manual(es) pendiente(s).

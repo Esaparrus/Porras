@@ -495,6 +495,20 @@ function groupByUser<Row extends { user_id: string }>(rows: Row[]) {
   }, new Map());
 }
 
+function revalidateLeaguePredictionProgressPaths(leagueId: string) {
+  revalidatePath("/admin");
+  revalidatePath("/admin/leagues");
+  revalidatePath("/admin/results");
+  revalidatePath(`/admin/leagues/${leagueId}`);
+  revalidatePath(`/admin/leagues/${leagueId}/ranking`);
+  revalidatePath(`/admin/leagues/${leagueId}/settings`);
+  revalidatePath(`/admin/leagues/${leagueId}/users`);
+  revalidatePath(`/league/${leagueId}`);
+  revalidatePath(`/league/${leagueId}/predictions`);
+  revalidatePath(`/league/${leagueId}/ranking`);
+  revalidatePath(`/league/${leagueId}/profile`);
+}
+
 export async function saveMatchPredictionsAction(formData: FormData) {
   const { user } = await requireUser();
   const supabase = createSupabaseAdminClient();
@@ -530,7 +544,7 @@ export async function saveMatchPredictionsAction(formData: FormData) {
     await supabase.from("prediction_tiebreak_selections").insert(tiebreakRows);
   }
   await recalculateLeagueScores(leagueId);
-  revalidatePath(`/league/${leagueId}/predictions`);
+  revalidateLeaguePredictionProgressPaths(leagueId);
   return { ok: true, savedAt: new Date().toISOString(), userId: user.id };
 }
 
@@ -558,7 +572,7 @@ export async function saveScorerPredictionsAction(formData: FormData) {
     );
   }
   await recalculateLeagueScores(leagueId);
-  revalidatePath(`/league/${leagueId}/predictions`);
+  revalidateLeaguePredictionProgressPaths(leagueId);
 }
 
 export async function saveAwardPredictionsAction(formData: FormData) {
@@ -610,7 +624,7 @@ export async function saveAwardPredictionsAction(formData: FormData) {
   }
 
   await recalculateLeagueScores(leagueId);
-  revalidatePath(`/league/${leagueId}/predictions`);
+  revalidateLeaguePredictionProgressPaths(leagueId);
 }
 
 export async function updateMatchResultAction(formData: FormData) {

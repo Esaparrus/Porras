@@ -324,24 +324,8 @@ export function PredictionWorkflow({
     };
   }, [standingsByGroup, tiebreakDraft]);
   const tiebreakPrompts = useMemo(() => {
-    const bestThirdScopeId = getTiebreakScopeId("best_third", BEST_THIRD_SCOPE_KEY);
-    const unresolvedBestThirdTie = predictedBestThirdState.unresolvedBestThirdTies.find(
-      ({ rows, qualifyingSlots }) =>
-        !isBestThirdTieResolved(
-          rows,
-          tiebreakDraft[bestThirdScopeId],
-          qualifyingSlots,
-        ),
-    );
     const prompts = predictedGroupState.unresolvedGroupTies
-      .filter(
-        ({ group, rows }) =>
-          completedGroups.has(group) &&
-          !isTieResolved(
-            rows,
-            tiebreakDraft[getTiebreakScopeId("group", group)],
-          ),
-      )
+      .filter(({ group }) => completedGroups.has(group))
       .map(({ group, rows }) =>
         buildGroupTiebreakPrompt(
           group,
@@ -349,15 +333,13 @@ export function PredictionWorkflow({
           standingsByGroup.get(group) ?? [],
         ),
       );
-    if (
-      allGroupPlacementsResolved &&
-      unresolvedBestThirdTie
-    ) {
+    const bestThirdTie = predictedBestThirdState.unresolvedBestThirdTies[0];
+    if (allGroupPlacementsResolved && bestThirdTie) {
       prompts.push(
         buildBestThirdTiebreakPrompt(
-          unresolvedBestThirdTie.rows,
+          bestThirdTie.rows,
           predictedBestThirdState.bestThirdContextRows,
-          unresolvedBestThirdTie.qualifyingSlots,
+          bestThirdTie.qualifyingSlots,
         ),
       );
     }
@@ -369,7 +351,6 @@ export function PredictionWorkflow({
     predictedBestThirdState.bestThirdContextRows,
     predictedBestThirdState.unresolvedBestThirdTies,
     predictedGroupState.unresolvedGroupTies,
-    tiebreakDraft,
   ]);
   const pendingBestThirdTiebreak = Boolean(
     allGroupPlacementsResolved &&
@@ -691,7 +672,7 @@ export function PredictionWorkflow({
 
   return (
     <form onSubmit={handleManualSubmit} className="space-y-8">
-      {showTiebreakSessionNotice ? (
+      {showTiebreakSessionNotice && tiebreakPrompts.length ? (
         <section className="manual-tiebreak-session-notice">
           <AlertCircle className="h-5 w-5 text-[#ff7a1a]" />
           <div>
@@ -1038,14 +1019,33 @@ function ManualTiebreakPanel({
           const tiedTeamIds = new Set(prompt.teams.map((team) => team.id));
           const contextRows = prompt.contextRows ?? [];
           const tiedContextRows = contextRows.filter((row) => tiedTeamIds.has(row.team.id));
+          const isResolved =
+            prompt.scopeType === "group"
+              ? isTieResolved(
+                  tiedContextRows,
+                  orderedTeamIds,
+                )
+              : isBestThirdTieResolved(
+                  tiedContextRows,
+                  orderedTeamIds,
+                  prompt.qualifyingSlots ?? prompt.teams.length,
+                );
           return (
             <article key={prompt.scopeId} className="manual-tiebreak-card">
               <div className="manual-tiebreak-copy">
                 <span className="manual-tiebreak-step">
                   {getTiebreakStepLabel(prompt.scopeType)}
                 </span>
+                <span className="manual-tiebreak-step">
+                  {isResolved ? "Resuelto" : "Pendiente"}
+                </span>
                 <h4>{prompt.title}</h4>
-                <p>{prompt.description}</p>
+                <p>
+                  {prompt.description}{" "}
+                  {isResolved
+                    ? "Ya esta guardado y se sigue mostrando para que se entienda como queda el cruce."
+                    : "Todavia hace falta decidirlo para cerrar bien los cruces."}
+                </p>
               </div>
               {prompt.scopeType === "group" && contextRows.length ? (
                 <div className="manual-tiebreak-context">
