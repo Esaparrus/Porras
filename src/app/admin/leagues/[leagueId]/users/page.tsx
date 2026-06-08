@@ -142,8 +142,14 @@ export default async function AdminUsersPage({
       profile: profile as Profile | null,
       scoreSummary: getMemberScore(score),
       completion: {
-        completed: completedMatches + completedScorerSlots + completedAwardSlots,
-        total: totalPredictionSlots + manualTiebreakStatus.pendingCount,
+        completed: Math.max(
+          0,
+          completedMatches +
+            completedScorerSlots +
+            completedAwardSlots -
+            manualTiebreakStatus.pendingCount,
+        ),
+        total: totalPredictionSlots,
       },
       pendingManualTiebreaks: manualTiebreakStatus.pendingCount,
     };
