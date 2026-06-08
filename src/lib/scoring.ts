@@ -509,42 +509,75 @@ function calculateStandingsTable(
   return Array.from(rows.values());
 }
 
+type PlayedMatchRow = {
+  home_team_id: string | null;
+  away_team_id: string | null;
+  home_score: number | null;
+  away_score: number | null;
+  is_finished?: boolean;
+};
+
+// Desempate FIFA (Mundial): primero criterios globales (diferencia de goles y
+// goles a favor) y solo despues el enfrentamiento directo entre los empatados.
 function sortStandingRows(
   rows: StandingRow[],
-  playedMatches: Array<{
-    home_team_id: string | null;
-    away_team_id: string | null;
-    home_score: number | null;
-    away_score: number | null;
-    is_finished?: boolean;
-  }>,
+  playedMatches: PlayedMatchRow[],
   collectUnresolvedTie?: TiebreakCollector,
 ) {
-  const ordered = rows
-    .slice()
-    .sort((left, right) => right.points - left.points || left.team.name.localeCompare(right.team.name));
+  const ordered = rows.slice().sort(compareOverallRows);
 
-  return ordered.flatMap((row, index) => {
-    if (index > 0 && ordered[index - 1]?.points === row.points) return [];
+  return splitStandingGroups(ordered, compareOverallRows).flatMap((group) =>
+    group.length > 1
+      ? breakTieGroup(group, playedMatches, collectUnresolvedTie)
+      : group,
+  );
+}
 
-    const tiedRows = ordered.filter((candidate) => candidate.points === row.points);
-    return tiedRows.length > 1
-      ? breakTieGroup(tiedRows, playedMatches, collectUnresolvedTie)
-      : [row];
+// Equipos empatados en puntos + diferencia de goles + goles a favor.
+// Se aplica el enfrentamiento directo y, si no separa, fair play / desempate manual.
+function breakTieGroup(
+  tiedRows: StandingRow[],
+  playedMatches: PlayedMatchRow[],
+  collectUnresolvedTie?: TiebreakCollector,
+): StandingRow[] {
+  const headToHeadRows = buildHeadToHeadTable(tiedRows, playedMatches);
+  const compare = (left: StandingRow, right: StandingRow) =>
+    compareHeadToHeadRows(left, right, headToHeadRows);
+  const ordered = tiedRows.slice().sort(compare);
+  const groups = splitStandingGroups(ordered, compare);
+
+  if (groups.length > 1) {
+    return groups.flatMap((group) =>
+      group.length > 1
+        ? breakTieGroup(group, playedMatches, collectUnresolvedTie)
+        : group,
+    );
+  }
+
+  // El enfrentamiento directo no separa: queda fair play y, si tampoco, desempate manual.
+  return resolveResidualTie(tiedRows, collectUnresolvedTie);
+}
+
+function resolveResidualTie(
+  tiedRows: StandingRow[],
+  collectUnresolvedTie?: TiebreakCollector,
+) {
+  const compareFairPlay = (left: StandingRow, right: StandingRow) =>
+    (left.team.fair_play_points ?? 0) - (right.team.fair_play_points ?? 0);
+
+  return splitStandingGroups(
+    tiedRows.slice().sort(compareFairPlay),
+    compareFairPlay,
+  ).flatMap((group) => {
+    if (group.length > 1) collectUnresolvedTie?.(group);
+    return group.slice().sort(compareStandingRows);
   });
 }
 
-function breakTieGroup(
+function buildHeadToHeadTable(
   tiedRows: StandingRow[],
-  playedMatches: Array<{
-    home_team_id: string | null;
-    away_team_id: string | null;
-    home_score: number | null;
-    away_score: number | null;
-    is_finished?: boolean;
-  }>,
-  collectUnresolvedTie?: TiebreakCollector,
-): StandingRow[] {
+  playedMatches: PlayedMatchRow[],
+) {
   const tiedTeamIds = new Set(tiedRows.map((row) => row.team.id));
   const headToHeadMatches = playedMatches.filter(
     (match) =>
@@ -553,28 +586,20 @@ function breakTieGroup(
       tiedTeamIds.has(match.home_team_id) &&
       tiedTeamIds.has(match.away_team_id),
   );
-  const headToHeadRows = new Map(
+  return new Map(
     calculateStandingsTable(
       tiedRows.map((row) => row.team),
       headToHeadMatches,
     ).map((row) => [row.team.id, row]),
   );
-  const ordered = tiedRows
-    .slice()
-    .sort((left, right) => compareHeadToHeadRows(left, right, headToHeadRows));
-  const groups = splitStandingGroups(ordered, (left, right) =>
-    compareHeadToHeadRows(left, right, headToHeadRows),
+}
+
+function compareOverallRows(left: StandingRow, right: StandingRow) {
+  return (
+    right.points - left.points ||
+    right.goalDifference - left.goalDifference ||
+    right.goalsFor - left.goalsFor
   );
-
-  if (groups.length > 1) {
-    return groups.flatMap((group) =>
-      group.length === tiedRows.length
-        ? sortByOverallFallback(group, collectUnresolvedTie)
-        : breakTieGroup(group, playedMatches, collectUnresolvedTie),
-    );
-  }
-
-  return sortByOverallFallback(tiedRows, collectUnresolvedTie);
 }
 
 function compareHeadToHeadRows(
@@ -610,19 +635,6 @@ function splitStandingGroups(
   }, []);
 }
 
-function sortByOverallFallback(
-  rows: StandingRow[],
-  collectUnresolvedTie?: TiebreakCollector,
-) {
-  splitStandingGroups(
-    rows.slice().sort(compareBestThirdAutomaticRows),
-    compareBestThirdAutomaticRows,
-  ).forEach((group) => {
-    if (group.length > 1) collectUnresolvedTie?.(group);
-  });
-  return rows.slice().sort(compareStandingRows);
-}
-
 function getThirdPlacedRows(
   groups: StandingRow[][],
   manualRanksByTeamId?: Map<string, number>,
@@ -639,14 +651,15 @@ function getThirdPlacedRows(
     }));
 }
 
+// Criterios automaticos para terceros (sin enfrentamiento directo: no se han
+// jugado entre si). Tras puntos/diferencia/goles solo queda fair play; el FIFA
+// ranking ya no decide, los empates reales se resuelven a mano.
 function compareBestThirdAutomaticRows(a: StandingRow, b: StandingRow) {
   return (
     b.points - a.points ||
     b.goalDifference - a.goalDifference ||
     b.goalsFor - a.goalsFor ||
-    (a.team.fair_play_points ?? 0) - (b.team.fair_play_points ?? 0) ||
-    (a.team.fifa_ranking ?? Number.MAX_SAFE_INTEGER) -
-      (b.team.fifa_ranking ?? Number.MAX_SAFE_INTEGER)
+    (a.team.fair_play_points ?? 0) - (b.team.fair_play_points ?? 0)
   );
 }
 
@@ -656,8 +669,6 @@ function compareStandingRows(a: StandingRow, b: StandingRow) {
     b.goalDifference - a.goalDifference ||
     b.goalsFor - a.goalsFor ||
     (a.team.fair_play_points ?? 0) - (b.team.fair_play_points ?? 0) ||
-    (a.team.fifa_ranking ?? Number.MAX_SAFE_INTEGER) -
-      (b.team.fifa_ranking ?? Number.MAX_SAFE_INTEGER) ||
     (a.team.manual_order ?? 999) - (b.team.manual_order ?? 999) ||
     a.team.name.localeCompare(b.team.name)
   );
