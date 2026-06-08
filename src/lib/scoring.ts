@@ -185,6 +185,7 @@ export function calculateGroupPredictionPoints(
   settings: PointSettings,
   completedGroups?: boolean[],
   predictedBestThirdIds?: Set<string>,
+  realBestThirdIds?: Set<string>,
 ) {
   let points = 0;
   const allGroupsCompleted = completedGroups
@@ -192,7 +193,8 @@ export function calculateGroupPredictionPoints(
     : true;
 
   const realBestThirds = allGroupsCompleted
-    ? new Set(calculateBestThirdPlacedTeams(realGroups).map((row) => row.team.id))
+    ? realBestThirdIds ??
+      new Set(calculateBestThirdPlacedTeams(realGroups).map((row) => row.team.id))
     : new Set<string>();
   const predictedBestThirds = allGroupsCompleted
     ? predictedBestThirdIds ??
