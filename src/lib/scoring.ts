@@ -160,8 +160,9 @@ export function calculateBestThirdPlacedTeams(
   let start = 0;
   tiedGroups.forEach((group) => {
     const end = start + group.length;
-    if (group.length > 1 && start < 8 && end > 8) {
-      options?.collectUnresolvedTie?.(group, { qualifyingSlots: 8 - start });
+    const qualifyingSlots = Math.max(0, Math.min(8, end) - start);
+    if (group.length > 1 && qualifyingSlots > 0) {
+      options?.collectUnresolvedTie?.(group, { qualifyingSlots });
     }
     start = end;
   });
