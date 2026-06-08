@@ -161,7 +161,7 @@ export function calculateBestThirdPlacedTeams(
   tiedGroups.forEach((group) => {
     const end = start + group.length;
     const qualifyingSlots = Math.max(0, Math.min(8, end) - start);
-    if (group.length > 1 && qualifyingSlots > 0) {
+    if (group.length > qualifyingSlots && qualifyingSlots > 0) {
       options?.collectUnresolvedTie?.(group, { qualifyingSlots });
     }
     start = end;
@@ -614,7 +614,12 @@ function sortByOverallFallback(
   rows: StandingRow[],
   collectUnresolvedTie?: TiebreakCollector,
 ) {
-  if (rows.length > 1) collectUnresolvedTie?.(rows);
+  splitStandingGroups(
+    rows.slice().sort(compareBestThirdAutomaticRows),
+    compareBestThirdAutomaticRows,
+  ).forEach((group) => {
+    if (group.length > 1) collectUnresolvedTie?.(group);
+  });
   return rows.slice().sort(compareStandingRows);
 }
 
