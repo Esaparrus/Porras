@@ -92,6 +92,16 @@ export function pushUniqueTieGroup(
   if (!exists) groups.push(rows);
 }
 
+export function isTieResolved(rows: StandingRow[], orderedTeamIds: string[] | undefined) {
+  const tiedTeamIds = new Set(rows.map((row) => row.team.id));
+  const selectedTeamIds = (orderedTeamIds ?? []).slice(0, rows.length);
+  return (
+    selectedTeamIds.length === rows.length &&
+    selectedTeamIds.every((teamId) => tiedTeamIds.has(teamId)) &&
+    new Set(selectedTeamIds).size === rows.length
+  );
+}
+
 export function buildGroupTiebreakPrompt(
   groupLetter: string,
   rows: StandingRow[],

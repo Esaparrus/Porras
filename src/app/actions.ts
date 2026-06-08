@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { DEFAULT_POINT_SETTINGS } from "@/lib/constants";
 import { requireAdmin, requireUser } from "@/lib/data";
+import { getManualTiebreakStatus } from "@/lib/prediction-completion";
 import {
   BEST_THIRD_SCOPE_KEY,
   buildManualRankMap,
@@ -29,6 +30,7 @@ import type {
   MatchPrediction,
   PointSettings,
   PredictionTiebreakSelection,
+  Team,
 } from "@/lib/types";
 import { generateKnockoutFromResults, getMatchWinner } from "@/lib/world-cup";
 import {
@@ -356,7 +358,9 @@ async function getLeaguePredictionPendingMessage(leagueId: string) {
   const [
     { data: members },
     { data: matches },
+    { data: teams },
     { data: matchPredictions },
+    { data: tiebreakSelections },
     { data: scorerPredictions },
     { data: awardPredictions },
     { data: awardRequests },
@@ -365,10 +369,15 @@ async function getLeaguePredictionPendingMessage(leagueId: string) {
       .from("league_members")
       .select("user_id, profiles(display_name, username)")
       .eq("league_id", leagueId),
-    supabase.from("matches").select("id, stage"),
+    supabase.from("matches").select("*"),
+    supabase.from("teams").select("*"),
     supabase
       .from("match_predictions")
-      .select("user_id, match_id, predicted_home_score, predicted_away_score, predicted_winner_team_id")
+      .select("*")
+      .eq("league_id", leagueId),
+    supabase
+      .from("prediction_tiebreak_selections")
+      .select("*")
       .eq("league_id", leagueId),
     supabase
       .from("scorer_predictions")
@@ -384,12 +393,19 @@ async function getLeaguePredictionPendingMessage(leagueId: string) {
       .eq("league_id", leagueId),
   ]);
 
-  const matchRows = matches ?? [];
+  const matchRows = (matches ?? []) as Match[];
+  const teamRows = (teams ?? []) as Team[];
+  const groupLetters = Array.from(
+    new Set(teamRows.map((team) => team.group_letter).filter(Boolean)),
+  ) as string[];
   const totalMatches = matchRows.length;
   const knockoutMatchIds = new Set(
     matchRows.filter((match) => match.stage !== "group").map((match) => match.id),
   );
-  const predictionsByUser = groupByUser(matchPredictions ?? []);
+  const predictionsByUser = groupByUser((matchPredictions ?? []) as MatchPrediction[]);
+  const tiebreaksByUser = groupByUser(
+    (tiebreakSelections ?? []) as PredictionTiebreakSelection[],
+  );
   const scorersByUser = groupByUser(scorerPredictions ?? []);
   const awardsByUser = new Map(
     (awardPredictions ?? []).map((row) => [row.user_id, row]),
@@ -402,18 +418,30 @@ async function getLeaguePredictionPendingMessage(leagueId: string) {
     .map((member) => {
       const userId = member.user_id;
       const userMatchPredictions = predictionsByUser.get(userId) ?? [];
+      const manualTiebreakStatus = getManualTiebreakStatus({
+        groupLetters,
+        matches: matchRows,
+        predictions: userMatchPredictions,
+        teams: teamRows,
+        tiebreakSelections: tiebreaksByUser.get(userId) ?? [],
+      });
       const completedMatchIds = new Set(
         userMatchPredictions
           .filter(
             (prediction) =>
               prediction.predicted_home_score !== null &&
-              prediction.predicted_away_score !== null,
+              prediction.predicted_away_score !== null &&
+              !(
+                manualTiebreakStatus.pendingCount > 0 &&
+                knockoutMatchIds.has(prediction.match_id)
+              ),
           )
           .map((prediction) => prediction.match_id),
       );
       const tiedKnockoutsWithoutWinner = userMatchPredictions.filter(
         (prediction) =>
           knockoutMatchIds.has(prediction.match_id) &&
+          manualTiebreakStatus.pendingCount === 0 &&
           prediction.predicted_home_score !== null &&
           prediction.predicted_away_score !== null &&
           prediction.predicted_home_score === prediction.predicted_away_score &&
@@ -437,6 +465,9 @@ async function getLeaguePredictionPendingMessage(leagueId: string) {
 
       const pendingParts = [
         missingMatches ? `${missingMatches} resultados` : "",
+        manualTiebreakStatus.pendingCount
+          ? `${manualTiebreakStatus.pendingCount} desempates manuales`
+          : "",
         missingScorers ? `${missingScorers} goleadores` : "",
         missingAwards ? `${missingAwards} premios` : "",
       ].filter(Boolean);

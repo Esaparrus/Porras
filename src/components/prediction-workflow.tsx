@@ -13,6 +13,7 @@ import {
   buildManualRankMap,
   buildTiebreakDraft,
   getTiebreakScopeId,
+  isTieResolved,
   pushUniqueTieGroup,
   type PredictionTiebreakDraft,
   type PredictionTiebreakPrompt,
@@ -420,6 +421,15 @@ export function PredictionWorkflow({
       ),
     [knockoutMatches],
   );
+  const resolvedKnockoutMatchIds = useMemo(
+    () =>
+      new Set(
+        knockoutMatches
+          .filter((match) => match.predictedHomeTeam && match.predictedAwayTeam)
+          .map((match) => match.id),
+      ),
+    [knockoutMatches],
+  );
 
   useEffect(() => {
     if (!tiebreakPrompts.length) return;
@@ -462,7 +472,13 @@ export function PredictionWorkflow({
 
     try {
       await saveMatchPredictionsAction(
-        buildPredictionFormData(leagueId, matches, draft, tiebreakDraft),
+        buildPredictionFormData(
+          leagueId,
+          matches,
+          draft,
+          tiebreakDraft,
+          resolvedKnockoutMatchIds,
+        ),
       );
       lastSavedSnapshotRef.current = snapshot;
       setSaveStatus({
@@ -497,7 +513,16 @@ export function PredictionWorkflow({
         void savePredictions(queuedMode);
       }
     }
-  }, [draft, leagueId, locked, matches, router, startTransition, tiebreakDraft]);
+  }, [
+    draft,
+    leagueId,
+    locked,
+    matches,
+    resolvedKnockoutMatchIds,
+    router,
+    startTransition,
+    tiebreakDraft,
+  ]);
 
   useEffect(() => {
     if (locked || inFlightSaveRef.current) return;
@@ -1465,16 +1490,6 @@ function pushUniqueBestThirdTie(
   if (!exists) groups.push({ rows, qualifyingSlots });
 }
 
-function isTieResolved(rows: StandingRow[], orderedTeamIds: string[] | undefined) {
-  const tiedTeamIds = new Set(rows.map((row) => row.team.id));
-  const selectedTeamIds = (orderedTeamIds ?? []).slice(0, rows.length);
-  return (
-    selectedTeamIds.length === rows.length &&
-    selectedTeamIds.every((teamId) => tiedTeamIds.has(teamId)) &&
-    new Set(selectedTeamIds).size === rows.length
-  );
-}
-
 function numberOrNull(value?: string) {
   if (value === undefined || value === "") return null;
   const parsed = Number(value);
@@ -1490,6 +1505,7 @@ function buildPredictionFormData(
   matches: Match[],
   draft: Record<string, DraftPrediction>,
   tiebreakDraft: PredictionTiebreakDraft,
+  resolvedKnockoutMatchIds: Set<string>,
 ) {
   const formData = new FormData();
   formData.set("league_id", leagueId);
@@ -1498,9 +1514,14 @@ function buildPredictionFormData(
 
   matches.forEach((match) => {
     const prediction = draft[match.id];
-    formData.set(`home_${match.id}`, prediction?.home ?? "");
-    formData.set(`away_${match.id}`, prediction?.away ?? "");
-    formData.set(`winner_${match.id}`, prediction?.winnerId ?? "");
+    const unresolvedKnockout =
+      match.stage !== "group" && !resolvedKnockoutMatchIds.has(match.id);
+    formData.set(`home_${match.id}`, unresolvedKnockout ? "" : (prediction?.home ?? ""));
+    formData.set(`away_${match.id}`, unresolvedKnockout ? "" : (prediction?.away ?? ""));
+    formData.set(
+      `winner_${match.id}`,
+      unresolvedKnockout ? "" : (prediction?.winnerId ?? ""),
+    );
   });
 
   return formData;

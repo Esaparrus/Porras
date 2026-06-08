@@ -9,7 +9,8 @@ import { AdminLayout } from "@/components/layouts";
 import { EmptyState, PaymentStatusChip, StatCard } from "@/components/ui";
 import { countPayments, formatAdminDate, getMemberScore } from "@/lib/admin";
 import { requireAdmin } from "@/lib/data";
-import type { Profile, Score } from "@/lib/types";
+import { getManualTiebreakStatus } from "@/lib/prediction-completion";
+import type { Match, MatchPrediction, PredictionTiebreakSelection, Profile, Score, Team } from "@/lib/types";
 
 const AWARD_FIELDS = [
   "top_scorer_player_id",
@@ -29,7 +30,9 @@ export default async function AdminUsersPage({
     { data: members },
     { data: scores },
     { data: matches },
+    { data: teams },
     { data: matchPredictions },
+    { data: tiebreakSelections },
     { data: scorerPredictions },
     { data: awardPredictions },
     { data: awardRequests },
@@ -40,10 +43,15 @@ export default async function AdminUsersPage({
       .eq("league_id", leagueId)
       .order("joined_at", { ascending: false }),
     supabase.from("scores").select("*").eq("league_id", leagueId),
-    supabase.from("matches").select("id, stage"),
+    supabase.from("matches").select("*"),
+    supabase.from("teams").select("*"),
     supabase
       .from("match_predictions")
-      .select("user_id, match_id, predicted_home_score, predicted_away_score, predicted_winner_team_id")
+      .select("*")
+      .eq("league_id", leagueId),
+    supabase
+      .from("prediction_tiebreak_selections")
+      .select("*")
       .eq("league_id", leagueId),
     supabase
       .from("scorer_predictions")
@@ -62,13 +70,20 @@ export default async function AdminUsersPage({
   const scoreByUserId = new Map(
     ((scores ?? []) as Score[]).map((score) => [score.user_id, score]),
   );
-  const matchRows = matches ?? [];
+  const matchRows = (matches ?? []) as Match[];
+  const teamRows = (teams ?? []) as Team[];
+  const groupLetters = Array.from(
+    new Set(teamRows.map((team) => team.group_letter).filter(Boolean)),
+  ) as string[];
   const totalMatchSlots = matchRows.length;
   const knockoutMatchIds = new Set(
     matchRows.filter((match) => match.stage !== "group").map((match) => match.id),
   );
   const totalPredictionSlots = totalMatchSlots + 3 + AWARD_FIELDS.length;
-  const predictionsByUser = groupByUser(matchPredictions ?? []);
+  const predictionsByUser = groupByUser((matchPredictions ?? []) as MatchPrediction[]);
+  const tiebreaksByUser = groupByUser(
+    (tiebreakSelections ?? []) as PredictionTiebreakSelection[],
+  );
   const scorersByUser = groupByUser(scorerPredictions ?? []);
   const awardsByUser = new Map((awardPredictions ?? []).map((row) => [row.user_id, row]));
   const awardRequestsByUser = groupByUser(
@@ -79,10 +94,24 @@ export default async function AdminUsersPage({
     const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
     const score = scoreByUserId.get(member.user_id);
     const userMatchPredictions = predictionsByUser.get(member.user_id) ?? [];
+    const manualTiebreakStatus = getManualTiebreakStatus({
+      groupLetters,
+      matches: matchRows,
+      predictions: userMatchPredictions,
+      teams: teamRows,
+      tiebreakSelections: tiebreaksByUser.get(member.user_id) ?? [],
+    });
     const completedMatches = userMatchPredictions.filter((prediction) => {
       if (
         prediction.predicted_home_score === null ||
         prediction.predicted_away_score === null
+      ) {
+        return false;
+      }
+
+      if (
+        knockoutMatchIds.has(prediction.match_id) &&
+        manualTiebreakStatus.pendingCount > 0
       ) {
         return false;
       }
@@ -114,8 +143,9 @@ export default async function AdminUsersPage({
       scoreSummary: getMemberScore(score),
       completion: {
         completed: completedMatches + completedScorerSlots + completedAwardSlots,
-        total: totalPredictionSlots,
+        total: totalPredictionSlots + manualTiebreakStatus.pendingCount,
       },
+      pendingManualTiebreaks: manualTiebreakStatus.pendingCount,
     };
   });
 
@@ -173,6 +203,11 @@ export default async function AdminUsersPage({
                   <div className="mt-1 text-2xl font-black">
                     {member.completion.completed}/{member.completion.total}
                   </div>
+                  {member.pendingManualTiebreaks ? (
+                    <p className="mt-2 text-xs font-bold text-[#ffcf9f]">
+                      Tiene {member.pendingManualTiebreaks} desempate(s) manual(es) pendiente(s).
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
