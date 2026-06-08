@@ -344,7 +344,7 @@ export default async function AdminResultsPage() {
             <p className="mt-2 text-sm text-slate-300">
               Vista rápida de clasificación. El orden manual se usa solo como último desempate.
             </p>
-            <div className="mt-4 grid gap-4 xl:grid-cols-4">
+            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {groupLetters.map((groupLetter) => {
                 const rows = calculateRealGroupStandings(teams, matches, groupLetter);
                 const rowsKey = rows

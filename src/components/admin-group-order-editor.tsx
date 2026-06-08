@@ -31,18 +31,16 @@ export function AdminGroupOrderEditor({
       <input type="hidden" name="group_letter" value={groupLetter} />
       <input type="hidden" name="team_ids" value={teamIds} />
 
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-black">Grupo {groupLetter}</h3>
-          <p className="mt-1 text-xs text-slate-300">
-            Desempate real FIFA primero. Si hace falta, aquí puedes forzar el orden final.
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-lg font-black">Grupo {groupLetter}</h3>
         <button className="btn-secondary min-h-0 px-3 py-2 text-xs">
           <Save className="h-4 w-4" />
           Guardar
         </button>
       </div>
+      <p className="mt-2 text-xs text-slate-300">
+        Desempate real FIFA primero. Si hace falta, aquí puedes forzar el orden final.
+      </p>
 
       <div className="mt-4 grid gap-2">
         {orderedRows.map((row, index) => (
