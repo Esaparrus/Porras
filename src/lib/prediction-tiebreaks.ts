@@ -102,6 +102,22 @@ export function isTieResolved(rows: StandingRow[], orderedTeamIds: string[] | un
   );
 }
 
+export function isBestThirdTieResolved(
+  rows: StandingRow[],
+  orderedTeamIds: string[] | undefined,
+  qualifyingSlots: number,
+) {
+  const tiedTeamIds = new Set(rows.map((row) => row.team.id));
+  const requiredSlots = Math.min(rows.length, qualifyingSlots);
+  const selectedTeamIds = (orderedTeamIds ?? []).slice(0, requiredSlots);
+  return (
+    requiredSlots > 0 &&
+    selectedTeamIds.length === requiredSlots &&
+    selectedTeamIds.every((teamId) => tiedTeamIds.has(teamId)) &&
+    new Set(selectedTeamIds).size === requiredSlots
+  );
+}
+
 export function buildGroupTiebreakPrompt(
   groupLetter: string,
   rows: StandingRow[],

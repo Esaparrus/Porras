@@ -1,6 +1,7 @@
 import {
   BEST_THIRD_SCOPE_KEY,
   buildManualRankMap,
+  isBestThirdTieResolved,
   isTieResolved,
   pushUniqueTieGroup,
 } from "@/lib/prediction-tiebreaks";
@@ -90,7 +91,10 @@ export function getManualTiebreakStatus({
   const allGroupsCompleted = groupMatches.length > 0 && completedGroups.size === groupLetters.length;
   const allGroupPlacementsResolved = allGroupsCompleted && pendingGroupTiebreaks === 0;
 
-  const unresolvedBestThirdTies: StandingRow[][] = [];
+  const unresolvedBestThirdTies: Array<{
+    rows: StandingRow[];
+    qualifyingSlots: number;
+  }> = [];
   const bestThirdTiebreak = tiebreakSelections
     .filter(
       (selection) =>
@@ -101,11 +105,31 @@ export function getManualTiebreakStatus({
     .map((selection) => selection.team_id);
   calculateBestThirdPlacedTeams(predictedGroups, {
     manualRanksByTeamId: buildManualRankMap(bestThirdTiebreak),
-    collectUnresolvedTie: (rows) => pushUniqueTieGroup(unresolvedBestThirdTies, rows),
+    collectUnresolvedTie: (rows, meta) => {
+      const signature = rows
+        .map((row) => row.team.id)
+        .sort()
+        .join(":");
+      const exists = unresolvedBestThirdTies.some(
+        (tie) =>
+          tie.rows
+            .map((row) => row.team.id)
+            .sort()
+            .join(":") === signature,
+      );
+      if (exists) return;
+      unresolvedBestThirdTies.push({
+        rows,
+        qualifyingSlots: meta?.qualifyingSlots ?? rows.length,
+      });
+    },
   });
   const pendingBestThirdTiebreak =
     allGroupPlacementsResolved &&
-    unresolvedBestThirdTies.some((rows) => !isTieResolved(rows, bestThirdTiebreak));
+    unresolvedBestThirdTies.some(
+      ({ rows, qualifyingSlots }) =>
+        !isBestThirdTieResolved(rows, bestThirdTiebreak, qualifyingSlots),
+    );
 
   return {
     pendingGroupTiebreaks,

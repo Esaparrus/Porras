@@ -13,6 +13,7 @@ import {
   buildManualRankMap,
   buildTiebreakDraft,
   getTiebreakScopeId,
+  isBestThirdTieResolved,
   isTieResolved,
   pushUniqueTieGroup,
   type PredictionTiebreakDraft,
@@ -325,7 +326,12 @@ export function PredictionWorkflow({
   const tiebreakPrompts = useMemo(() => {
     const bestThirdScopeId = getTiebreakScopeId("best_third", BEST_THIRD_SCOPE_KEY);
     const unresolvedBestThirdTie = predictedBestThirdState.unresolvedBestThirdTies.find(
-      ({ rows }) => !isTieResolved(rows, tiebreakDraft[bestThirdScopeId]),
+      ({ rows, qualifyingSlots }) =>
+        !isBestThirdTieResolved(
+          rows,
+          tiebreakDraft[bestThirdScopeId],
+          qualifyingSlots,
+        ),
     );
     const prompts = predictedGroupState.unresolvedGroupTies
       .filter(
@@ -368,10 +374,11 @@ export function PredictionWorkflow({
   const pendingBestThirdTiebreak = Boolean(
     allGroupPlacementsResolved &&
       predictedBestThirdState.unresolvedBestThirdTies.some(
-        ({ rows }) =>
-          !isTieResolved(
+        ({ rows, qualifyingSlots }) =>
+          !isBestThirdTieResolved(
             rows,
             tiebreakDraft[getTiebreakScopeId("best_third", BEST_THIRD_SCOPE_KEY)],
+            qualifyingSlots,
           ),
       ),
   );
@@ -1094,7 +1101,7 @@ function ManualTiebreakPanel({
                 </div>
               ) : (
                 <div className="manual-tiebreak-slots">
-                  {prompt.teams.map((_, index) => (
+                  {Array.from({ length: prompt.qualifyingSlots ?? prompt.teams.length }).map((_, index) => (
                     <TiebreakTeamChoices
                       key={`${prompt.scopeId}-${index}`}
                       disabled={disabled}
