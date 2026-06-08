@@ -21,6 +21,8 @@ import {
   calculateRealGroupStandings,
   calculateScorerPoints,
   calculateTotalUserScore,
+  getPredictedMatchLoser,
+  getPredictedMatchWinner,
   withDefaultSettings,
 } from "@/lib/scoring";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -32,7 +34,7 @@ import type {
   PredictionTiebreakSelection,
   Team,
 } from "@/lib/types";
-import { generateKnockoutFromResults, getMatchWinner } from "@/lib/world-cup";
+import { generateKnockoutFromResults, getMatchLoser, getMatchWinner } from "@/lib/world-cup";
 import {
   authEmailForUsername,
   generateLeagueCode,
@@ -1391,26 +1393,43 @@ export async function recalculateLeagueScores(leagueId: string) {
     const finalPrediction = finalMatch
       ? matchPredictions.find((prediction) => prediction.match_id === finalMatch.id)
       : null;
+    const thirdPlaceMatch = matches.find((match) => match.stage === "third_place");
+    const thirdPlacePrediction = thirdPlaceMatch
+      ? matchPredictions.find((prediction) => prediction.match_id === thirdPlaceMatch.id)
+      : null;
     const realChampion = finalMatch ? getMatchWinner(finalMatch) : null;
+    const realRunnerUp = finalMatch ? getMatchLoser(finalMatch) : null;
+    const realThirdPlace = thirdPlaceMatch ? getMatchWinner(thirdPlaceMatch) : null;
     const predictedChampion =
-      finalPrediction?.predicted_winner_team_id ??
-      (finalMatch &&
-      finalPrediction?.predicted_home_score !== null &&
-      finalPrediction?.predicted_home_score !== undefined &&
-      finalPrediction?.predicted_away_score !== null &&
-      finalPrediction?.predicted_away_score !== undefined
-        ? finalPrediction.predicted_home_score > finalPrediction.predicted_away_score
-          ? finalMatch.home_team_id
-          : finalPrediction.predicted_away_score > finalPrediction.predicted_home_score
-            ? finalMatch.away_team_id
-            : null
-        : null);
+      finalMatch && finalPrediction
+        ? getPredictedMatchWinner(finalPrediction, finalMatch)
+        : null;
+    const predictedRunnerUp =
+      finalMatch && finalPrediction
+        ? getPredictedMatchLoser(finalPrediction, finalMatch)
+        : null;
+    const predictedThirdPlace =
+      thirdPlaceMatch && thirdPlacePrediction
+        ? getPredictedMatchWinner(thirdPlacePrediction, thirdPlaceMatch)
+        : null;
     const championHit = Boolean(
       realChampion &&
         predictedChampion &&
         predictedChampion === realChampion,
     );
+    const runnerUpHit = Boolean(
+      realRunnerUp &&
+        predictedRunnerUp &&
+        predictedRunnerUp === realRunnerUp,
+    );
+    const thirdPlaceHit = Boolean(
+      realThirdPlace &&
+        predictedThirdPlace &&
+        predictedThirdPlace === realThirdPlace,
+    );
     const championPoints = championHit ? settings.knockout_champion_points : 0;
+    const runnerUpPoints = runnerUpHit ? settings.knockout_runner_up_points : 0;
+    const thirdPlacePoints = thirdPlaceHit ? settings.knockout_third_place_points : 0;
     const scorerPoints = calculateScorerPoints(
       scorerPredictionsResult.data ?? [],
       scorerTotals,
@@ -1429,13 +1448,13 @@ export async function recalculateLeagueScores(leagueId: string) {
         total_points: calculateTotalUserScore({
           matchPoints: matchPoints.points,
           groupPoints,
-          knockoutPoints: knockoutPoints + championPoints,
+          knockoutPoints: knockoutPoints + championPoints + runnerUpPoints + thirdPlacePoints,
           scorerPoints,
           awardPoints,
         }),
         match_points: matchPoints.points,
         group_points: groupPoints,
-        knockout_points: knockoutPoints + championPoints,
+        knockout_points: knockoutPoints + championPoints + runnerUpPoints + thirdPlacePoints,
         scorer_points: scorerPoints,
         award_points: awardPoints,
         exact_scores_count: matchPoints.exactScores,

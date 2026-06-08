@@ -105,10 +105,10 @@ export function calculateLeaguePointProgress({
   let remainingPoints = 0;
 
   groupMatches.forEach((match) => {
-    const maxMatchPoints = Math.max(
-      settings.match_exact_score_points,
-      settings.match_sign_points,
-    );
+    const maxMatchPoints =
+      settings.match_sign_points +
+      settings.match_goal_difference_points +
+      settings.match_exact_score_points;
     if (match.is_finished) {
       playedPoints += maxMatchPoints;
     } else {
@@ -118,13 +118,30 @@ export function calculateLeaguePointProgress({
 
   knockoutMatches.forEach((match) => {
     const values = knockoutValueByStage(match.stage, settings);
-    const maxMatchPoints = values.winner + values.exact;
+    const maxMatchPoints =
+      values.sign + values.winner + values.goalDifference + values.exact;
     if (match.is_finished) {
       playedPoints += maxMatchPoints;
     } else {
       remainingPoints += maxMatchPoints;
     }
   });
+
+  const finalMatch = matches.find((match) => match.stage === "final");
+  const finalPlacementBundle =
+    settings.knockout_champion_points + settings.knockout_runner_up_points;
+  if (finalMatch?.is_finished) {
+    playedPoints += finalPlacementBundle;
+  } else {
+    remainingPoints += finalPlacementBundle;
+  }
+
+  const thirdPlaceMatch = matches.find((match) => match.stage === "third_place");
+  if (thirdPlaceMatch?.is_finished) {
+    playedPoints += settings.knockout_third_place_points;
+  } else {
+    remainingPoints += settings.knockout_third_place_points;
+  }
 
   groupLetters.forEach((groupLetter) => {
     const groupFinished = groupMatches
@@ -182,30 +199,48 @@ function calculatePrizeSlice(totalPot: number, percentage: number) {
 function knockoutValueByStage(stage: Match["stage"], settings: PointSettings) {
   if (stage === "round_32") {
     return {
+      sign: settings.live_round_32_sign_points,
       winner: settings.live_round_32_winner_points,
+      goalDifference: settings.live_round_32_goal_difference_points,
       exact: settings.live_round_32_exact_score_bonus,
     };
   }
   if (stage === "round_16") {
     return {
+      sign: settings.live_round_16_sign_points,
       winner: settings.live_round_16_winner_points,
+      goalDifference: settings.live_round_16_goal_difference_points,
       exact: settings.live_round_16_exact_score_bonus,
     };
   }
   if (stage === "quarter_final") {
     return {
+      sign: settings.live_quarter_sign_points,
       winner: settings.live_quarter_winner_points,
+      goalDifference: settings.live_quarter_goal_difference_points,
       exact: settings.live_quarter_exact_score_bonus,
     };
   }
   if (stage === "semi_final") {
     return {
+      sign: settings.live_semi_sign_points,
       winner: settings.live_semi_winner_points,
+      goalDifference: settings.live_semi_goal_difference_points,
       exact: settings.live_semi_exact_score_bonus,
     };
   }
+  if (stage === "third_place") {
+    return {
+      sign: settings.live_third_place_sign_points,
+      winner: settings.live_third_place_winner_points,
+      goalDifference: settings.live_third_place_goal_difference_points,
+      exact: settings.live_third_place_exact_score_bonus,
+    };
+  }
   return {
+    sign: settings.live_final_sign_points,
     winner: settings.live_final_winner_points,
+    goalDifference: settings.live_final_goal_difference_points,
     exact: settings.live_final_exact_score_bonus,
   };
 }
@@ -215,6 +250,7 @@ const LIVE_KNOCKOUT_STAGES = new Set<Match["stage"]>([
   "round_16",
   "quarter_final",
   "semi_final",
+  "third_place",
   "final",
 ]);
 

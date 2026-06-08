@@ -12,6 +12,8 @@ import {
   calculateRealGroupStandings,
   calculateScorerPoints,
   calculateTotalUserScore,
+  getPredictedMatchLoser,
+  getPredictedMatchWinner,
 } from "@/lib/scoring";
 import type {
   Match,
@@ -21,7 +23,7 @@ import type {
   Profile,
   Team,
 } from "@/lib/types";
-import { getMatchWinner } from "@/lib/world-cup";
+import { getMatchLoser, getMatchWinner } from "@/lib/world-cup";
 
 export type RankingEvolutionMember = {
   user_id: string;
@@ -235,6 +237,7 @@ function scoreFrame({
     scorerTotals.set(row.player_id, (scorerTotals.get(row.player_id) ?? 0) + row.goals);
   });
   const finalMatch = snapshotMatches.find((match) => match.stage === "final");
+  const thirdPlaceMatch = snapshotMatches.find((match) => match.stage === "third_place");
   const awardsUnlocked = Boolean(finalMatch && finalAwards);
 
   const entries = players
@@ -305,12 +308,29 @@ function scoreFrame({
       const finalPrediction = finalMatch
         ? matchPredictionsForUser.find((prediction) => prediction.match_id === finalMatch.id)
         : null;
+      const thirdPlacePrediction = thirdPlaceMatch
+        ? matchPredictionsForUser.find((prediction) => prediction.match_id === thirdPlaceMatch.id)
+        : null;
       const championHit = Boolean(
         finalMatch &&
           finalPrediction &&
-          getPredictedWinner(finalPrediction, finalMatch) === getMatchWinner(finalMatch),
+          getPredictedMatchWinner(finalPrediction, finalMatch) === getMatchWinner(finalMatch),
+      );
+      const runnerUpHit = Boolean(
+        finalMatch &&
+          finalPrediction &&
+          getPredictedMatchLoser(finalPrediction, finalMatch) === getMatchLoser(finalMatch),
+      );
+      const thirdPlaceHit = Boolean(
+        thirdPlaceMatch &&
+          thirdPlacePrediction &&
+          getPredictedMatchWinner(thirdPlacePrediction, thirdPlaceMatch) ===
+            getMatchWinner(thirdPlaceMatch),
       );
       const championPoints = championHit ? settings.knockout_champion_points : 0;
+      const runnerUpPoints = runnerUpHit ? settings.knockout_runner_up_points : 0;
+      const thirdPlacePoints = thirdPlaceHit ? settings.knockout_third_place_points : 0;
+      const placementPoints = championPoints + runnerUpPoints + thirdPlacePoints;
       const scorerPoints = calculateScorerPoints(
         scorersByUser.get(userId) ?? [],
         scorerTotals,
@@ -322,7 +342,7 @@ function scoreFrame({
       const totalPoints = calculateTotalUserScore({
         matchPoints: matchPoints.points,
         groupPoints,
-        knockoutPoints: knockoutPoints + championPoints,
+        knockoutPoints: knockoutPoints + placementPoints,
         scorerPoints,
         awardPoints,
       });
@@ -333,7 +353,7 @@ function scoreFrame({
         totalPoints,
         matchPoints: matchPoints.points,
         groupPoints,
-        knockoutPoints: knockoutPoints + championPoints,
+        knockoutPoints: knockoutPoints + placementPoints,
         scorerPoints,
         awardPoints,
         exactScores: matchPoints.exactScores,
@@ -383,23 +403,6 @@ function formatFrameLabel(match: Match, index: number) {
   }
 
   return match.match_number ? `Partido ${match.match_number}` : `Corte ${index}`;
-}
-
-function getPredictedWinner(prediction: MatchPrediction, match: Match) {
-  if (prediction.predicted_winner_team_id) return prediction.predicted_winner_team_id;
-  if (
-    prediction.predicted_home_score === null ||
-    prediction.predicted_away_score === null
-  ) {
-    return null;
-  }
-  if (prediction.predicted_home_score > prediction.predicted_away_score) {
-    return match.home_team_id;
-  }
-  if (prediction.predicted_away_score > prediction.predicted_home_score) {
-    return match.away_team_id;
-  }
-  return null;
 }
 
 function groupByUser<Row extends { user_id: string }>(rows: Row[]) {

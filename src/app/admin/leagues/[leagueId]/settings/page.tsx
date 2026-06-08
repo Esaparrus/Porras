@@ -7,51 +7,7 @@ import { AdminLayout } from "@/components/layouts";
 import { calculateLeaguePot, calculatePrizeBreakdown, formatCurrency } from "@/lib/league-insights";
 import { DEFAULT_POINT_SETTINGS, STATUS_LABELS } from "@/lib/constants";
 import { requireAdmin } from "@/lib/data";
-
-const groups = [
-  ["Partidos", ["match_exact_score_points", "match_sign_points"]],
-  [
-    "Grupos",
-    [
-      "group_exact_position_points",
-      "group_winner_bonus_points",
-      "group_qualified_team_points",
-      "best_third_team_points",
-    ],
-  ],
-  [
-    "Cuadro inicial",
-    ["knockout_champion_points"],
-  ],
-  [
-    "Partidos de eliminatoria",
-    [
-      "live_round_32_winner_points",
-      "live_round_32_exact_score_bonus",
-      "live_round_16_winner_points",
-      "live_round_16_exact_score_bonus",
-      "live_quarter_winner_points",
-      "live_quarter_exact_score_bonus",
-      "live_semi_winner_points",
-      "live_semi_exact_score_bonus",
-      "live_final_winner_points",
-      "live_final_exact_score_bonus",
-    ],
-  ],
-  [
-    "Goleadores",
-    ["scorer_goal_points", "scorer_max_points"],
-  ],
-  [
-    "Premios",
-    [
-      "award_top_scorer_points",
-      "award_best_player_points",
-      "award_best_goalkeeper_points",
-      "award_best_young_player_points",
-    ],
-  ],
-] as const;
+import { POINT_SETTING_GROUPS, POINT_SETTING_LABELS } from "@/lib/point-settings";
 
 const labels: Record<string, string> = {
   match_exact_score_points: "Resultado exacto",
@@ -83,6 +39,8 @@ const labels: Record<string, string> = {
   award_best_goalkeeper_points: "Mejor portero",
   award_best_young_player_points: "Mejor joven",
 };
+
+void labels;
 
 export default async function SettingsPage({
   params,
@@ -271,13 +229,13 @@ export default async function SettingsPage({
               </div>
             </div>
           </section>
-          {groups.map(([title, keys]) => (
+          {POINT_SETTING_GROUPS.map(([title, keys]) => (
             <section key={title} className="glass rounded-3xl p-5">
               <h2 className="text-xl font-black">{title}</h2>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 {keys.map((key) => (
                   <label key={key}>
-                    <span className="label">{labels[key]}</span>
+                    <span className="label">{POINT_SETTING_LABELS[key]}</span>
                     <input
                       name={key}
                       type="number"

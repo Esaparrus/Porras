@@ -29,7 +29,10 @@ export function calculateMatchPredictionPoints(
     "predicted_home_score" | "predicted_away_score"
   >,
   match: Pick<Match, "home_score" | "away_score" | "is_finished">,
-  settings: Pick<PointSettings, "match_exact_score_points" | "match_sign_points">,
+  settings: Pick<
+    PointSettings,
+    "match_exact_score_points" | "match_goal_difference_points" | "match_sign_points"
+  >,
 ) {
   if (
     !match.is_finished ||
@@ -41,21 +44,28 @@ export function calculateMatchPredictionPoints(
     return { points: 0, exact: false };
   }
 
-  const exact =
-    prediction.predicted_home_score === match.home_score &&
-    prediction.predicted_away_score === match.away_score;
-
-  if (exact) return { points: settings.match_exact_score_points, exact: true };
-
   const predictedSign = footballSign(
     prediction.predicted_home_score,
     prediction.predicted_away_score,
   );
   const realSign = footballSign(match.home_score, match.away_score);
+  const sign = predictedSign === realSign;
+  if (!sign) return { points: 0, exact: false };
+
+  const predictedGoalDifference =
+    prediction.predicted_home_score - prediction.predicted_away_score;
+  const realGoalDifference = match.home_score - match.away_score;
+  const goalDifference = predictedGoalDifference === realGoalDifference;
+  const exact =
+    prediction.predicted_home_score === match.home_score &&
+    prediction.predicted_away_score === match.away_score;
 
   return {
-    points: predictedSign === realSign ? settings.match_sign_points : 0,
-    exact: false,
+    points:
+      settings.match_sign_points +
+      (goalDifference ? settings.match_goal_difference_points : 0) +
+      (exact ? settings.match_exact_score_points : 0),
+    exact,
   };
 }
 
@@ -252,25 +262,44 @@ export function calculateLiveKnockoutMatchPoints(
   settings: PointSettings,
 ) {
   if (!match.is_finished) return 0;
-  const roundValues: Record<string, { winner: number; exact: number }> = {
+  const roundValues: Record<
+    string,
+    { sign: number; winner: number; goalDifference: number; exact: number }
+  > = {
     round_32: {
+      sign: settings.live_round_32_sign_points,
       winner: settings.live_round_32_winner_points,
+      goalDifference: settings.live_round_32_goal_difference_points,
       exact: settings.live_round_32_exact_score_bonus,
     },
     round_16: {
+      sign: settings.live_round_16_sign_points,
       winner: settings.live_round_16_winner_points,
+      goalDifference: settings.live_round_16_goal_difference_points,
       exact: settings.live_round_16_exact_score_bonus,
     },
     quarter_final: {
+      sign: settings.live_quarter_sign_points,
       winner: settings.live_quarter_winner_points,
+      goalDifference: settings.live_quarter_goal_difference_points,
       exact: settings.live_quarter_exact_score_bonus,
     },
     semi_final: {
+      sign: settings.live_semi_sign_points,
       winner: settings.live_semi_winner_points,
+      goalDifference: settings.live_semi_goal_difference_points,
       exact: settings.live_semi_exact_score_bonus,
     },
+    third_place: {
+      sign: settings.live_third_place_sign_points,
+      winner: settings.live_third_place_winner_points,
+      goalDifference: settings.live_third_place_goal_difference_points,
+      exact: settings.live_third_place_exact_score_bonus,
+    },
     final: {
+      sign: settings.live_final_sign_points,
       winner: settings.live_final_winner_points,
+      goalDifference: settings.live_final_goal_difference_points,
       exact: settings.live_final_exact_score_bonus,
     },
   };
@@ -283,12 +312,38 @@ export function calculateLiveKnockoutMatchPoints(
       : match.away_team_id);
   let total =
     prediction.predicted_winner_team_id === realWinner ? values.winner : 0;
-  const exact = calculateMatchPredictionPoints(prediction, match, {
+  const result = calculateMatchPredictionPoints(prediction, match, {
     match_exact_score_points: values.exact,
-    match_sign_points: 0,
+    match_goal_difference_points: values.goalDifference,
+    match_sign_points: values.sign,
   });
-  if (exact.exact) total += values.exact;
+  total += result.points;
   return total;
+}
+
+export function getPredictedMatchWinner(prediction: MatchPrediction, match: Match) {
+  if (prediction.predicted_winner_team_id) return prediction.predicted_winner_team_id;
+  if (
+    prediction.predicted_home_score === null ||
+    prediction.predicted_away_score === null
+  ) {
+    return null;
+  }
+  if (prediction.predicted_home_score > prediction.predicted_away_score) {
+    return match.home_team_id;
+  }
+  if (prediction.predicted_away_score > prediction.predicted_home_score) {
+    return match.away_team_id;
+  }
+  return null;
+}
+
+export function getPredictedMatchLoser(prediction: MatchPrediction, match: Match) {
+  const winner = getPredictedMatchWinner(prediction, match);
+  if (!winner) return null;
+  if (match.home_team_id === winner) return match.away_team_id;
+  if (match.away_team_id === winner) return match.home_team_id;
+  return null;
 }
 
 export function calculateScorerPoints(
