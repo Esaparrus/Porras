@@ -32,6 +32,8 @@ type PlayerPickerProps = {
   manualDefaultName?: string | null;
   manualDefaultTeamId?: string | null;
   requestStatus?: PlayerSelectionRequestStatus | null;
+  excludeIds?: string[];
+  onSelectionChange?: (playerId: string) => void;
 };
 
 export function PlayerPicker({
@@ -43,6 +45,8 @@ export function PlayerPicker({
   manualDefaultName,
   manualDefaultTeamId,
   requestStatus,
+  excludeIds,
+  onSelectionChange,
 }: PlayerPickerProps) {
   const pickerId = useId();
   const defaultPlayer = players.find((player) => player.id === defaultValue);
@@ -56,7 +60,10 @@ export function PlayerPicker({
   );
   const [manualName, setManualName] = useState(manualDefaultName ?? "");
 
+  const excludeSet = new Set(excludeIds ?? []);
+
   const visiblePlayers = players
+    .filter((player) => !excludeSet.has(player.id))
     .filter((player) => (teamFilter ? player.team_id === teamFilter : true))
     .filter((player) => {
       const search = normalizeText(query);
@@ -157,6 +164,7 @@ export function PlayerPicker({
                       setSelectedId(player.id);
                       setQuery(getDisplayPlayerName(player));
                       setTeamFilter(player.team_id);
+                      onSelectionChange?.(player.id);
                     }}
                   >
                     <span className="font-semibold">{getDisplayPlayerName(player)}</span>

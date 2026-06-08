@@ -4,6 +4,7 @@ import {
 } from "@/app/actions";
 import { UserLayout } from "@/components/layouts";
 import { PlayerPicker } from "@/components/player-picker";
+import { ScorerPickers } from "@/components/scorer-pickers";
 import { PredictionWorkflow } from "@/components/prediction-workflow";
 import { StageTabs } from "@/components/ui";
 import { getActivePlayers, requireUser } from "@/lib/data";
@@ -128,19 +129,15 @@ export default async function PredictionsPage({
         <form action={saveScorerPredictionsAction} className="glass rounded-3xl p-5">
           <input type="hidden" name="league_id" value={leagueId} />
           <h2 className="text-2xl font-black">⚽ Goleadores</h2>
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
-            {[0, 1, 2].map((index) => (
-              <label key={index}>
-                <span className="label">Goleador {index + 1}</span>
-                <PlayerPicker
-                  name={`player_${index + 1}`}
-                  players={players ?? []}
-                  teams={teamRows}
-                  defaultValue={scorerByIndex[index]?.player_id}
-                />
-              </label>
-            ))}
-          </div>
+          <ScorerPickers
+            players={players ?? []}
+            teams={teamRows}
+            defaultValues={[
+              scorerByIndex[0]?.player_id,
+              scorerByIndex[1]?.player_id,
+              scorerByIndex[2]?.player_id,
+            ]}
+          />
           <button disabled={leagueClosed || league?.lock_scorers} className="btn-primary mt-5 w-full">
             Guardar goleadores
           </button>

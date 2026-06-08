@@ -562,9 +562,16 @@ export async function saveScorerPredictionsAction(formData: FormData) {
   const supabase = createSupabaseAdminClient();
   const leagueId = String(formData.get("league_id"));
   await assertPredictionsOpen(supabase, leagueId, ["lock_scorers"]);
-  const playerIds = ["player_1", "player_2", "player_3"]
-    .map((key) => String(formData.get(key) ?? ""))
-    .filter(Boolean);
+  // Deduplicamos: si el usuario elige el mismo jugador en dos casillas, un
+  // insert con player_id repetido viola unique (league_id, user_id, player_id)
+  // y haria fallar el lote entero, dejandolo sin goleadores guardados.
+  const playerIds = Array.from(
+    new Set(
+      ["player_1", "player_2", "player_3"]
+        .map((key) => String(formData.get(key) ?? ""))
+        .filter(Boolean),
+    ),
+  );
   await supabase
     .from("scorer_predictions")
     .delete()
@@ -572,13 +579,18 @@ export async function saveScorerPredictionsAction(formData: FormData) {
     .eq("user_id", user.id);
 
   if (playerIds.length) {
-    await supabase.from("scorer_predictions").insert(
+    const { error } = await supabase.from("scorer_predictions").insert(
       playerIds.map((playerId) => ({
         league_id: leagueId,
         user_id: user.id,
         player_id: playerId,
       })),
     );
+    if (error) {
+      throw new Error(
+        `No se pudieron guardar los goleadores: ${error.message}`,
+      );
+    }
   }
   await recalculateLeagueScores(leagueId);
   revalidateLeaguePredictionProgressPaths(leagueId);
