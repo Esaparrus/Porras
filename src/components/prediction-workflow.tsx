@@ -141,6 +141,7 @@ export function PredictionWorkflow({
     matches: true,
     knockout: true,
   });
+  const [showTiebreakSessionNotice, setShowTiebreakSessionNotice] = useState(false);
   const [draft, setDraft] = useState<Record<string, DraftPrediction>>(() =>
     Object.fromEntries(
       matches.map((match) => {
@@ -416,6 +417,17 @@ export function PredictionWorkflow({
     [knockoutMatches],
   );
 
+  useEffect(() => {
+    if (!tiebreakPrompts.length) return;
+    const storageKey = `porras:tiebreak-notice:${leagueId}`;
+    if (window.sessionStorage.getItem(storageKey)) return;
+    window.sessionStorage.setItem(storageKey, "shown");
+    const timer = window.setTimeout(() => {
+      setShowTiebreakSessionNotice(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [leagueId, tiebreakPrompts.length]);
+
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const savePredictions = useCallback(async (mode: SaveMode) => {
     if (locked) return;
@@ -566,6 +578,26 @@ export function PredictionWorkflow({
 
   return (
     <form onSubmit={handleManualSubmit} className="space-y-8">
+      {showTiebreakSessionNotice ? (
+        <section className="manual-tiebreak-session-notice">
+          <AlertCircle className="h-5 w-5 text-[#ff7a1a]" />
+          <div>
+            <h2>Tu porra necesita desempates manuales</h2>
+            <p>
+              Primero ordena los grupos empatados. Despues, si aparece el paso 2,
+              decide que mejores terceros pasan. Hasta resolverlo, esos equipos no
+              se mostraran en eliminatorias.
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-label="Cerrar aviso de desempates"
+            onClick={() => setShowTiebreakSessionNotice(false)}
+          >
+            Cerrar
+          </button>
+        </section>
+      ) : null}
 
       <section id="grupos" className="glass scroll-mt-6 rounded-3xl p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -918,16 +950,26 @@ function ManualTiebreakPanel({
                         }
                       >
                         <div className="manual-tiebreak-fixed-team">
-                          <span>{rowIndex + 1}.º</span>
-                          <strong>{row.team.flag_emoji} {row.team.name}</strong>
-                          <small>
-                            {row.points} pts · DG {formatSignedNumber(row.goalDifference)} · GF {row.goalsFor}
-                          </small>
+                          {isTiedRow ? (
+                            <>
+                              <span>{rowIndex + 1}.º puesto del grupo</span>
+                              <strong>Por decidir</strong>
+                              <small>Elige entre los equipos empatados.</small>
+                            </>
+                          ) : (
+                            <>
+                              <span>{rowIndex + 1}.º</span>
+                              <strong>{row.team.flag_emoji} {row.team.name}</strong>
+                              <small>
+                                {row.points} pts · DG {formatSignedNumber(row.goalDifference)} · GF {row.goalsFor}
+                              </small>
+                            </>
+                          )}
                         </div>
                         {isTiedRow ? (
                           <TiebreakTeamChoices
                             disabled={disabled}
-                            label={`${rowIndex + 1}.º puesto del grupo`}
+                            label="Elige quien ocupa esta posicion"
                             orderedTeamIds={orderedTeamIds}
                             position={tieIndex}
                             prompt={prompt}

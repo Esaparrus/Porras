@@ -803,6 +803,38 @@ select.field option {
   gap: 14px;
 }
 
+.manual-tiebreak-session-notice {
+  align-items: flex-start;
+  background: rgb(255 122 26 / 0.14);
+  border: 1px solid rgb(255 122 26 / 0.34);
+  border-radius: 20px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 14px;
+}
+
+.manual-tiebreak-session-notice h2 {
+  font-size: 16px;
+  font-weight: 1000;
+}
+
+.manual-tiebreak-session-notice p {
+  color: rgb(226 232 240);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.manual-tiebreak-session-notice button {
+  background: rgb(15 23 42 / 0.75);
+  border: 1px solid rgb(255 255 255 / 0.16);
+  border-radius: 10px;
+  color: white;
+  font-size: 12px;
+  font-weight: 1000;
+  padding: 7px 10px;
+}
+
 .manual-tiebreak-header {
   align-items: flex-start;
   background: rgb(255 122 26 / 0.12);
@@ -1074,12 +1106,14 @@ select.field option {
 
   .manual-tiebreak-header,
   .manual-tiebreak-card,
-  .manual-tiebreak-row {
+  .manual-tiebreak-row,
+  .manual-tiebreak-session-notice {
     border-radius: 18px;
     padding: 12px;
   }
 
-  .manual-tiebreak-row {
+  .manual-tiebreak-row,
+  .manual-tiebreak-session-notice {
     grid-template-columns: 1fr;
   }
 }
