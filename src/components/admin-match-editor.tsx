@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { clearAdminMatchBundleAction, saveAdminMatchBundleAction } from "@/app/actions";
-import { MatchTeamLabel } from "@/components/ui";
-import type { Match, Player } from "@/lib/types";
+import { MatchTeamLabel, TeamFlag } from "@/components/ui";
+import type { Match, Player, Team } from "@/lib/types";
 
 type LeaderboardEntry = {
   playerId: string;
   name: string;
-  flag: string;
+  team?: Pick<Team, "flag_code" | "flag_emoji" | "short_name"> | null;
   teamName: string;
   goals: number;
 };
@@ -88,8 +88,9 @@ function InlineScorerPicker({
               setQuery(player.name);
             }}
           >
-            <span className="font-semibold">
-              {player.teams?.flag_emoji} {player.name}
+            <span className="inline-flex min-w-0 items-center gap-2 font-semibold">
+              <TeamFlag team={player.teams} />
+              <span className="truncate">{player.name}</span>
             </span>
             <span className="text-right text-xs text-slate-300">
               {player.pickCount ?? 0} eleg.
@@ -296,8 +297,9 @@ export function AdminMatchEditor({
                   className="flex items-center justify-between rounded-2xl bg-white/8 px-3 py-2"
                 >
                   <div>
-                    <div className="font-semibold">
-                      {entry.flag} {entry.name}
+                    <div className="flex items-center gap-2 font-semibold">
+                      <TeamFlag team={entry.team} />
+                      <span>{entry.name}</span>
                     </div>
                     <div className="text-xs text-slate-300">{entry.teamName}</div>
                   </div>

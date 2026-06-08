@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
+import { TeamFlag } from "@/components/ui";
 import type { Match, MatchPrediction, Team } from "@/lib/types";
-import { cn, getTeamFlagImageUrl } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 type CalendarMatch = Match & {
   prediction?: MatchPrediction | null;
@@ -132,25 +133,9 @@ function CalendarDayCell({
 }
 
 function CompactFlag({ team }: { team?: Team | null }) {
-  const flagUrl = getTeamFlagImageUrl(team);
-
   return (
     <div className="flex items-center justify-center">
-      {team ? (
-        flagUrl ? (
-          <span
-            aria-hidden="true"
-            className="h-4 w-6 shrink-0 rounded-[2px] bg-cover bg-center shadow-sm shadow-black/30"
-            style={{ backgroundImage: `url("${flagUrl}")` }}
-          />
-        ) : (
-          <span className="shrink-0">{team.flag_emoji}</span>
-        )
-      ) : (
-        <span className="inline-flex h-4 w-6 shrink-0 items-center justify-center rounded-[2px] bg-white/10 text-[9px] text-slate-400">
-          ?
-        </span>
-      )}
+      <TeamFlag team={team} />
     </div>
   );
 }

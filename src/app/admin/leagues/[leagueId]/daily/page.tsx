@@ -3,6 +3,7 @@ import { quickGoalAction, recalculateLeagueScoresAction, updateMatchResultAction
 import { AdminLayout } from "@/components/layouts";
 import { MatchTeamLabel, ScorerQuickCounter } from "@/components/ui";
 import { requireAdmin } from "@/lib/data";
+import type { Team } from "@/lib/types";
 
 export default async function DailyPage({
   params,
@@ -27,7 +28,10 @@ export default async function DailyPage({
   ]);
 
   const goals = new Map((goalRows ?? []).map((row) => [row.player_id, row.goals]));
-  type PickedPlayer = { name?: string; teams?: { flag_emoji?: string } | null };
+  type PickedPlayer = {
+    name?: string;
+    teams?: Pick<Team, "flag_code" | "flag_emoji" | "short_name"> | null;
+  };
   const pickedMap = new Map<string, { count: number; player: PickedPlayer | null }>();
   (picked ?? []).forEach((row: { player_id: string; players: PickedPlayer | PickedPlayer[] | null }) => {
     const player = Array.isArray(row.players) ? row.players[0] : row.players;
@@ -104,7 +108,7 @@ export default async function DailyPage({
                 leagueId={leagueId}
                 playerId={playerId}
                 name={item.player?.name ?? "Jugador"}
-                flag={item.player?.teams?.flag_emoji}
+                team={item.player?.teams}
                 pickedCount={item.count}
                 goals={goals.get(playerId) ?? 0}
                 action={quickGoalAction}

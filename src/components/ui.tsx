@@ -29,21 +29,51 @@ import { cn, getDisplayPlayerName, getTeamFlagImageUrl } from "@/lib/utils";
 
 export function TeamBadge({ team }: { team?: Team | null }) {
   if (!team) return <span className="text-slate-400">Por definir</span>;
-  const flagUrl = getTeamFlagImageUrl(team);
   return (
     <span className="inline-flex min-w-0 max-w-full items-center gap-2 font-semibold text-white">
-      {flagUrl ? (
-        <span
-          aria-hidden="true"
-          className="h-4 w-6 shrink-0 rounded-[2px] bg-cover bg-center shadow-sm shadow-black/30"
-          style={{ backgroundImage: `url("${flagUrl}")` }}
-        />
-      ) : (
-        <span className="shrink-0">{team.flag_emoji}</span>
-      )}
+      <TeamFlag team={team} />
       <span className="truncate">{team.name}</span>
     </span>
   );
+}
+
+export function TeamFlag({
+  team,
+  className,
+}: {
+  team?: Pick<Team, "flag_code" | "flag_emoji" | "short_name"> | null;
+  className?: string;
+}) {
+  if (!team) {
+    return (
+      <span
+        aria-hidden="true"
+        className={cn(
+          "inline-flex h-4 w-6 shrink-0 items-center justify-center rounded-[2px] bg-white/10 text-[9px] text-slate-400",
+          className,
+        )}
+      >
+        ?
+      </span>
+    );
+  }
+
+  const flagUrl = getTeamFlagImageUrl(team);
+
+  if (flagUrl) {
+    return (
+      <span
+        aria-hidden="true"
+        className={cn(
+          "h-4 w-6 shrink-0 rounded-[2px] bg-cover bg-center shadow-sm shadow-black/30",
+          className,
+        )}
+        style={{ backgroundImage: `url("${flagUrl}")` }}
+      />
+    );
+  }
+
+  return <span className="shrink-0">{team.flag_emoji}</span>;
 }
 
 export function MatchTeamLabel({
@@ -79,7 +109,7 @@ export function PlayerBadge({ player }: { player?: Player | null }) {
   if (!player) return <span className="text-slate-400">Sin jugador</span>;
   return (
     <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm">
-      <span>{player.teams?.flag_emoji}</span>
+      <TeamFlag team={player.teams} />
       <span>{getDisplayPlayerName(player)}</span>
     </span>
   );
@@ -717,7 +747,7 @@ export function PlayerSearchCombobox({
       <option value="">Buscar jugador...</option>
       {players.map((player) => (
         <option key={player.id} value={player.id}>
-          {player.teams?.flag_emoji} {player.name} · {player.teams?.name}
+          {player.name} · {player.teams?.name}
         </option>
       ))}
     </select>
@@ -728,7 +758,7 @@ export function ScorerQuickCounter({
   leagueId,
   playerId,
   name,
-  flag,
+  team,
   pickedCount,
   goals,
   action,
@@ -736,7 +766,7 @@ export function ScorerQuickCounter({
   leagueId: string;
   playerId: string;
   name: string;
-  flag?: string;
+  team?: Pick<Team, "flag_code" | "flag_emoji" | "short_name"> | null;
   pickedCount: number;
   goals: number;
   action: (formData: FormData) => Promise<void>;
@@ -744,8 +774,9 @@ export function ScorerQuickCounter({
   return (
     <div className="glass flex items-center justify-between gap-3 rounded-2xl p-4">
       <div>
-        <div className="font-black">
-          {name} {flag}
+        <div className="flex items-center gap-2 font-black">
+          <TeamFlag team={team} />
+          <span>{name}</span>
         </div>
         <div className="flex items-center gap-2 text-sm text-slate-300">
           <Users className="h-4 w-4" />

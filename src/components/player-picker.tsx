@@ -6,6 +6,7 @@ import type {
   PlayerSelectionRequestStatus,
   Team,
 } from "@/lib/types";
+import { TeamFlag } from "@/components/ui";
 import { getDisplayPlayerName } from "@/lib/utils";
 
 function normalizeText(value: string) {
@@ -112,7 +113,7 @@ export function PlayerPicker({
             <option value="">Selección / país</option>
             {teams.map((team) => (
               <option key={team.id} value={team.id}>
-                {team.flag_emoji} {team.name}
+                {team.name}
               </option>
             ))}
           </select>
@@ -135,7 +136,7 @@ export function PlayerPicker({
               <option value="">Todas las selecciones</option>
               {teams.map((team) => (
                 <option key={team.id} value={team.id}>
-                  {team.flag_emoji} {team.name}
+                  {team.name}
                 </option>
               ))}
             </select>
@@ -159,7 +160,10 @@ export function PlayerPicker({
                     }}
                   >
                     <span className="font-semibold">{getDisplayPlayerName(player)}</span>
-                    <span className="text-xs text-slate-300">{player.teams?.name}</span>
+                    <span className="inline-flex items-center gap-2 text-xs text-slate-300">
+                      <TeamFlag team={player.teams} />
+                      <span>{player.teams?.name}</span>
+                    </span>
                   </button>
                 );
               })

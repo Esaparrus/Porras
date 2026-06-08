@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { useRouter } from "next/navigation";
 import { AlertCircle, CalendarDays, Check, ChevronDown, ChevronUp, Grid2X2, Save } from "lucide-react";
 import { saveMatchPredictionsAction } from "@/app/actions";
-import { GroupStandingTable, MatchTeamLabel, TeamBadge } from "@/components/ui";
+import { GroupStandingTable, MatchTeamLabel, TeamBadge, TeamFlag } from "@/components/ui";
 import { STAGE_LABELS } from "@/lib/constants";
 import {
   BEST_THIRD_SCOPE_KEY,
@@ -31,7 +31,6 @@ import type {
   StandingRow,
   Team,
 } from "@/lib/types";
-import { getTeamFlagImageUrl } from "@/lib/utils";
 
 type DraftPrediction = {
   home: string;
@@ -965,7 +964,10 @@ function ManualTiebreakPanel({
                           ) : (
                             <>
                               <span>{rowIndex + 1}.º</span>
-                              <strong>{row.team.flag_emoji} {row.team.name}</strong>
+                              <strong className="inline-flex items-center gap-2">
+                                <TeamFlag team={row.team} />
+                                <span>{row.team.name}</span>
+                              </strong>
                               <small>
                                 {row.points} pts · DG {formatSignedNumber(row.goalDifference)} · GF {row.goalsFor}
                               </small>
@@ -1067,7 +1069,7 @@ function TiebreakTeamChoices({
                 onChange(prompt.scopeId, position, selectedHere ? "" : team.id)
               }
             >
-              <span>{team.flag_emoji}</span>
+              <TeamFlag team={team} />
               <strong>{team.name}</strong>
               {selectedHere ? <small>Seleccionado</small> : null}
               {selectedElsewhere ? <small>Ya elegido</small> : null}
@@ -1322,19 +1324,9 @@ function ScoreLine({
 }
 
 function CompactTeamCode({ team }: { team: Team }) {
-  const flagUrl = getTeamFlagImageUrl(team);
-
   return (
     <span className="prediction-team-code">
-      {flagUrl ? (
-        <span
-          aria-hidden="true"
-          className="prediction-team-code-flag"
-          style={{ backgroundImage: `url("${flagUrl}")` }}
-        />
-      ) : (
-        <span className="shrink-0">{team.flag_emoji}</span>
-      )}
+      <TeamFlag team={team} className="prediction-team-code-flag" />
       <span>{team.short_name}</span>
     </span>
   );

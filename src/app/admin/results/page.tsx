@@ -2,6 +2,7 @@
 import { AdminGroupOrderEditor } from "@/components/admin-group-order-editor";
 import { AdminLayout } from "@/components/layouts";
 import { PlayerPicker } from "@/components/player-picker";
+import { TeamFlag } from "@/components/ui";
 import {
   rejectPlayerSelectionRequestAction,
   resolvePlayerSelectionRequestAction,
@@ -19,7 +20,7 @@ type MatchScorerRow = MatchScorer & {
 type LeaderboardEntry = {
   playerId: string;
   name: string;
-  flag: string;
+  team?: Pick<Team, "flag_code" | "flag_emoji" | "short_name"> | null;
   teamName: string;
   pickCount: number;
   goals: number;
@@ -145,7 +146,7 @@ export default async function AdminResultsPage() {
     leaderboardMap.set(player.id, {
       playerId: player.id,
       name: player.name,
-      flag: player.teams?.flag_emoji ?? "",
+      team: player.teams ?? null,
       teamName: player.teams?.name ?? "",
       pickCount: player.pickCount,
       goals: goalTotals?.goals ?? 0,
@@ -166,7 +167,7 @@ export default async function AdminResultsPage() {
     const entry = leaderboardMap.get(row.player_id) ?? {
       playerId: row.player_id,
       name: player.name,
-      flag: player.teams?.flag_emoji ?? "",
+      team: player.teams ?? null,
       teamName: player.teams?.name ?? "",
       pickCount: pickStats?.pickCount ?? 0,
       goals: 0,
@@ -302,8 +303,9 @@ export default async function AdminResultsPage() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="font-semibold">
-                          {entry.flag} {entry.name}
+                        <div className="flex items-center gap-2 font-semibold">
+                          <TeamFlag team={entry.team} />
+                          <span>{entry.name}</span>
                         </div>
                         <div className="text-xs text-slate-300">
                           {entry.teamName} · {entry.pickCount} eleg.
