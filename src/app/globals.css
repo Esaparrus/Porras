@@ -835,6 +835,37 @@ select.field option {
   padding: 7px 10px;
 }
 
+.manual-tiebreak-auto-notice {
+  align-items: flex-start;
+  background: rgb(16 185 129 / 0.12);
+  border: 1px solid rgb(110 231 183 / 0.24);
+  border-radius: 20px;
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+}
+
+.manual-tiebreak-auto-notice span {
+  color: rgb(110 231 183);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 1000;
+  text-transform: uppercase;
+}
+
+.manual-tiebreak-auto-notice h3 {
+  color: white;
+  font-size: 16px;
+  font-weight: 1000;
+  margin-top: 3px;
+}
+
+.manual-tiebreak-auto-notice p {
+  color: rgb(226 232 240);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
 .manual-tiebreak-header {
   align-items: flex-start;
   background: rgb(255 122 26 / 0.12);
@@ -1107,7 +1138,8 @@ select.field option {
   .manual-tiebreak-header,
   .manual-tiebreak-card,
   .manual-tiebreak-row,
-  .manual-tiebreak-session-notice {
+  .manual-tiebreak-session-notice,
+  .manual-tiebreak-auto-notice {
     border-radius: 18px;
     padding: 12px;
   }

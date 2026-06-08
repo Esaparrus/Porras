@@ -363,6 +363,11 @@ export function PredictionWorkflow({
   );
   const allKnockoutEntrantsResolved =
     allGroupPlacementsResolved && !pendingBestThirdTiebreak;
+  const showAutomaticBestThirdNotice =
+    allGroupPlacementsResolved &&
+    allGroupsPredicted &&
+    !pendingBestThirdTiebreak &&
+    !predictedBestThirdState.unresolvedBestThirdTies.length;
   const knockoutMatches = useMemo(
     () =>
       buildKnockoutMatches(
@@ -782,6 +787,7 @@ export function PredictionWorkflow({
                 onChange={updateTiebreakOrder}
               />
             ) : null}
+            {showAutomaticBestThirdNotice ? <AutomaticBestThirdNotice /> : null}
 
             <PredictionPosterBracket
               draft={draft}
@@ -1000,6 +1006,22 @@ function ManualTiebreakPanel({
             </article>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+function AutomaticBestThirdNotice() {
+  return (
+    <section className="manual-tiebreak-auto-notice mt-5">
+      <Check className="h-5 w-5 text-emerald-300" />
+      <div>
+        <span>Paso 2 · Mejores terceros resuelto</span>
+        <h3>No hace falta desempate manual</h3>
+        <p>
+          El orden de los terceros ya queda claro con puntos, golaverage y goles a
+          favor. Rellena las eliminatorias con los cruces que aparecen abajo.
+        </p>
       </div>
     </section>
   );
