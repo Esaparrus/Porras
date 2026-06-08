@@ -103,7 +103,7 @@ export function buildGroupTiebreakPrompt(
     scopeKey: groupLetter,
     title: `Desempate manual del grupo ${groupLetter}`,
     description:
-      "Estos equipos estan empatados en puntos, golaverage y los demas criterios de la tabla. El siguiente criterio FIFA seria el fair play, asi que aqui lo resolvemos a mano: marca quien debe quedar por delante.",
+      "Hay equipos empatados dentro de este grupo. Ordenalos primero, porque de aqui sale quien queda 1.º, 2.º, 3.º o 4.º, y eso puede cambiar quien entra como mejor tercero.",
     teams: rows.map((row) => row.team),
     contextRows,
   };
@@ -121,8 +121,8 @@ export function buildBestThirdTiebreakPrompt(
     title: "Desempate manual de mejores terceros",
     description:
       qualifyingSlots === 1
-        ? "Estos terceros estan empatados en puntos, golaverage y goles a favor para la ultima plaza de eliminatorias. El siguiente criterio FIFA seria el fair play, asi que aqui lo resolvemos a mano: marca quien debe pasar."
-        : `Estos terceros estan empatados en puntos, golaverage y goles a favor para ${qualifyingSlots} plazas de eliminatorias. El siguiente criterio FIFA seria el fair play, asi que aqui lo resolvemos a mano: marca quienes deben pasar primero.`,
+        ? "Con los grupos ya ordenados, estos terceros empatan para la ultima plaza de eliminatorias. Como el siguiente criterio FIFA seria fair play y no metemos tarjetas, marca quien debe pasar."
+        : `Con los grupos ya ordenados, estos terceros empatan para ${qualifyingSlots} plazas de eliminatorias. Como el siguiente criterio FIFA seria fair play y no metemos tarjetas, marca quienes deben pasar primero.`,
     teams: rows.map((row) => row.team),
     contextRows,
     qualifyingSlots,

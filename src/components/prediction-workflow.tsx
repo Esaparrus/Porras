@@ -237,6 +237,33 @@ export function PredictionWorkflow({
   );
   const allGroupsPredicted =
     groupMatchRows.length > 0 && completedGroups.size === groupLetters.length;
+  const pendingGroupTiebreakGroups = useMemo(
+    () =>
+      new Set(
+        predictedGroupState.unresolvedGroupTies
+          .filter(
+            ({ group, rows }) =>
+              completedGroups.has(group) &&
+              !isTieResolved(
+                rows,
+                tiebreakDraft[getTiebreakScopeId("group", group)],
+              ),
+          )
+          .map(({ group }) => group),
+      ),
+    [completedGroups, predictedGroupState.unresolvedGroupTies, tiebreakDraft],
+  );
+  const resolvedCompletedGroups = useMemo(
+    () =>
+      new Set(
+        Array.from(completedGroups).filter(
+          (group) => !pendingGroupTiebreakGroups.has(group),
+        ),
+      ),
+    [completedGroups, pendingGroupTiebreakGroups],
+  );
+  const allGroupPlacementsResolved =
+    allGroupsPredicted && resolvedCompletedGroups.size === groupLetters.length;
   const groupedPredictionMatches = useMemo(
     () =>
       groupLetters.map((group) => ({
@@ -303,7 +330,7 @@ export function PredictionWorkflow({
         ),
       );
     if (
-      allGroupsPredicted &&
+      allGroupPlacementsResolved &&
       predictedBestThirdState.unresolvedBestThirdTies.length
     ) {
       prompts.push(
@@ -316,29 +343,41 @@ export function PredictionWorkflow({
     }
     return prompts;
   }, [
-    allGroupsPredicted,
+    allGroupPlacementsResolved,
     completedGroups,
     standingsByGroup,
     predictedBestThirdState.bestThirdContextRows,
     predictedBestThirdState.unresolvedBestThirdTies,
     predictedGroupState.unresolvedGroupTies,
   ]);
+  const pendingBestThirdTiebreak = Boolean(
+    allGroupPlacementsResolved &&
+      predictedBestThirdState.unresolvedBestThirdTies.some(
+        ({ rows }) =>
+          !isTieResolved(
+            rows,
+            tiebreakDraft[getTiebreakScopeId("best_third", BEST_THIRD_SCOPE_KEY)],
+          ),
+      ),
+  );
+  const allKnockoutEntrantsResolved =
+    allGroupPlacementsResolved && !pendingBestThirdTiebreak;
   const knockoutMatches = useMemo(
     () =>
       buildKnockoutMatches(
         matches,
         standingsByGroup,
-      predictedBestThirdState.thirdPlaceAssignments,
+      allKnockoutEntrantsResolved ? predictedBestThirdState.thirdPlaceAssignments : null,
       draft,
-      completedGroups,
-      allGroupsPredicted,
+      resolvedCompletedGroups,
+      allKnockoutEntrantsResolved,
       ),
     [
-      allGroupsPredicted,
-      completedGroups,
+      allKnockoutEntrantsResolved,
       draft,
       matches,
       predictedBestThirdState.thirdPlaceAssignments,
+      resolvedCompletedGroups,
       standingsByGroup,
     ],
   );
@@ -841,9 +880,9 @@ function ManualTiebreakPanel({
         <div>
           <h3>Desempates manuales</h3>
           <p>
-            Solo aparecen si tus resultados dejan equipos empatados en los criterios
-            principales. Como no metemos tarjetas de fair play en la porra, elige a
-            mano el orden que quieres aplicar.
+            Resuelve estos pasos antes de completar eliminatorias. Primero se fija
+            el orden de los grupos; despues, con los terceros ya definidos, se decide
+            que mejores terceros pasan.
           </p>
         </div>
       </div>
@@ -856,6 +895,9 @@ function ManualTiebreakPanel({
           return (
             <article key={prompt.scopeId} className="manual-tiebreak-card">
               <div className="manual-tiebreak-copy">
+                <span className="manual-tiebreak-step">
+                  {getTiebreakStepLabel(prompt.scopeType)}
+                </span>
                 <h4>{prompt.title}</h4>
                 <p>{prompt.description}</p>
               </div>
@@ -980,6 +1022,12 @@ function getBestThirdSlotLabel(index: number, qualifyingSlots: number) {
       : `Plaza ${index + 1} que pasa a eliminatorias`;
   }
   return `${index + 1}.º del empate, no pasa`;
+}
+
+function getTiebreakStepLabel(scopeType: PredictionTiebreakPrompt["scopeType"]) {
+  return scopeType === "group"
+    ? "Paso 1 · Ordena el grupo empatado"
+    : "Paso 2 · Decide los mejores terceros";
 }
 
 function BracketSide({
@@ -1361,6 +1409,16 @@ function pushUniqueBestThirdTie(
   if (!exists) groups.push({ rows, qualifyingSlots });
 }
 
+function isTieResolved(rows: StandingRow[], orderedTeamIds: string[] | undefined) {
+  const tiedTeamIds = new Set(rows.map((row) => row.team.id));
+  const selectedTeamIds = (orderedTeamIds ?? []).slice(0, rows.length);
+  return (
+    selectedTeamIds.length === rows.length &&
+    selectedTeamIds.every((teamId) => tiedTeamIds.has(teamId)) &&
+    new Set(selectedTeamIds).size === rows.length
+  );
+}
+
 function numberOrNull(value?: string) {
   if (value === undefined || value === "") return null;
   const parsed = Number(value);
@@ -1464,7 +1522,7 @@ function getMatchIssues(match: KnockoutMatch | Match, draft?: DraftPrediction) {
   const awayScore = numberOrNull(draft?.away);
 
   if (match.stage !== "group" && (!homeTeam || !awayTeam)) {
-    return ["Falta completar cruces anteriores."];
+    return ["Falta resolver desempates manuales o cruces anteriores."];
   }
   const resolvedHomeTeam = homeTeam;
   const resolvedAwayTeam = awayTeam;
