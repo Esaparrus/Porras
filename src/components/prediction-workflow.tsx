@@ -323,8 +323,19 @@ export function PredictionWorkflow({
     };
   }, [standingsByGroup, tiebreakDraft]);
   const tiebreakPrompts = useMemo(() => {
+    const bestThirdScopeId = getTiebreakScopeId("best_third", BEST_THIRD_SCOPE_KEY);
+    const unresolvedBestThirdTie = predictedBestThirdState.unresolvedBestThirdTies.find(
+      ({ rows }) => !isTieResolved(rows, tiebreakDraft[bestThirdScopeId]),
+    );
     const prompts = predictedGroupState.unresolvedGroupTies
-      .filter(({ group }) => completedGroups.has(group))
+      .filter(
+        ({ group, rows }) =>
+          completedGroups.has(group) &&
+          !isTieResolved(
+            rows,
+            tiebreakDraft[getTiebreakScopeId("group", group)],
+          ),
+      )
       .map(({ group, rows }) =>
         buildGroupTiebreakPrompt(
           group,
@@ -334,13 +345,13 @@ export function PredictionWorkflow({
       );
     if (
       allGroupPlacementsResolved &&
-      predictedBestThirdState.unresolvedBestThirdTies.length
+      unresolvedBestThirdTie
     ) {
       prompts.push(
         buildBestThirdTiebreakPrompt(
-          predictedBestThirdState.unresolvedBestThirdTies[0]?.rows ?? [],
+          unresolvedBestThirdTie.rows,
           predictedBestThirdState.bestThirdContextRows,
-          predictedBestThirdState.unresolvedBestThirdTies[0]?.qualifyingSlots ?? 1,
+          unresolvedBestThirdTie.qualifyingSlots,
         ),
       );
     }
@@ -352,6 +363,7 @@ export function PredictionWorkflow({
     predictedBestThirdState.bestThirdContextRows,
     predictedBestThirdState.unresolvedBestThirdTies,
     predictedGroupState.unresolvedGroupTies,
+    tiebreakDraft,
   ]);
   const pendingBestThirdTiebreak = Boolean(
     allGroupPlacementsResolved &&
