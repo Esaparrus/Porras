@@ -51,6 +51,7 @@ const AWARD_REQUEST_FIELDS = [
   "best_young_player_id",
 ] as const;
 const DEFAULT_RESET_PASSWORD = "paquete";
+const SUPABASE_PAGE_SIZE = 1000;
 
 type AwardRequestField = (typeof AWARD_REQUEST_FIELDS)[number];
 type PredictionLockKey = "lock_matches" | "lock_scorers" | "lock_awards" | "lock_knockouts";
@@ -357,15 +358,16 @@ export async function checkLeaguePredictionProgressAction(formData: FormData) {
 
 async function getLeaguePredictionPendingMessage(leagueId: string) {
   const supabase = createSupabaseAdminClient();
+  const matchPredictionsPromise = getLeagueMatchPredictions(supabase, leagueId);
   const [
     { data: members },
     { data: matches },
     { data: teams },
-    { data: matchPredictions },
     { data: tiebreakSelections },
     { data: scorerPredictions },
     { data: awardPredictions },
     { data: awardRequests },
+    matchPredictions,
   ] = await Promise.all([
     supabase
       .from("league_members")
@@ -373,10 +375,6 @@ async function getLeaguePredictionPendingMessage(leagueId: string) {
       .eq("league_id", leagueId),
     supabase.from("matches").select("*"),
     supabase.from("teams").select("*"),
-    supabase
-      .from("match_predictions")
-      .select("*")
-      .eq("league_id", leagueId),
     supabase
       .from("prediction_tiebreak_selections")
       .select("*")
@@ -393,6 +391,7 @@ async function getLeaguePredictionPendingMessage(leagueId: string) {
       .from("player_selection_requests")
       .select("user_id, field_key, player_name, status")
       .eq("league_id", leagueId),
+    matchPredictionsPromise,
   ]);
 
   const matchRows = (matches ?? []) as Match[];
@@ -401,7 +400,7 @@ async function getLeaguePredictionPendingMessage(leagueId: string) {
     new Set(teamRows.map((team) => team.group_letter).filter(Boolean)),
   ) as string[];
   const totalMatches = matchRows.length;
-  const predictionsByUser = groupByUser((matchPredictions ?? []) as MatchPrediction[]);
+  const predictionsByUser = groupByUser(matchPredictions);
   const tiebreaksByUser = groupByUser(
     (tiebreakSelections ?? []) as PredictionTiebreakSelection[],
   );
@@ -476,6 +475,28 @@ function groupByUser<Row extends { user_id: string }>(rows: Row[]) {
     groups.set(row.user_id, [...(groups.get(row.user_id) ?? []), row]);
     return groups;
   }, new Map());
+}
+
+async function getLeagueMatchPredictions(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  leagueId: string,
+) {
+  const rows: MatchPrediction[] = [];
+
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("match_predictions")
+      .select("*")
+      .eq("league_id", leagueId)
+      .range(from, from + SUPABASE_PAGE_SIZE - 1);
+
+    if (error) throw error;
+
+    const page = (data ?? []) as MatchPrediction[];
+    rows.push(...page);
+
+    if (page.length < SUPABASE_PAGE_SIZE) return rows;
+  }
 }
 
 function revalidateLeaguePredictionProgressPaths(leagueId: string) {

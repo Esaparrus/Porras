@@ -18,6 +18,29 @@ const AWARD_FIELDS = [
   "best_goalkeeper_id",
   "best_young_player_id",
 ] as const;
+const SUPABASE_PAGE_SIZE = 1000;
+
+async function getLeagueMatchPredictions(
+  supabase: Awaited<ReturnType<typeof requireAdmin>>["supabase"],
+  leagueId: string,
+) {
+  const rows: MatchPrediction[] = [];
+
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("match_predictions")
+      .select("*")
+      .eq("league_id", leagueId)
+      .range(from, from + SUPABASE_PAGE_SIZE - 1);
+
+    if (error) throw error;
+
+    const page = (data ?? []) as MatchPrediction[];
+    rows.push(...page);
+
+    if (page.length < SUPABASE_PAGE_SIZE) return rows;
+  }
+}
 
 export default async function AdminUsersPage({
   params,
@@ -26,16 +49,17 @@ export default async function AdminUsersPage({
 }) {
   const { leagueId } = await params;
   const { supabase } = await requireAdmin();
+  const matchPredictionsPromise = getLeagueMatchPredictions(supabase, leagueId);
   const [
     { data: members },
     { data: scores },
     { data: matches },
     { data: teams },
-    { data: matchPredictions },
     { data: tiebreakSelections },
     { data: scorerPredictions },
     { data: awardPredictions },
     { data: awardRequests },
+    matchPredictions,
   ] = await Promise.all([
     supabase
       .from("league_members")
@@ -45,10 +69,6 @@ export default async function AdminUsersPage({
     supabase.from("scores").select("*").eq("league_id", leagueId),
     supabase.from("matches").select("*"),
     supabase.from("teams").select("*"),
-    supabase
-      .from("match_predictions")
-      .select("*")
-      .eq("league_id", leagueId),
     supabase
       .from("prediction_tiebreak_selections")
       .select("*")
@@ -65,6 +85,7 @@ export default async function AdminUsersPage({
       .from("player_selection_requests")
       .select("user_id, field_key, player_name, status")
       .eq("league_id", leagueId),
+    matchPredictionsPromise,
   ]);
 
   const scoreByUserId = new Map(
@@ -76,7 +97,7 @@ export default async function AdminUsersPage({
     new Set(teamRows.map((team) => team.group_letter).filter(Boolean)),
   ) as string[];
   const totalMatchSlots = matchRows.length;
-  const predictionsByUser = groupByUser((matchPredictions ?? []) as MatchPrediction[]);
+  const predictionsByUser = groupByUser(matchPredictions);
   const tiebreaksByUser = groupByUser(
     (tiebreakSelections ?? []) as PredictionTiebreakSelection[],
   );
