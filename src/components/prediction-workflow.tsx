@@ -430,6 +430,21 @@ export function PredictionWorkflow({
       ),
     [knockoutMatches],
   );
+  const latestSavePayloadRef = useRef({
+    draft,
+    resolvedKnockoutMatchIds,
+    snapshot: draftSnapshot,
+    tiebreakDraft,
+  });
+
+  useEffect(() => {
+    latestSavePayloadRef.current = {
+      draft,
+      resolvedKnockoutMatchIds,
+      snapshot: draftSnapshot,
+      tiebreakDraft,
+    };
+  }, [draft, draftSnapshot, resolvedKnockoutMatchIds, tiebreakDraft]);
 
   useEffect(() => {
     if (!tiebreakPrompts.length) return;
@@ -446,7 +461,12 @@ export function PredictionWorkflow({
   const savePredictions = useCallback(async (mode: SaveMode) => {
     if (locked) return;
 
-    const snapshot = serializeDraftSnapshot(matches, draft, tiebreakDraft);
+    const {
+      draft: draftToSave,
+      resolvedKnockoutMatchIds: resolvedIdsToSave,
+      snapshot,
+      tiebreakDraft: tiebreakDraftToSave,
+    } = latestSavePayloadRef.current;
     if (snapshot === lastSavedSnapshotRef.current) {
       if (mode === "manual") {
         setSaveStatus({
@@ -475,9 +495,9 @@ export function PredictionWorkflow({
         buildPredictionFormData(
           leagueId,
           matches,
-          draft,
-          tiebreakDraft,
-          resolvedKnockoutMatchIds,
+          draftToSave,
+          tiebreakDraftToSave,
+          resolvedIdsToSave,
         ),
       );
       lastSavedSnapshotRef.current = snapshot;
@@ -507,21 +527,17 @@ export function PredictionWorkflow({
       queuedSaveModeRef.current = null;
       if (
         queuedMode &&
-        serializeDraftSnapshot(matches, draft, tiebreakDraft) !==
-          lastSavedSnapshotRef.current
+        latestSavePayloadRef.current.snapshot !== lastSavedSnapshotRef.current
       ) {
         void savePredictions(queuedMode);
       }
     }
   }, [
-    draft,
     leagueId,
     locked,
     matches,
-    resolvedKnockoutMatchIds,
     router,
     startTransition,
-    tiebreakDraft,
   ]);
 
   useEffect(() => {
