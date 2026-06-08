@@ -93,6 +93,8 @@ const LOSER_SLOTS: Record<number, [number, number]> = {
   103: [101, 102],
 };
 
+const KNOCKOUT_DEPENDENTS = buildKnockoutDependents();
+
 const KNOCKOUT_ROUNDS = [
   "round_32",
   "round_16",
@@ -397,6 +399,7 @@ export function PredictionWorkflow({
     [draft, matches, tiebreakDraft],
   );
   const lastSavedSnapshotRef = useRef(draftSnapshot);
+  const knockoutEntrantSignaturesRef = useRef<Map<number, string> | null>(null);
 
   const knockoutIssuesByRound = useMemo(
     () =>
@@ -430,6 +433,52 @@ export function PredictionWorkflow({
       ),
     [knockoutMatches],
   );
+
+  useEffect(() => {
+    const nextSignatures = getKnockoutEntrantSignatures(knockoutMatches);
+    const previousSignatures = knockoutEntrantSignaturesRef.current;
+    knockoutEntrantSignaturesRef.current = nextSignatures;
+
+    if (!previousSignatures) return;
+
+    const changedNumbers = Array.from(nextSignatures.entries())
+      .filter(([matchNumber, signature]) => previousSignatures.get(matchNumber) !== signature)
+      .map(([matchNumber]) => matchNumber);
+
+    if (!changedNumbers.length) return;
+
+    const numbersToClear = new Set<number>();
+    changedNumbers.forEach((matchNumber) => {
+      numbersToClear.add(matchNumber);
+      getDependentKnockoutNumbers(matchNumber).forEach((dependentNumber) => {
+        numbersToClear.add(dependentNumber);
+      });
+    });
+
+    const idsToClear = new Set(
+      knockoutMatches
+        .filter((match) => numbersToClear.has(match.match_number ?? 0))
+        .map((match) => match.id),
+    );
+    if (!idsToClear.size) return;
+
+    // Entrants changed after group/manual tiebreak recalculation; stale knockout scores must not survive.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDraft((current) => {
+      let changed = false;
+      const next = { ...current };
+      idsToClear.forEach((matchId) => {
+        const prediction = next[matchId];
+        if (!prediction) return;
+        if (prediction.home !== "" || prediction.away !== "" || prediction.winnerId !== "") {
+          changed = true;
+          next[matchId] = { home: "", away: "", winnerId: "" };
+        }
+      });
+      return changed ? next : current;
+    });
+  }, [knockoutMatches]);
+
   const latestSavePayloadRef = useRef({
     draft,
     resolvedKnockoutMatchIds,
@@ -1443,6 +1492,47 @@ function buildKnockoutMatches(
   });
 
   return Array.from(derived.values()).sort((a, b) => (a.match_number ?? 0) - (b.match_number ?? 0));
+}
+
+function buildKnockoutDependents() {
+  const dependents = new Map<number, number[]>();
+  const addDependency = (source: number, target: number) => {
+    dependents.set(source, [...(dependents.get(source) ?? []), target]);
+  };
+
+  Object.entries(WINNER_SLOTS).forEach(([targetText, sources]) => {
+    const target = Number(targetText);
+    sources.forEach((source) => addDependency(source, target));
+  });
+  Object.entries(LOSER_SLOTS).forEach(([targetText, sources]) => {
+    const target = Number(targetText);
+    sources.forEach((source) => addDependency(source, target));
+  });
+
+  return dependents;
+}
+
+function getDependentKnockoutNumbers(matchNumber: number) {
+  const result = new Set<number>();
+  const pending = [...(KNOCKOUT_DEPENDENTS.get(matchNumber) ?? [])];
+
+  while (pending.length) {
+    const current = pending.shift();
+    if (!current || result.has(current)) continue;
+    result.add(current);
+    pending.push(...(KNOCKOUT_DEPENDENTS.get(current) ?? []));
+  }
+
+  return result;
+}
+
+function getKnockoutEntrantSignatures(matches: KnockoutMatch[]) {
+  return new Map(
+    matches.map((match) => [
+      match.match_number ?? 0,
+      `${match.predictedHomeTeam?.id ?? ""}:${match.predictedAwayTeam?.id ?? ""}`,
+    ]),
+  );
 }
 
 function resolveGroupSlot(
