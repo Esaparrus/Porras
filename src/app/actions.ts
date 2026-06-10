@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { DEFAULT_POINT_SETTINGS } from "@/lib/constants";
 import { requireAdmin, requireUser } from "@/lib/data";
+import { buildPredictedKnockoutEntrants } from "@/lib/knockout-bracket";
 import { getManualTiebreakStatus } from "@/lib/prediction-completion";
 import {
   BEST_THIRD_SCOPE_KEY,
@@ -16,6 +17,7 @@ import {
   calculateAwardPoints,
   calculateBestThirdPlacedTeams,
   calculateGroupPredictionPoints,
+  calculateKnockoutReachedPoints,
   calculateLiveKnockoutMatchPoints,
   calculatePredictedGroupStandings,
   calculateRealGroupStandings,
@@ -1443,10 +1445,11 @@ export async function recalculateLeagueScores(leagueId: string) {
         manualRanksByTeamId: groupTiebreaks.get(group),
       }),
     );
+    const predictedBestThirdRows = calculateBestThirdPlacedTeams(predictedGroups, {
+      manualRanksByTeamId: bestThirdManualRanks,
+    });
     const predictedBestThirdIds = new Set(
-      calculateBestThirdPlacedTeams(predictedGroups, {
-        manualRanksByTeamId: bestThirdManualRanks,
-      }).map((row) => row.team.id),
+      predictedBestThirdRows.map((row) => row.team.id),
     );
     const groupPoints = calculateGroupPredictionPoints(
       predictedGroups,
@@ -1456,12 +1459,47 @@ export async function recalculateLeagueScores(leagueId: string) {
       predictedBestThirdIds,
       realBestThirdIds,
     );
+    // Reconstruye el bracket que predijo el usuario (qué selecciones puso en cada cruce).
+    const predictedGroupsMap = new Map(
+      groupLetters.map((group, index) => [group, predictedGroups[index]]),
+    );
+    const predictionByMatchId = new Map(
+      matchPredictions.map((prediction) => [prediction.match_id, prediction]),
+    );
+    const predictedEntrants = buildPredictedKnockoutEntrants(
+      matches,
+      predictedGroupsMap,
+      predictedBestThirdRows,
+      (matchId) => {
+        const prediction = predictionByMatchId.get(matchId);
+        return prediction
+          ? {
+              winnerId: prediction.predicted_winner_team_id,
+              homeScore: prediction.predicted_home_score,
+              awayScore: prediction.predicted_away_score,
+            }
+          : undefined;
+      },
+    );
     const knockoutPoints = knockoutPredictions.reduce((total, prediction) => {
       const match = matches.find((item) => item.id === prediction.match_id);
-      return match
-        ? total + calculateLiveKnockoutMatchPoints(prediction, match, settings)
-        : total;
+      if (!match) return total;
+      const entrants = predictedEntrants.get(match.match_number ?? 0);
+      return (
+        total +
+        calculateLiveKnockoutMatchPoints(prediction, match, settings, {
+          homeTeamId: entrants?.homeTeam?.id ?? null,
+          awayTeamId: entrants?.awayTeam?.id ?? null,
+        })
+      );
     }, 0);
+    // Puntos por "llega a ronda": se premia cada selección predicha que alcanza
+    // de verdad esa ronda. El campeón se puntúa aparte (no se incluye aquí).
+    const reachedPoints = calculateKnockoutReachedPoints(
+      matches,
+      predictedEntrants,
+      settings,
+    );
     const finalMatch = matches.find((match) => match.stage === "final");
     const finalPrediction = finalMatch
       ? matchPredictions.find((prediction) => prediction.match_id === finalMatch.id)
@@ -1521,13 +1559,15 @@ export async function recalculateLeagueScores(leagueId: string) {
         total_points: calculateTotalUserScore({
           matchPoints: matchPoints.points,
           groupPoints,
-          knockoutPoints: knockoutPoints + championPoints + runnerUpPoints + thirdPlacePoints,
+          knockoutPoints:
+            knockoutPoints + reachedPoints + championPoints + runnerUpPoints + thirdPlacePoints,
           scorerPoints,
           awardPoints,
         }),
         match_points: matchPoints.points,
         group_points: groupPoints,
-        knockout_points: knockoutPoints + championPoints + runnerUpPoints + thirdPlacePoints,
+        knockout_points:
+          knockoutPoints + reachedPoints + championPoints + runnerUpPoints + thirdPlacePoints,
         scorer_points: scorerPoints,
         award_points: awardPoints,
         exact_scores_count: matchPoints.exactScores,

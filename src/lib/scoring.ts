@@ -259,10 +259,44 @@ export function calculateKnockoutPredictionPoints(
   );
 }
 
+// Rondas que otorgan puntos por "llegar a ronda". El campeón se premia aparte
+// (knockout_champion_points) y el partido por el 3er puesto no cuenta como ronda.
+const REACHED_ROUNDS = new Set([
+  "round_32",
+  "round_16",
+  "quarter_final",
+  "semi_final",
+  "final",
+]);
+
+// Compara el bracket predicho contra el real y reparte los puntos de "llega a ronda":
+// por cada selección que el usuario colocó en una ronda y que de verdad la alcanza.
+export function calculateKnockoutReachedPoints(
+  matches: Match[],
+  predictedEntrants: Map<number, { homeTeam: Team | null; awayTeam: Team | null }>,
+  settings: PointSettings,
+) {
+  const predicted: Array<{ round: string; team_id: string }> = [];
+  const reached: Array<{ round: string; team_id: string }> = [];
+  for (const match of matches) {
+    if (!REACHED_ROUNDS.has(match.stage)) continue;
+    if (match.home_team_id) reached.push({ round: match.stage, team_id: match.home_team_id });
+    if (match.away_team_id) reached.push({ round: match.stage, team_id: match.away_team_id });
+    const entrants = predictedEntrants.get(match.match_number ?? 0);
+    if (entrants?.homeTeam) predicted.push({ round: match.stage, team_id: entrants.homeTeam.id });
+    if (entrants?.awayTeam) predicted.push({ round: match.stage, team_id: entrants.awayTeam.id });
+  }
+  return calculateKnockoutPredictionPoints(predicted, reached, settings);
+}
+
 export function calculateLiveKnockoutMatchPoints(
   prediction: MatchPrediction,
   match: Match,
   settings: PointSettings,
+  // Selecciones que el usuario colocó en este cruce (reconstruidas de su bracket).
+  // El marcador (signo/diferencia/exacto) SOLO puntúa si ambas coinciden con las
+  // que realmente juegan, en su posición. El bonus de ganador es team-aware aparte.
+  predictedEntrants?: { homeTeamId: string | null; awayTeamId: string | null },
 ) {
   if (!match.is_finished) return 0;
   const roundValues: Record<
@@ -315,12 +349,21 @@ export function calculateLiveKnockoutMatchPoints(
       : match.away_team_id);
   let total =
     prediction.predicted_winner_team_id === realWinner ? values.winner : 0;
-  const result = calculateMatchPredictionPoints(prediction, match, {
-    match_exact_score_points: values.exact,
-    match_goal_difference_points: values.goalDifference,
-    match_sign_points: values.sign,
-  });
-  total += result.points;
+  // El marcador solo cuenta si las dos selecciones del cruce son las acertadas.
+  const bothTeamsCorrect =
+    predictedEntrants != null &&
+    predictedEntrants.homeTeamId != null &&
+    predictedEntrants.awayTeamId != null &&
+    predictedEntrants.homeTeamId === match.home_team_id &&
+    predictedEntrants.awayTeamId === match.away_team_id;
+  if (bothTeamsCorrect) {
+    const result = calculateMatchPredictionPoints(prediction, match, {
+      match_exact_score_points: values.exact,
+      match_goal_difference_points: values.goalDifference,
+      match_sign_points: values.sign,
+    });
+    total += result.points;
+  }
   return total;
 }
 

@@ -37,7 +37,7 @@ export default async function LeaguePointsPage({
           <div>
             <h1 className="text-3xl font-black">Puntuaciones</h1>
             <p className="mt-2 text-slate-300">
-              Aqui tienes las reglas de puntuacion de la liga y tu desglose actual.
+              Aquí tienes las reglas de puntuación de la liga y tu desglose actual.
             </p>
           </div>
           <span className="badge">Reglas</span>
@@ -49,7 +49,7 @@ export default async function LeaguePointsPage({
           <PointRulesCard settings={pointSettings} />
           <div className="glass rounded-3xl p-5">
             <div className="mb-4">
-              <h2 className="text-2xl font-black">Tu puntuacion</h2>
+              <h2 className="text-2xl font-black">Tu puntuación</h2>
               <p className="mt-1 text-sm text-slate-300">
                 Resumen de puntos que ya llevas acumulados.
               </p>

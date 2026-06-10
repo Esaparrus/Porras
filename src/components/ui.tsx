@@ -700,103 +700,217 @@ export function ScoreBreakdownCard({ score }: { score?: Score | null }) {
 
 export function PointsPhilosophyCard({ settings }: { settings: PointSettings }) {
   const b = computePointsBreakdown(settings);
+  const sign = settings.match_sign_points;
+  const gd = settings.match_goal_difference_points;
+  const exact = settings.match_exact_score_points;
+
+  // Ejemplo trabajado: resultado real 2-1, qué saca cada pronóstico.
+  const matchExamples = [
+    {
+      label: "2-1",
+      caption: "marcador exacto",
+      parts: [
+        { tag: "Signo", pts: sign, bar: "bg-sky-400" },
+        { tag: "Diferencia", pts: gd, bar: "bg-emerald-400" },
+        { tag: "Exacto", pts: exact, bar: "bg-fuchsia-400" },
+      ],
+    },
+    {
+      label: "3-2",
+      caption: "signo + diferencia",
+      parts: [
+        { tag: "Signo", pts: sign, bar: "bg-sky-400" },
+        { tag: "Diferencia", pts: gd, bar: "bg-emerald-400" },
+      ],
+    },
+    {
+      label: "1-0",
+      caption: "solo el ganador",
+      parts: [{ tag: "Signo", pts: sign, bar: "bg-sky-400" }],
+    },
+    { label: "0-1", caption: "fallo", parts: [] as { tag: string; pts: number; bar: string }[] },
+  ];
+
+  // Escalada del premio por avanzar de ronda.
+  const reachedSteps = [
+    { label: "Octavos", value: settings.knockout_round_16_reached_points },
+    { label: "Cuartos", value: settings.knockout_quarter_reached_points },
+    { label: "Semis", value: settings.knockout_semi_reached_points },
+    { label: "Final", value: settings.knockout_final_reached_points },
+  ];
+  const reachedMax = Math.max(...reachedSteps.map((s) => s.value), 1);
+
   const phases = [
-    {
-      title: "Fase de grupos",
-      value: b.group,
-      pct: b.groupPct,
-      bar: "bg-sky-400",
-    },
-    {
-      title: "Eliminatorias",
-      value: b.knockout,
-      pct: b.knockoutPct,
-      bar: "bg-emerald-400",
-    },
-    {
-      title: "Premios y goleadores",
-      value: b.awards,
-      pct: b.awardsPct,
-      bar: "bg-amber-400",
-    },
+    { title: "Fase de grupos", value: b.group, pct: b.groupPct, bar: "bg-sky-400" },
+    { title: "Eliminatorias", value: b.knockout, pct: b.knockoutPct, bar: "bg-emerald-400" },
+    { title: "Premios y goleadores", value: b.awards, pct: b.awardsPct, bar: "bg-amber-400" },
   ];
 
   return (
     <div className="glass rounded-3xl p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-black">Por que estos puntos</h2>
+          <h2 className="text-2xl font-black">Por qué estos puntos</h2>
           <p className="mt-1 text-sm text-slate-300">
-            El reparto esta pensado para que la porra siga viva hasta el ultimo partido.
+            El reparto está pensado para que la porra siga viva hasta el último partido.
           </p>
         </div>
-        <span className="badge">Explicacion</span>
+        <span className="badge">Explicación</span>
       </div>
 
-      {/* Principio 1 */}
+      {/* Principio 1 · clavar el resultado */}
       <section className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
-        <h3 className="text-base font-black">1 · Clavar el resultado vale mas que la diferencia</h3>
+        <h3 className="text-base font-black">1 · Clavar el resultado vale más que la diferencia</h3>
         <p className="mt-1 text-sm text-slate-300">
-          En un partido de grupo los aciertos se suman: acertar solo el ganador (1/X/2) da{" "}
-          <strong className="text-white">{settings.match_sign_points}</strong>; si ademas aciertas la
-          diferencia de goles, <strong className="text-white">+{settings.match_goal_difference_points}</strong>; y
-          si clavas el marcador exacto,{" "}
-          <strong className="text-white">+{settings.match_exact_score_points}</strong>.
+          En un partido los aciertos se suman: el ganador (1/X/2) da{" "}
+          <strong className="text-white">{sign}</strong>, la diferencia de goles{" "}
+          <strong className="text-white">+{gd}</strong> y clavar el marcador{" "}
+          <strong className="text-white">+{exact}</strong>. Clavar el resultado pesa más porque es lo más
+          difícil.
         </p>
-        <p className="mt-2 text-sm text-slate-300">
-          Total de un partido clavado al 100%:{" "}
-          <strong className="text-white">{b.groupMatchPerfect} pts</strong>. El resultado exacto pesa mas
-          que la diferencia porque es mas dificil de acertar.
-        </p>
+        <div className="mt-3 rounded-xl bg-black/30 p-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+            Ejemplo · resultado real 2-1
+          </p>
+          <div className="mt-2 space-y-2">
+            {matchExamples.map((ex) => {
+              const total = ex.parts.reduce((sum, p) => sum + p.pts, 0);
+              return (
+                <div key={ex.label} className="flex items-center gap-3">
+                  <div className="w-24 shrink-0 text-sm">
+                    <span className="font-black text-white">{ex.label}</span>{" "}
+                    <span className="text-xs text-slate-400">{ex.caption}</span>
+                  </div>
+                  <div className="flex h-4 flex-1 items-center gap-1">
+                    {ex.parts.length === 0 ? (
+                      <div className="h-2 w-full rounded-full bg-white/5" />
+                    ) : (
+                      ex.parts.map((p) => (
+                        <div
+                          key={p.tag}
+                          title={`${p.tag}: ${p.pts}`}
+                          className={`h-2 rounded-full ${p.bar}`}
+                          style={{ flexGrow: p.pts, minWidth: 8 }}
+                        />
+                      ))
+                    )}
+                  </div>
+                  <span className="w-12 shrink-0 text-right font-black text-white">{total} pts</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-400">
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-sky-400" /> Signo
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" /> Diferencia
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-fuchsia-400" /> Exacto
+            </span>
+          </div>
+        </div>
       </section>
 
-      {/* Principio 2 */}
+      {/* Principio 2 · escalada del avance */}
       <section className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-        <h3 className="text-base font-black">2 · Cuanto mas avanza el torneo, mas puntos hay en juego</h3>
+        <h3 className="text-base font-black">2 · Cuanto más avanza el torneo, más puntos hay en juego</h3>
         <p className="mt-1 text-sm text-slate-300">
-          Los puntos por avanzar de ronda suben en cada fase ({settings.knockout_round_32_reached_points} →{" "}
-          {settings.knockout_round_16_reached_points} → {settings.knockout_quarter_reached_points} →{" "}
-          {settings.knockout_semi_reached_points} → {settings.knockout_final_reached_points}). Llevar a un
-          equipo desde dieciseisavos hasta la final suma{" "}
-          <strong className="text-white">{b.finalistRun} pts</strong> solo por el avance, y los partidos
-          tambien valen mas en cada ronda.
-        </p>
-      </section>
-
-      {/* Principio 3 · reparto por fase */}
-      <section className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-        <h3 className="text-base font-black">3 · Se puede remontar hasta el final</h3>
-        <p className="mt-1 text-sm text-slate-300">
-          Asi se reparten los <strong className="text-white">{b.total} puntos</strong> que hay en juego como
-          maximo:
+          Acertar que un equipo avanza vale más en cada ronda. Seguir a un equipo desde octavos hasta la
+          final son <strong className="text-white">{b.finalistRun} pts</strong> solo por avanzar.
         </p>
         <div className="mt-3 space-y-2">
-          {phases.map((p) => (
-            <div key={p.title}>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-300">{p.title}</span>
-                <span className="font-black text-white">
-                  {p.value} pts · {p.pct}%
-                </span>
+          {reachedSteps.map((step) => (
+            <div key={step.label} className="flex items-center gap-3">
+              <span className="w-20 shrink-0 text-sm text-slate-300">{step.label}</span>
+              <div className="h-3 flex-1 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-emerald-400"
+                  style={{ width: `${(step.value / reachedMax) * 100}%` }}
+                />
               </div>
-              <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/10">
-                <div className={`h-full ${p.bar}`} style={{ width: `${p.pct}%` }} />
-              </div>
+              <span className="w-10 shrink-0 text-right font-black text-white">{step.value}</span>
             </div>
           ))}
         </div>
         <p className="mt-3 text-sm text-slate-300">
-          El <strong className="text-white">{b.knockoutPct}%</strong> de los puntos se decide en las
-          eliminatorias: por mucho que aciertes en la fase de grupos, quien lea bien el cuadro puede darte la
-          vuelta. De hecho, acertar al campeon ({settings.knockout_champion_points} pts) equivale a clavar el
-          marcador exacto de <strong className="text-white">{b.championInGroupMatches}</strong> partidos de
-          grupo.
+          El avance se premia una sola vez (no hay bonus extra por ganar el partido, para no puntuar lo
+          mismo dos veces). Clasificar de la fase de grupos ya se premia aparte, así que llegar a
+          dieciseisavos no suma de nuevo.
+        </p>
+      </section>
+
+      {/* Principio 3 · marcador de eliminatoria con ambas selecciones */}
+      <section className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+        <h3 className="text-base font-black">
+          3 · En eliminatorias, el marcador solo cuenta si aciertas el cruce
+        </h3>
+        <p className="mt-1 text-sm text-slate-300">
+          Como cada cruce depende de tu cuadro, el marcador (signo, diferencia y resultado exacto) de un
+          partido de eliminatoria{" "}
+          <strong className="text-white">solo puntúa si acertaste las dos selecciones</strong> que lo
+          juegan, aunque el número coincida. Acertar quién avanza se premia siempre aparte (ver punto 2).
+        </p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3">
+            <div className="flex items-center gap-2 text-sm font-black text-emerald-100">
+              <ShieldCheck className="h-4 w-4" /> El marcador cuenta
+            </div>
+            <p className="mt-1 text-xs text-slate-300">
+              Predijiste <strong className="text-white">España–Francia 2-1</strong> y el cruce real es{" "}
+              <strong className="text-white">España–Francia</strong>. Sumas signo/diferencia/exacto.
+            </p>
+          </div>
+          <div className="rounded-xl border border-rose-400/30 bg-rose-400/10 p-3">
+            <div className="flex items-center gap-2 text-sm font-black text-rose-100">
+              <ShieldX className="h-4 w-4" /> El marcador no cuenta
+            </div>
+            <p className="mt-1 text-xs text-slate-300">
+              Predijiste <strong className="text-white">España–Alemania 2-1</strong> pero juega{" "}
+              <strong className="text-white">España–Francia</strong>. El 2-1 no suma (el avance de España,
+              sí).
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Principio 4 · reparto por fase */}
+      <section className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+        <h3 className="text-base font-black">4 · Se puede remontar hasta el final</h3>
+        <p className="mt-1 text-sm text-slate-300">
+          Así se reparten los <strong className="text-white">{b.total} puntos</strong> que hay en juego como
+          máximo:
+        </p>
+        <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-white/10">
+          {phases.map((p) => (
+            <div key={p.title} className={`h-full ${p.bar}`} style={{ width: `${p.pct}%` }} />
+          ))}
+        </div>
+        <div className="mt-3 space-y-2">
+          {phases.map((p) => (
+            <div key={p.title} className="flex items-center gap-3 text-sm">
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${p.bar}`} />
+              <span className="flex-1 text-slate-300">{p.title}</span>
+              <span className="font-black text-white">
+                {p.value} pts · {p.pct}%
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-sm text-slate-300">
+          Casi la mitad de los puntos (<strong className="text-white">{b.knockoutPct}%</strong>) se reparte
+          de las eliminatorias en adelante, y ahí están los mayores golpes: acertar al campeón{" "}
+          ({settings.knockout_champion_points} pts) equivale a clavar el marcador exacto de{" "}
+          <strong className="text-white">{b.championInGroupMatches}</strong> partidos de grupo. Por mucho que
+          aciertes en la fase de grupos, quien lea bien el cuadro puede darte la vuelta.
         </p>
       </section>
 
       <p className="mt-4 text-xs leading-snug text-slate-400">
-        Calculos sobre el maximo teorico con el formato de 48 selecciones (72 partidos de grupos y 32 de
-        eliminatoria). Si la liga cambia algun valor, estos numeros se recalculan solos.
+        Cálculos sobre el máximo teórico con el formato de 48 selecciones (12 grupos, 72 partidos de grupos
+        y 32 de eliminatoria). Si la liga cambia algún valor, estos números se recalculan solos.
       </p>
     </div>
   );
@@ -807,12 +921,12 @@ export function PointRulesCard({ settings }: { settings: PointSettings }) {
     <div className="glass rounded-3xl p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-black">Como se puntua</h2>
+          <h2 className="text-2xl font-black">Cómo se puntúa</h2>
           <p className="mt-1 text-sm text-slate-300">
             Estos valores salen de la configuración actual de la liga.
           </p>
         </div>
-        <span className="badge">Configuracion</span>
+        <span className="badge">Configuración</span>
       </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-2">

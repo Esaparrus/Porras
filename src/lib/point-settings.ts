@@ -81,7 +81,7 @@ export const POINT_SETTING_LABELS: Record<
   match_sign_points: "Signo 1/X/2",
   match_goal_difference_points: "Diferencia de goles",
   match_exact_score_points: "Resultado exacto",
-  group_exact_position_points: "Posicion exacta",
+  group_exact_position_points: "Posición exacta",
   group_winner_bonus_points: "Ganador de grupo",
   group_qualified_team_points: "Clasificado directo",
   best_third_team_points: "Mejor tercero",
@@ -90,8 +90,8 @@ export const POINT_SETTING_LABELS: Record<
   knockout_quarter_reached_points: "Llega a cuartos",
   knockout_semi_reached_points: "Llega a semifinales",
   knockout_final_reached_points: "Llega a la final",
-  knockout_champion_points: "Campeon del torneo",
-  knockout_runner_up_points: "Subcampeon",
+  knockout_champion_points: "Campeón del torneo",
+  knockout_runner_up_points: "Subcampeón",
   knockout_third_place_points: "Tercer puesto",
   live_round_32_sign_points: "Dieciseisavos 1/X/2",
   live_round_32_winner_points: "Dieciseisavos clasificado",
@@ -118,7 +118,7 @@ export const POINT_SETTING_LABELS: Record<
   live_final_goal_difference_points: "Final diferencia",
   live_final_exact_score_bonus: "Final exacto",
   scorer_goal_points: "Gol",
-  scorer_max_points: "Maximo goleadores",
+  scorer_max_points: "Máximo goleadores",
   award_top_scorer_points: "Pichichi",
   award_best_player_points: "Mejor jugador",
   award_best_goalkeeper_points: "Mejor portero",
@@ -131,24 +131,34 @@ export const POINT_SETTING_NOTES: Partial<
   Record<keyof Omit<PointSettings, "id" | "league_id">, string>
 > = {
   match_goal_difference_points:
-    "Se suma al signo si ademas aciertas la diferencia de goles. Vale menos que el resultado exacto.",
+    "Se suma al signo si además aciertas la diferencia de goles. Vale menos que el resultado exacto.",
   match_exact_score_points:
     "Premio mayor por clavar el marcador. Se suma encima del signo y la diferencia.",
   group_winner_bonus_points:
-    "0 a proposito: acertar el 1.º del grupo ya puntua via 'Posicion exacta' + 'Clasificado directo'. Este extra esta apagado para no pagar lo mismo dos veces.",
+    "0 a propósito: acertar el 1.º del grupo ya puntúa vía 'Posición exacta' + 'Clasificado directo'. Este extra está apagado para no pagar lo mismo dos veces.",
   group_qualified_team_points: "Por cada uno de los dos que clasifican directos del grupo.",
   best_third_team_points: "Por acertar un equipo entre los mejores terceros que pasan de ronda.",
+  knockout_round_32_reached_points:
+    "0 a propósito: llegar a dieciseisavos es clasificar de la fase de grupos, que ya se premia en 'Clasificado directo' y 'Mejor tercero'.",
   knockout_round_16_reached_points:
-    "Los puntos por 'llegar a ronda' suben segun avanza el torneo: cuanto mas lejos llega tu equipo, mas vale. Asi se puede remontar hasta el final.",
-  knockout_semi_reached_points: "Las rondas finales pesan mucho: aqui es donde se decide la liga.",
-  knockout_champion_points: "El mayor premio individual. Acertar el campeon puede dar la vuelta a la clasificacion.",
+    "Por cada selección tuya que llega de verdad a esta ronda. Es el único premio al avance: sube en cada fase para que se pueda remontar hasta el final.",
+  knockout_quarter_reached_points: "Por cada selección tuya que alcanza cuartos.",
+  knockout_semi_reached_points: "Las rondas finales pesan mucho: aquí es donde se decide la liga.",
+  knockout_final_reached_points: "Por cada finalista que acertaste. El avance que más puntúa.",
+  knockout_champion_points:
+    "El mayor premio individual. Acertar el campeón puede dar la vuelta a la clasificación.",
+  live_round_32_goal_difference_points:
+    "En eliminatorias el marcador solo cuenta si acertaste las DOS selecciones del cruce.",
+  live_round_32_exact_score_bonus:
+    "Solo cuenta si acertaste las dos selecciones del cruce. El avance se premia aparte en 'llega a ronda'.",
   live_round_32_winner_points:
-    "Bonus por acertar QUIEN pasa de ronda (tras prorroga/penaltis), aparte del marcador.",
+    "0: acertar quién pasa de ronda se premia en 'llega a ronda', no por partido, para no duplicar.",
   live_third_place_winner_points:
-    "0 a proposito: el acierto del 3.er puesto ya se premia en 'Tercer puesto' (cuadro inicial). Aqui solo cuenta el marcador del partido.",
+    "0 a propósito: el acierto del 3.er puesto ya se premia en 'Tercer puesto'. Aquí solo cuenta el marcador (si acertaste el cruce).",
   live_final_winner_points:
-    "0 a proposito: acertar al campeon se paga aparte en 'Campeon del torneo'. En la final solo se valora el marcador, pero reforzado (signo/diferencia/exacto mas altos).",
-  live_final_exact_score_bonus: "La final es el partido que mas puntua: clavar su marcador da el bonus mas alto.",
+    "0 a propósito: acertar al campeón se paga en 'Campeón del torneo'. En la final solo cuenta el marcador, pero reforzado.",
+  live_final_exact_score_bonus:
+    "La final es el partido que más puntúa: clavar su marcador da el bonus más alto (si acertaste a los dos finalistas).",
   scorer_max_points: "Tope de puntos que puedes sumar acertando goleadores, por muchos goles que metan.",
 };
 
@@ -156,7 +166,7 @@ export const POINT_SETTING_NOTES: Partial<
 // cuantos puntos hay en juego en cada fase y justificar el baremo.
 const TOURNAMENT_SHAPE = {
   groupMatches: 72,
-  groups: 8,
+  groups: 12,
   positionsPerGroup: 4,
   qualifiedPerGroup: 2,
   bestThirdSlots: 8,

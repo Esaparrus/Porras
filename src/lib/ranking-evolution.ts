@@ -1,3 +1,4 @@
+import { buildPredictedKnockoutEntrants } from "@/lib/knockout-bracket";
 import {
   BEST_THIRD_SCOPE_KEY,
   buildManualRankMap,
@@ -7,6 +8,7 @@ import {
   calculateAwardPoints,
   calculateBestThirdPlacedTeams,
   calculateGroupPredictionPoints,
+  calculateKnockoutReachedPoints,
   calculateLiveKnockoutMatchPoints,
   calculatePredictedGroupStandings,
   calculateRealGroupStandings,
@@ -287,10 +289,11 @@ function scoreFrame({
           manualRanksByTeamId: groupTiebreaks.get(group),
         }),
       );
+      const predictedBestThirdRows = calculateBestThirdPlacedTeams(predictedGroups, {
+        manualRanksByTeamId: bestThirdManualRanks,
+      });
       const predictedBestThirdIds = new Set(
-        calculateBestThirdPlacedTeams(predictedGroups, {
-          manualRanksByTeamId: bestThirdManualRanks,
-        }).map((row) => row.team.id),
+        predictedBestThirdRows.map((row) => row.team.id),
       );
       const groupPoints = calculateGroupPredictionPoints(
         predictedGroups,
@@ -299,12 +302,44 @@ function scoreFrame({
         completedGroups,
         predictedBestThirdIds,
       );
+      const predictedGroupsMap = new Map(
+        groupLetters.map((group, index) => [group, predictedGroups[index]]),
+      );
+      const predictionByMatchId = new Map(
+        matchPredictionsForUser.map((prediction) => [prediction.match_id, prediction]),
+      );
+      const predictedEntrants = buildPredictedKnockoutEntrants(
+        allMatches,
+        predictedGroupsMap,
+        predictedBestThirdRows,
+        (matchId) => {
+          const prediction = predictionByMatchId.get(matchId);
+          return prediction
+            ? {
+                winnerId: prediction.predicted_winner_team_id,
+                homeScore: prediction.predicted_home_score,
+                awayScore: prediction.predicted_away_score,
+              }
+            : undefined;
+        },
+      );
       const knockoutPoints = knockoutPredictions.reduce((total, prediction) => {
         const match = snapshotMatches.find((item) => item.id === prediction.match_id);
-        return match
-          ? total + calculateLiveKnockoutMatchPoints(prediction, match, settings)
-          : total;
+        if (!match) return total;
+        const entrants = predictedEntrants.get(match.match_number ?? 0);
+        return (
+          total +
+          calculateLiveKnockoutMatchPoints(prediction, match, settings, {
+            homeTeamId: entrants?.homeTeam?.id ?? null,
+            awayTeamId: entrants?.awayTeam?.id ?? null,
+          })
+        );
       }, 0);
+      const reachedPoints = calculateKnockoutReachedPoints(
+        snapshotMatches,
+        predictedEntrants,
+        settings,
+      );
       const finalPrediction = finalMatch
         ? matchPredictionsForUser.find((prediction) => prediction.match_id === finalMatch.id)
         : null;
@@ -342,7 +377,7 @@ function scoreFrame({
       const totalPoints = calculateTotalUserScore({
         matchPoints: matchPoints.points,
         groupPoints,
-        knockoutPoints: knockoutPoints + placementPoints,
+        knockoutPoints: knockoutPoints + reachedPoints + placementPoints,
         scorerPoints,
         awardPoints,
       });

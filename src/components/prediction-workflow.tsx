@@ -25,6 +25,11 @@ import {
   calculateRealGroupStandings,
   calculateThirdPlacedTeamRanking,
 } from "@/lib/scoring";
+import {
+  LOSER_SLOTS,
+  ROUND_32_SLOTS,
+  WINNER_SLOTS,
+} from "@/lib/knockout-bracket";
 import { getThirdPlaceAssignments } from "@/lib/world-cup-third-place-assignments";
 import type {
   Match,
@@ -52,47 +57,6 @@ type SaveStatus =
   | { kind: "saving"; mode: SaveMode; message: string }
   | { kind: "saved"; mode: SaveMode; message: string }
   | { kind: "error"; mode: SaveMode; message: string };
-
-const ROUND_32_SLOTS: Record<number, [string, string]> = {
-  73: ["2A", "2B"],
-  74: ["1E", "3ABCDF"],
-  75: ["1F", "2C"],
-  76: ["1C", "2F"],
-  77: ["1I", "3CDFGH"],
-  78: ["2E", "2I"],
-  79: ["1A", "3CEFHI"],
-  80: ["1L", "3EHIJK"],
-  81: ["1D", "3BEFIJ"],
-  82: ["1G", "3AEHIJ"],
-  83: ["2K", "2L"],
-  84: ["1H", "2J"],
-  85: ["1B", "3EFGIJ"],
-  86: ["1J", "2H"],
-  87: ["1K", "3DEIJL"],
-  88: ["2D", "2G"],
-};
-
-const WINNER_SLOTS: Record<number, [number, number]> = {
-  89: [74, 77],
-  90: [73, 75],
-  91: [76, 78],
-  92: [79, 80],
-  93: [83, 84],
-  94: [81, 82],
-  95: [86, 88],
-  96: [85, 87],
-  97: [89, 90],
-  98: [93, 94],
-  99: [91, 92],
-  100: [95, 96],
-  101: [97, 98],
-  102: [99, 100],
-  104: [101, 102],
-};
-
-const LOSER_SLOTS: Record<number, [number, number]> = {
-  103: [101, 102],
-};
 
 const KNOCKOUT_DEPENDENTS = buildKnockoutDependents();
 
