@@ -143,6 +143,33 @@ export function calculateLeaguePointProgress({
     remainingPoints += settings.knockout_third_place_points;
   }
 
+  // Puntos por "llega a ronda": una seleccion entra en la ronda R cuando termina
+  // la ronda anterior, asi que esos puntos se consideran jugados en ese momento.
+  // (Llegar a dieciseisavos = clasificar de grupos, ya contado en los bundles de grupo.)
+  const reachedRounds: Array<{
+    stage: Match["stage"];
+    previous: Match["stage"];
+    points: number;
+  }> = [
+    { stage: "round_16", previous: "round_32", points: settings.knockout_round_16_reached_points },
+    { stage: "quarter_final", previous: "round_16", points: settings.knockout_quarter_reached_points },
+    { stage: "semi_final", previous: "quarter_final", points: settings.knockout_semi_reached_points },
+    { stage: "final", previous: "semi_final", points: settings.knockout_final_reached_points },
+  ];
+  reachedRounds.forEach(({ stage, previous, points }) => {
+    const entrants = knockoutMatches.filter((match) => match.stage === stage).length * 2;
+    if (entrants === 0) return;
+    const previousMatches = knockoutMatches.filter((match) => match.stage === previous);
+    const previousFinished =
+      previousMatches.length > 0 && previousMatches.every((match) => match.is_finished);
+    const bundle = entrants * points;
+    if (previousFinished) {
+      playedPoints += bundle;
+    } else {
+      remainingPoints += bundle;
+    }
+  });
+
   groupLetters.forEach((groupLetter) => {
     const groupFinished = groupMatches
       .filter((match) => match.group_letter === groupLetter)
