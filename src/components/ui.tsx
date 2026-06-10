@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { CopyButton } from "@/components/copy-button";
 import { formatCurrency, getPaymentStatusCopy } from "@/lib/league-insights";
-import { POINT_SETTING_GROUPS, POINT_SETTING_LABELS } from "@/lib/point-settings";
+import { POINT_SETTING_GROUPS, POINT_SETTING_LABELS, POINT_SETTING_NOTES, computePointsBreakdown } from "@/lib/point-settings";
 import type { RankingMovement } from "@/lib/ranking-history";
 import type {
   LeaguePaymentStatus,
@@ -698,6 +698,110 @@ export function ScoreBreakdownCard({ score }: { score?: Score | null }) {
   );
 }
 
+export function PointsPhilosophyCard({ settings }: { settings: PointSettings }) {
+  const b = computePointsBreakdown(settings);
+  const phases = [
+    {
+      title: "Fase de grupos",
+      value: b.group,
+      pct: b.groupPct,
+      bar: "bg-sky-400",
+    },
+    {
+      title: "Eliminatorias",
+      value: b.knockout,
+      pct: b.knockoutPct,
+      bar: "bg-emerald-400",
+    },
+    {
+      title: "Premios y goleadores",
+      value: b.awards,
+      pct: b.awardsPct,
+      bar: "bg-amber-400",
+    },
+  ];
+
+  return (
+    <div className="glass rounded-3xl p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-black">Por que estos puntos</h2>
+          <p className="mt-1 text-sm text-slate-300">
+            El reparto esta pensado para que la porra siga viva hasta el ultimo partido.
+          </p>
+        </div>
+        <span className="badge">Explicacion</span>
+      </div>
+
+      {/* Principio 1 */}
+      <section className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+        <h3 className="text-base font-black">1 · Clavar el resultado vale mas que la diferencia</h3>
+        <p className="mt-1 text-sm text-slate-300">
+          En un partido de grupo los aciertos se suman: acertar solo el ganador (1/X/2) da{" "}
+          <strong className="text-white">{settings.match_sign_points}</strong>; si ademas aciertas la
+          diferencia de goles, <strong className="text-white">+{settings.match_goal_difference_points}</strong>; y
+          si clavas el marcador exacto,{" "}
+          <strong className="text-white">+{settings.match_exact_score_points}</strong>.
+        </p>
+        <p className="mt-2 text-sm text-slate-300">
+          Total de un partido clavado al 100%:{" "}
+          <strong className="text-white">{b.groupMatchPerfect} pts</strong>. El resultado exacto pesa mas
+          que la diferencia porque es mas dificil de acertar.
+        </p>
+      </section>
+
+      {/* Principio 2 */}
+      <section className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+        <h3 className="text-base font-black">2 · Cuanto mas avanza el torneo, mas puntos hay en juego</h3>
+        <p className="mt-1 text-sm text-slate-300">
+          Los puntos por avanzar de ronda suben en cada fase ({settings.knockout_round_32_reached_points} →{" "}
+          {settings.knockout_round_16_reached_points} → {settings.knockout_quarter_reached_points} →{" "}
+          {settings.knockout_semi_reached_points} → {settings.knockout_final_reached_points}). Llevar a un
+          equipo desde dieciseisavos hasta la final suma{" "}
+          <strong className="text-white">{b.finalistRun} pts</strong> solo por el avance, y los partidos
+          tambien valen mas en cada ronda.
+        </p>
+      </section>
+
+      {/* Principio 3 · reparto por fase */}
+      <section className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+        <h3 className="text-base font-black">3 · Se puede remontar hasta el final</h3>
+        <p className="mt-1 text-sm text-slate-300">
+          Asi se reparten los <strong className="text-white">{b.total} puntos</strong> que hay en juego como
+          maximo:
+        </p>
+        <div className="mt-3 space-y-2">
+          {phases.map((p) => (
+            <div key={p.title}>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-300">{p.title}</span>
+                <span className="font-black text-white">
+                  {p.value} pts · {p.pct}%
+                </span>
+              </div>
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/10">
+                <div className={`h-full ${p.bar}`} style={{ width: `${p.pct}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-sm text-slate-300">
+          El <strong className="text-white">{b.knockoutPct}%</strong> de los puntos se decide en las
+          eliminatorias: por mucho que aciertes en la fase de grupos, quien lea bien el cuadro puede darte la
+          vuelta. De hecho, acertar al campeon ({settings.knockout_champion_points} pts) equivale a clavar el
+          marcador exacto de <strong className="text-white">{b.championInGroupMatches}</strong> partidos de
+          grupo.
+        </p>
+      </section>
+
+      <p className="mt-4 text-xs leading-snug text-slate-400">
+        Calculos sobre el maximo teorico con el formato de 48 selecciones (72 partidos de grupos y 32 de
+        eliminatoria). Si la liga cambia algun valor, estos numeros se recalculan solos.
+      </p>
+    </div>
+  );
+}
+
 export function PointRulesCard({ settings }: { settings: PointSettings }) {
   return (
     <div className="glass rounded-3xl p-5">
@@ -719,10 +823,17 @@ export function PointRulesCard({ settings }: { settings: PointSettings }) {
               {keys.map((key) => (
                 <div
                   key={key}
-                  className="flex items-center justify-between gap-3 rounded-2xl bg-white/5 px-3 py-2"
+                  className="rounded-2xl bg-white/5 px-3 py-2"
                 >
-                  <span className="text-slate-300">{POINT_SETTING_LABELS[key]}</span>
-                  <strong className="text-base text-white">{settings[key]} pts</strong>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-slate-300">{POINT_SETTING_LABELS[key]}</span>
+                    <strong className="text-base text-white">{settings[key]} pts</strong>
+                  </div>
+                  {POINT_SETTING_NOTES[key] && (
+                    <p className="mt-1 text-xs leading-snug text-slate-400">
+                      {POINT_SETTING_NOTES[key]}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

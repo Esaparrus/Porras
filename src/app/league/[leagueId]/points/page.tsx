@@ -1,5 +1,5 @@
 import { UserLayout } from "@/components/layouts";
-import { PointRulesCard, ScoreBreakdownCard } from "@/components/ui";
+import { PointRulesCard, PointsPhilosophyCard, ScoreBreakdownCard } from "@/components/ui";
 import { requireUser } from "@/lib/data";
 import { withDefaultSettings } from "@/lib/scoring";
 import type { PointSettings } from "@/lib/types";
@@ -42,6 +42,8 @@ export default async function LeaguePointsPage({
           </div>
           <span className="badge">Reglas</span>
         </div>
+
+        <PointsPhilosophyCard settings={pointSettings} />
 
         <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
           <PointRulesCard settings={pointSettings} />

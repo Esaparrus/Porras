@@ -7,7 +7,7 @@ import { AdminLayout } from "@/components/layouts";
 import { calculateLeaguePot, calculatePrizeBreakdown, formatCurrency } from "@/lib/league-insights";
 import { DEFAULT_POINT_SETTINGS, STATUS_LABELS } from "@/lib/constants";
 import { requireAdmin } from "@/lib/data";
-import { POINT_SETTING_GROUPS, POINT_SETTING_LABELS } from "@/lib/point-settings";
+import { POINT_SETTING_GROUPS, POINT_SETTING_LABELS, POINT_SETTING_NOTES } from "@/lib/point-settings";
 
 const labels: Record<string, string> = {
   match_exact_score_points: "Resultado exacto",
@@ -242,6 +242,11 @@ export default async function SettingsPage({
                       defaultValue={values[key]}
                       className="field mt-2"
                     />
+                    {POINT_SETTING_NOTES[key] && (
+                      <span className="mt-1 block text-xs leading-snug text-slate-400">
+                        {POINT_SETTING_NOTES[key]}
+                      </span>
+                    )}
                   </label>
                 ))}
               </div>
