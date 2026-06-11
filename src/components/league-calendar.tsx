@@ -35,13 +35,11 @@ export function LeagueCalendar({
   const matchesByDay = groupMatchesByDay(matches);
 
   function togglePanel(panelId: string) {
-    setOpenPanelId((current) => {
-      const next = current === panelId ? null : panelId;
-      if (typeof window !== "undefined") {
-        window.history.replaceState(null, "", next ? `#${next}` : window.location.pathname);
-      }
-      return next;
-    });
+    const next = openPanelId === panelId ? null : panelId;
+    setOpenPanelId(next);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", next ? `#${next}` : window.location.pathname);
+    }
   }
 
   return (
