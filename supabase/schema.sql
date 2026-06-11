@@ -433,6 +433,21 @@ for select using (
 create policy "prediction tiebreak selections own" on public.prediction_tiebreak_selections
 for all using (public.is_admin() or user_id = auth.uid())
 with check (public.is_admin() or user_id = auth.uid());
+create policy "prediction tiebreak selections visible read" on public.prediction_tiebreak_selections
+for select using (
+  public.is_admin()
+  or user_id = auth.uid()
+  or exists (
+    select 1 from public.leagues l
+    where l.id = league_id
+    and public.is_league_member(l.id)
+    and (
+      l.predictions_visible
+      or l.status <> 'open'
+      or exists (select 1 from public.matches m where m.is_finished)
+    )
+  )
+);
 
 create policy "knockout predictions own" on public.knockout_predictions
 for all using (public.is_admin() or user_id = auth.uid())
@@ -441,10 +456,40 @@ with check (public.is_admin() or user_id = auth.uid());
 create policy "scorer predictions own" on public.scorer_predictions
 for all using (public.is_admin() or user_id = auth.uid())
 with check (public.is_admin() or user_id = auth.uid());
+create policy "scorer predictions visible read" on public.scorer_predictions
+for select using (
+  public.is_admin()
+  or user_id = auth.uid()
+  or exists (
+    select 1 from public.leagues l
+    where l.id = league_id
+    and public.is_league_member(l.id)
+    and (
+      l.predictions_visible
+      or l.status <> 'open'
+      or exists (select 1 from public.matches m where m.is_finished)
+    )
+  )
+);
 
 create policy "award predictions own" on public.award_predictions
 for all using (public.is_admin() or user_id = auth.uid())
 with check (public.is_admin() or user_id = auth.uid());
+create policy "award predictions visible read" on public.award_predictions
+for select using (
+  public.is_admin()
+  or user_id = auth.uid()
+  or exists (
+    select 1 from public.leagues l
+    where l.id = league_id
+    and public.is_league_member(l.id)
+    and (
+      l.predictions_visible
+      or l.status <> 'open'
+      or exists (select 1 from public.matches m where m.is_finished)
+    )
+  )
+);
 
 create policy "player selection requests own" on public.player_selection_requests
 for all using (public.is_admin() or user_id = auth.uid())

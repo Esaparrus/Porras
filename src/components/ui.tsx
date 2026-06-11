@@ -677,7 +677,7 @@ function RankingMovementChip({
 
 export function ScoreBreakdownCard({ score }: { score?: Score | null }) {
   return (
-    <div className="glass rounded-2xl p-5">
+    <div className="rounded-2xl border border-white/10 bg-[#07111f]/90 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl">
       <div className="flex items-center gap-3">
         <Trophy className="h-5 w-5 text-[#ff2bd6]" />
         <h3 className="font-black">Desglose</h3>
