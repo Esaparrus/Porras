@@ -92,14 +92,14 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://tu-app/api/cron/sync-result
 
 ### Automatico (GitHub Action, gratis)
 
-`.github/workflows/sync-results.yml` llama al endpoint cada 30 min. Configura dos
+`.github/workflows/sync-results.yml` llama al endpoint cada 10 min. Configura dos
 secrets de repositorio (Settings -> Secrets and variables -> Actions):
 
 - `SYNC_URL`: la URL completa, p.ej. `https://tu-app.vercel.app/api/cron/sync-results`.
 - `CRON_SECRET`: el mismo valor que en las variables de entorno de la app.
 
 > Los crons de Vercel en plan gratis solo permiten una ejecucion al dia, por eso
-> se usa GitHub Actions, que permite la cadencia de 30 min sin coste.
+> se usa GitHub Actions, que permite la cadencia de 10 min sin coste.
 
 ## Emparejado fiable
 
