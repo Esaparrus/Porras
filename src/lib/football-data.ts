@@ -177,15 +177,18 @@ async function fetchScorers() {
 // ha apostado. Solo toca los que encuentra en el ranking; nunca pone a 0 a uno
 // que no aparezca (el plan gratis puede recortar la lista). Devuelve cuantos
 // totales cambiaron.
+// Actualiza el total de goles (players.api_goals) de TODOS los jugadores activos
+// de la porra (no solo los apostados), emparejando por tla + nombre. Solo toca
+// los que encuentra en el ranking; nunca pone a 0 a uno que no aparezca (el plan
+// gratis puede recortar la lista). Devuelve cuantos totales cambiaron.
 async function syncScorerTotals(supabase: SupabaseClient, messages: string[]): Promise<number> {
-  const { data: predRows } = await supabase.from("scorer_predictions").select("player_id");
-  const pickedIds = Array.from(new Set((predRows ?? []).map((row) => row.player_id as string)));
-  if (!pickedIds.length) return 0;
-
   const { data: playerRows } = await supabase
     .from("players")
     .select("id, name, api_goals, teams(short_name)")
-    .in("id", pickedIds);
+    .eq("is_active", true);
+
+  const players = (playerRows ?? []) as PickedPlayer[];
+  if (!players.length) return 0;
 
   let scorers: FootballDataScorer[];
   try {
@@ -197,7 +200,7 @@ async function syncScorerTotals(supabase: SupabaseClient, messages: string[]): P
   }
 
   let changed = 0;
-  for (const player of (playerRows ?? []) as PickedPlayer[]) {
+  for (const player of players) {
     const tla = getShortName(player);
     if (!tla) continue;
 
@@ -220,6 +223,9 @@ async function syncScorerTotals(supabase: SupabaseClient, messages: string[]): P
     }
   }
 
+  messages.push(
+    `Goleadores: ${players.length} jugadores, ${scorers.length} en ranking, ${changed} actualizados.`,
+  );
   return changed;
 }
 
