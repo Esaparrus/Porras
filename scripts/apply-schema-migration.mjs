@@ -24,6 +24,7 @@ try {
   await client.query(await readFile("supabase/remove-scorer-captain.sql", "utf8"));
   await client.query(await readFile("supabase/profile-display-customization.sql", "utf8"));
   await client.query(await readFile("supabase/ranking-daily-snapshots.sql", "utf8"));
+  await client.query(await readFile("supabase/api-football-sync.sql", "utf8"));
   await client.query(`
     update public.teams
     set flag_code = case short_name

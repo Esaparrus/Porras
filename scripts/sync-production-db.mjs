@@ -23,6 +23,7 @@ const SQL_FILES = [
   "migrate-world-cup-2026.sql",
   "league-economy-and-payments.sql",
   "player-selection-requests.sql",
+  "api-football-sync.sql",
   "seed.sql",
 ];
 

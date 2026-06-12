@@ -53,6 +53,7 @@ create table public.teams (
   group_letter text,
   fifa_ranking int,
   fair_play_points int default 0,
+  api_football_team_id int,
   manual_order int,
   unique (short_name)
 );
@@ -83,10 +84,20 @@ create table public.matches (
   venue text,
   home_score int,
   away_score int,
+  api_football_fixture_id int,
+  api_football_last_sync_at timestamptz,
   is_finished boolean not null default false,
   is_locked boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+create unique index if not exists teams_api_football_team_id_unique_idx
+  on public.teams (api_football_team_id)
+  where api_football_team_id is not null;
+
+create unique index if not exists matches_api_football_fixture_id_unique_idx
+  on public.matches (api_football_fixture_id)
+  where api_football_fixture_id is not null;
 
 create table public.match_predictions (
   id uuid primary key default gen_random_uuid(),

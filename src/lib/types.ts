@@ -64,6 +64,7 @@ export type Team = {
   fifa_ranking: number | null;
   manual_order: number | null;
   fair_play_points?: number | null;
+  api_football_team_id?: number | null;
 };
 
 export type Player = {
@@ -119,6 +120,8 @@ export type Match = {
   venue: string | null;
   home_score: number | null;
   away_score: number | null;
+  api_football_fixture_id?: number | null;
+  api_football_last_sync_at?: string | null;
   is_finished: boolean;
   is_locked: boolean;
   created_at: string;
