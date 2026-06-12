@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { syncLeagueGoalTotalsFromMatchScorers } from "@/lib/goal-totals";
 import { generateKnockoutFromResults } from "@/lib/world-cup";
 import { recalculateAllLeagueScores } from "@/app/actions";
 
@@ -60,6 +61,7 @@ export type ApiFootballSyncResult = {
   updated: number;
   skipped: number;
   suggestions: number;
+  scorersApplied: number;
   messages: string[];
 };
 
@@ -135,19 +137,23 @@ function nameTokens(value: string) {
 //   2. nombre normalizado exacto y unico
 //   3. apellido (ultimo token) unico
 //   4. apellido + inicial/nombre cuando el apellido se repite
+// "high" = emparejado seguro (se puede aplicar solo); "low" = razonable pero
+// conviene que el admin lo confirme.
+type ScorerMatch = { player: ScorerLookupPlayer; confidence: "high" | "low" };
+
 function findLocalScorer(
   candidates: ScorerLookupPlayer[],
   apiName: string,
   apiId: number | null,
-): ScorerLookupPlayer | null {
+): ScorerMatch | null {
   if (apiId) {
     const byId = candidates.find((player) => player.api_football_player_id === apiId);
-    if (byId) return byId;
+    if (byId) return { player: byId, confidence: "high" };
   }
 
   const target = normalizeName(apiName);
   const exact = candidates.filter((player) => normalizeName(player.name) === target);
-  if (exact.length === 1) return exact[0];
+  if (exact.length === 1) return { player: exact[0], confidence: "high" };
 
   const apiTokens = nameTokens(apiName);
   const apiSurname = apiTokens[apiTokens.length - 1];
@@ -157,7 +163,7 @@ function findLocalScorer(
     const tokens = nameTokens(player.name);
     return tokens[tokens.length - 1] === apiSurname;
   });
-  if (bySurname.length === 1) return bySurname[0];
+  if (bySurname.length === 1) return { player: bySurname[0], confidence: "low" };
 
   if (bySurname.length > 1 && apiTokens.length > 1) {
     const apiFirst = apiTokens[0];
@@ -166,7 +172,7 @@ function findLocalScorer(
         (token) => token === apiFirst || token[0] === apiFirst[0],
       ),
     );
-    if (narrowed.length === 1) return narrowed[0];
+    if (narrowed.length === 1) return { player: narrowed[0], confidence: "low" };
   }
 
   return null;
@@ -244,6 +250,7 @@ type ScorerSuggestionDraft = {
   api_player_name: string;
   goals: number;
   is_own_goal: boolean;
+  confidence: "high" | "low" | "none";
 };
 
 // Convierte los eventos de gol de la API en sugerencias. No escribe goles:
@@ -273,10 +280,12 @@ function buildScorerSuggestions(
     }
 
     let playerId: string | null = null;
+    let confidence: "high" | "low" | "none" = "none";
     if (!isOwnGoal && localTeamId) {
       const candidates = playersByTeamId.get(localTeamId) ?? [];
       const matched = findLocalScorer(candidates, apiPlayerName, event.player.id ?? null);
-      playerId = matched?.id ?? null;
+      playerId = matched?.player.id ?? null;
+      confidence = matched?.confidence ?? "none";
     }
 
     drafts.set(key, {
@@ -287,6 +296,7 @@ function buildScorerSuggestions(
       api_player_name: apiPlayerName,
       goals: 1,
       is_own_goal: isOwnGoal,
+      confidence,
     });
   }
 
@@ -364,7 +374,7 @@ export async function syncFinishedResultsFromApiFootball(
     await writeSyncLog(
       supabase,
       source,
-      { ok: false, checked: 0, updated: 0, skipped: 0, suggestions: 0, messages },
+      { ok: false, checked: 0, updated: 0, skipped: 0, suggestions: 0, scorersApplied: 0, messages },
       message,
     );
     throw error;
@@ -425,6 +435,7 @@ async function runSync(
       skipped: 0,
       updated: 0,
       suggestions: 0,
+      scorersApplied: 0,
       messages: ["No hay partidos candidatos para sincronizar."],
     };
   }
@@ -520,8 +531,11 @@ async function runSync(
   }
 
   let suggestions = 0;
+  let scorersApplied = 0;
   if (updatedMatches.length) {
-    suggestions = await syncScorerSuggestions(supabase, updatedMatches, messages);
+    const scorerResult = await syncScorerSuggestions(supabase, updatedMatches, messages);
+    suggestions = scorerResult.pending;
+    scorersApplied = scorerResult.applied;
   }
 
   if (updated > 0) {
@@ -535,18 +549,44 @@ async function runSync(
     skipped,
     updated,
     suggestions,
+    scorersApplied,
     messages,
   };
 }
 
-// Para cada partido recien cerrado, baja los goleadores de la API y los deja
-// como sugerencias pendientes. Nunca toca match_scorers directamente.
+function suggestionRow(draft: ScorerSuggestionDraft, status: string, playerId: string | null) {
+  return {
+    match_id: draft.match_id,
+    team_id: draft.team_id,
+    player_id: playerId,
+    api_player_id: draft.api_player_id,
+    api_player_name: draft.api_player_name,
+    goals: draft.goals,
+    is_own_goal: draft.is_own_goal,
+    status,
+  };
+}
+
+// Para cada partido recien cerrado, baja los goleadores de la API. Solo importan
+// los jugadores que alguien lleva en la porra (scorer_predictions): los goles de
+// jugadores no elegidos y los goles en propia se ignoran. Los emparejados de
+// maxima confianza se aplican solos; el resto queda como sugerencia para el admin.
 async function syncScorerSuggestions(
   supabase: SupabaseClient,
   updatedMatches: { match: SyncableMatch; fixture: ApiFootballFixture }[],
   messages: string[],
-): Promise<number> {
-  let total = 0;
+): Promise<{ pending: number; applied: number }> {
+  let pending = 0;
+  let applied = 0;
+  let didAutoApply = false;
+
+  // Universo relevante: solo jugadores elegidos por alguien.
+  const { data: pickRows } = await supabase.from("scorer_predictions").select("player_id");
+  const pickedPlayerIds = new Set((pickRows ?? []).map((row) => row.player_id as string));
+
+  if (!pickedPlayerIds.size) {
+    return { pending, applied };
+  }
 
   for (const { match, fixture } of updatedMatches) {
     let events: ApiFootballEvent[];
@@ -573,58 +613,81 @@ async function syncScorerSuggestions(
           .in("team_id", teamIds)
       : { data: [] as ScorerLookupPlayer[] };
 
+    // Candidatos = solo los jugadores elegidos de esos dos equipos.
     const playersByTeamId = new Map<string, ScorerLookupPlayer[]>();
-    (playerRows ?? []).forEach((player) => {
-      const list = playersByTeamId.get(player.team_id) ?? [];
-      list.push(player);
-      playersByTeamId.set(player.team_id, list);
-    });
+    (playerRows ?? [])
+      .filter((player) => pickedPlayerIds.has(player.id))
+      .forEach((player) => {
+        const list = playersByTeamId.get(player.team_id) ?? [];
+        list.push(player);
+        playersByTeamId.set(player.team_id, list);
+      });
 
     const teamIdByApiTeamId = new Map<number, string>();
     if (homeTeam) teamIdByApiTeamId.set(fixture.teams.home.id, homeTeam.id);
     if (awayTeam) teamIdByApiTeamId.set(fixture.teams.away.id, awayTeam.id);
 
+    // Solo nos quedamos con goles que casan con un jugador elegido. Lo demas
+    // (jugadores no elegidos, goles en propia) no afecta a la porra: se ignora.
     const drafts = buildScorerSuggestions(
       match.id,
       events,
       teamIdByApiTeamId,
       playersByTeamId,
-    );
+    ).filter((draft) => draft.player_id && draft.confidence !== "none");
 
     if (!drafts.length) continue;
 
-    // Solo inserta sugerencias nuevas: no pisa lo que el admin ya aplico o
-    // descarto para este partido.
+    // Auto-aprendizaje: guardamos el api_football_player_id del jugador para que
+    // los proximos partidos emparejen por ID estable.
+    await Promise.all(
+      drafts
+        .filter((draft) => draft.api_player_id)
+        .map((draft) =>
+          supabase
+            .from("players")
+            .update({ api_football_player_id: draft.api_player_id })
+            .eq("id", draft.player_id as string)
+            .is("api_football_player_id", null)
+            .then(
+              () => undefined,
+              () => undefined,
+            ),
+        ),
+    );
+
+    // No repetir sugerencias ya vistas (aplicadas o descartadas) en este partido.
     const { data: existing } = await supabase
       .from("match_scorer_suggestions")
       .select("api_player_name")
       .eq("match_id", match.id);
     const seen = new Set((existing ?? []).map((row) => row.api_player_name));
-
-    // Auto-aprendizaje: cuando casamos un goleador por nombre, guardamos su
-    // api_football_player_id en el jugador local para que los proximos partidos
-    // emparejen por ID estable y sin ambiguedad.
-    const learn = drafts.filter((draft) => draft.player_id && draft.api_player_id);
-    await Promise.all(
-      learn.map((draft) =>
-        supabase
-          .from("players")
-          .update({ api_football_player_id: draft.api_player_id })
-          .eq("id", draft.player_id as string)
-          .is("api_football_player_id", null)
-          .then(
-            () => undefined,
-            () => undefined,
-          ),
-      ),
-    );
-
     const fresh = drafts.filter((draft) => !seen.has(draft.api_player_name));
     if (!fresh.length) continue;
 
+    const autoApply = fresh.filter((draft) => draft.confidence === "high");
+    const toReview = fresh.filter((draft) => draft.confidence !== "high");
+
+    // Emparejado seguro: se escribe el gol directamente.
+    for (const draft of autoApply) {
+      await supabase
+        .from("match_scorers")
+        .upsert(
+          { match_id: draft.match_id, player_id: draft.player_id as string, goals: draft.goals },
+          { onConflict: "match_id,player_id" },
+        );
+      applied += 1;
+      didAutoApply = true;
+    }
+
+    // Dejamos constancia de todo (aplicado o pendiente) para que el admin lo vea.
+    const rows = [
+      ...autoApply.map((draft) => suggestionRow(draft, "applied", draft.player_id)),
+      ...toReview.map((draft) => suggestionRow(draft, "pending", draft.player_id)),
+    ];
     const { error: insertError } = await supabase
       .from("match_scorer_suggestions")
-      .insert(fresh.map((draft) => ({ ...draft, status: "pending" })));
+      .insert(rows);
 
     if (insertError) {
       messages.push(
@@ -633,11 +696,16 @@ async function syncScorerSuggestions(
       continue;
     }
 
-    total += fresh.length;
+    pending += toReview.length;
     messages.push(
-      `${fresh.length} goleador(es) sugeridos para partido ${match.match_number ?? match.id}.`,
+      `Partido ${match.match_number ?? match.id}: ${autoApply.length} goleador(es) aplicados, ${toReview.length} para revisar.`,
     );
   }
 
-  return total;
+  // Propaga los goles auto-aplicados a los totales por liga antes del recalculo.
+  if (didAutoApply) {
+    await syncLeagueGoalTotalsFromMatchScorers(supabase);
+  }
+
+  return { pending, applied };
 }
