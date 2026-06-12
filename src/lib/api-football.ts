@@ -118,6 +118,60 @@ function normalizeName(value: string) {
     .toLowerCase();
 }
 
+// Tokens significativos del nombre (sin acentos, sin iniciales sueltas tipo "L.").
+function nameTokens(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length > 1);
+}
+
+// Empareja el goleador de la API con un jugador local del equipo correcto.
+// Estrategia, de mas a menos fiable; si hay ambiguedad NO adivina (deja que el
+// admin lo elija):
+//   1. por api_football_player_id ya guardado
+//   2. nombre normalizado exacto y unico
+//   3. apellido (ultimo token) unico
+//   4. apellido + inicial/nombre cuando el apellido se repite
+function findLocalScorer(
+  candidates: ScorerLookupPlayer[],
+  apiName: string,
+  apiId: number | null,
+): ScorerLookupPlayer | null {
+  if (apiId) {
+    const byId = candidates.find((player) => player.api_football_player_id === apiId);
+    if (byId) return byId;
+  }
+
+  const target = normalizeName(apiName);
+  const exact = candidates.filter((player) => normalizeName(player.name) === target);
+  if (exact.length === 1) return exact[0];
+
+  const apiTokens = nameTokens(apiName);
+  const apiSurname = apiTokens[apiTokens.length - 1];
+  if (!apiSurname) return null;
+
+  const bySurname = candidates.filter((player) => {
+    const tokens = nameTokens(player.name);
+    return tokens[tokens.length - 1] === apiSurname;
+  });
+  if (bySurname.length === 1) return bySurname[0];
+
+  if (bySurname.length > 1 && apiTokens.length > 1) {
+    const apiFirst = apiTokens[0];
+    const narrowed = bySurname.filter((player) =>
+      nameTokens(player.name).some(
+        (token) => token === apiFirst || token[0] === apiFirst[0],
+      ),
+    );
+    if (narrowed.length === 1) return narrowed[0];
+  }
+
+  return null;
+}
+
 function matchDelayMinutes(stage: string) {
   return stage === "group" ? GROUP_DELAY_MINUTES : KNOCKOUT_DELAY_MINUTES;
 }
@@ -221,15 +275,7 @@ function buildScorerSuggestions(
     let playerId: string | null = null;
     if (!isOwnGoal && localTeamId) {
       const candidates = playersByTeamId.get(localTeamId) ?? [];
-      const byApiId = event.player.id
-        ? candidates.find((player) => player.api_football_player_id === event.player.id)
-        : null;
-      const matched =
-        byApiId ??
-        candidates.find(
-          (player) => normalizeName(player.name) === normalizeName(apiPlayerName),
-        ) ??
-        null;
+      const matched = findLocalScorer(candidates, apiPlayerName, event.player.id ?? null);
       playerId = matched?.id ?? null;
     }
 
@@ -554,6 +600,24 @@ async function syncScorerSuggestions(
       .select("api_player_name")
       .eq("match_id", match.id);
     const seen = new Set((existing ?? []).map((row) => row.api_player_name));
+
+    // Auto-aprendizaje: cuando casamos un goleador por nombre, guardamos su
+    // api_football_player_id en el jugador local para que los proximos partidos
+    // emparejen por ID estable y sin ambiguedad.
+    const learn = drafts.filter((draft) => draft.player_id && draft.api_player_id);
+    await Promise.all(
+      learn.map((draft) =>
+        supabase
+          .from("players")
+          .update({ api_football_player_id: draft.api_player_id })
+          .eq("id", draft.player_id as string)
+          .is("api_football_player_id", null)
+          .then(
+            () => undefined,
+            () => undefined,
+          ),
+      ),
+    );
 
     const fresh = drafts.filter((draft) => !seen.has(draft.api_player_name));
     if (!fresh.length) continue;

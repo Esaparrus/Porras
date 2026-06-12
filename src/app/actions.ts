@@ -890,7 +890,7 @@ export async function applyScorerSuggestionAction(formData: FormData) {
 
   const { data: suggestion } = await supabase
     .from("match_scorer_suggestions")
-    .select("id, match_id, goals")
+    .select("id, match_id, goals, api_player_id")
     .eq("id", suggestionId)
     .maybeSingle();
 
@@ -908,6 +908,16 @@ export async function applyScorerSuggestionAction(formData: FormData) {
       { match_id: suggestion.match_id, player_id: playerId, goals },
       { onConflict: "match_id,player_id" },
     );
+
+  // El admin confirma el emparejado: guardamos el id de API en el jugador para
+  // que los proximos partidos lo reconozcan sin ambiguedad.
+  if (suggestion.api_player_id) {
+    await supabase
+      .from("players")
+      .update({ api_football_player_id: suggestion.api_player_id })
+      .eq("id", playerId)
+      .is("api_football_player_id", null);
+  }
 
   await supabase
     .from("match_scorer_suggestions")
