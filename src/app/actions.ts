@@ -27,6 +27,10 @@ import {
   getPredictedMatchWinner,
   withDefaultSettings,
 } from "@/lib/scoring";
+import {
+  syncAllLeaguesPlayerGoalValue,
+  syncLeagueGoalTotalsFromMatchScorers,
+} from "@/lib/goal-totals";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type {
@@ -857,6 +861,98 @@ export async function clearAdminMatchBundleAction(formData: FormData) {
   revalidatePath("/admin/results");
 }
 
+// Dispara el sync de API-Football a mano desde el panel admin. El fallback
+// manual sigue intacto: esto solo cierra partidos que la API marca finalizados
+// y deja los goleadores como sugerencias pendientes de confirmar.
+export async function runApiFootballSyncAction() {
+  await requireAdmin();
+  const supabase = createSupabaseAdminClient();
+
+  let summary: string;
+  try {
+    const { syncFinishedResultsFromApiFootball } = await import("@/lib/api-football");
+    const result = await syncFinishedResultsFromApiFootball(supabase, { source: "manual" });
+    summary = `${result.updated} partidos · ${result.scorersApplied} goleadores aplicados · ${result.suggestions} para revisar`;
+  } catch (error) {
+    summary = error instanceof Error ? error.message : "Error inesperado";
+    revalidatePath("/admin/results");
+    redirect(`/admin/results?sync=error&detail=${encodeURIComponent(summary)}`);
+  }
+
+  revalidatePath("/admin/results");
+  redirect(`/admin/results?sync=ok&detail=${encodeURIComponent(summary)}`);
+}
+
+// Confirma una sugerencia de goleador: escribe el gol en match_scorers (la
+// misma via que el flujo manual) y reagrega los totales de la liga.
+export async function applyScorerSuggestionAction(formData: FormData) {
+  const { user } = await requireAdmin();
+  const supabase = createSupabaseAdminClient();
+  const suggestionId = String(formData.get("suggestion_id") ?? "");
+  const playerId = String(formData.get("player_id") ?? "") || null;
+  if (!suggestionId) return;
+
+  const { data: suggestion } = await supabase
+    .from("match_scorer_suggestions")
+    .select("id, match_id, goals, api_player_id")
+    .eq("id", suggestionId)
+    .maybeSingle();
+
+  if (!suggestion) return;
+
+  if (!playerId) {
+    // Sin jugador no se puede aplicar: lo dejamos pendiente para asignar.
+    redirect("/admin/results?sync=needplayer");
+  }
+
+  const goals = Math.max(1, suggestion.goals ?? 1);
+  await supabase
+    .from("match_scorers")
+    .upsert(
+      { match_id: suggestion.match_id, player_id: playerId, goals },
+      { onConflict: "match_id,player_id" },
+    );
+
+  // El admin confirma el emparejado: guardamos el id de API en el jugador para
+  // que los proximos partidos lo reconozcan sin ambiguedad.
+  if (suggestion.api_player_id) {
+    await supabase
+      .from("players")
+      .update({ api_football_player_id: suggestion.api_player_id })
+      .eq("id", playerId)
+      .is("api_football_player_id", null);
+  }
+
+  await supabase
+    .from("match_scorer_suggestions")
+    .update({ status: "applied", player_id: playerId, updated_at: new Date().toISOString() })
+    .eq("id", suggestionId);
+
+  await syncLeagueGoalTotalsFromMatchScorers(supabase);
+  await supabase.from("admin_logs").insert({
+    league_id: null,
+    admin_user_id: user.id,
+    action_type: "apply_scorer_suggestion",
+    description: `Goleador confirmado desde API para partido ${suggestion.match_id}`,
+  });
+  await recalculateAllLeagueScores();
+  revalidatePath("/admin/results");
+}
+
+export async function dismissScorerSuggestionAction(formData: FormData) {
+  await requireAdmin();
+  const supabase = createSupabaseAdminClient();
+  const suggestionId = String(formData.get("suggestion_id") ?? "");
+  if (!suggestionId) return;
+
+  await supabase
+    .from("match_scorer_suggestions")
+    .update({ status: "dismissed", updated_at: new Date().toISOString() })
+    .eq("id", suggestionId);
+
+  revalidatePath("/admin/results");
+}
+
 export async function saveGroupManualOrderAction(formData: FormData) {
   const { user } = await requireAdmin();
   const supabase = createSupabaseAdminClient();
@@ -1226,68 +1322,6 @@ async function getAllLeagueIds() {
   const supabase = createSupabaseAdminClient();
   const { data } = await supabase.from("leagues").select("id");
   return (data ?? []).map((league) => league.id);
-}
-
-async function syncAllLeaguesPlayerGoalValue(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
-  playerId: string,
-  goals: number,
-) {
-  const { data: leagues } = await supabase.from("leagues").select("id");
-  const leagueIds = (leagues ?? []).map((league) => league.id);
-
-  for (const currentLeagueId of leagueIds) {
-    await supabase.from("league_player_goals").upsert(
-      {
-        league_id: currentLeagueId,
-        player_id: playerId,
-        goals,
-        manual_goals_override: goals,
-      },
-      { onConflict: "league_id,player_id" },
-    );
-  }
-}
-
-async function syncLeagueGoalTotalsFromMatchScorers(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
-) {
-  const [{ data: leagues }, { data: scorerRows }] = await Promise.all([
-    supabase.from("leagues").select("id"),
-    supabase.from("match_scorers").select("player_id, goals"),
-  ]);
-
-  const totals = new Map<string, number>();
-  (scorerRows ?? []).forEach((row) => {
-    totals.set(row.player_id, (totals.get(row.player_id) ?? 0) + row.goals);
-  });
-
-  for (const league of leagues ?? []) {
-    const { data: existingGoalRows } = await supabase
-      .from("league_player_goals")
-      .select("player_id, manual_goals_override")
-      .eq("league_id", league.id);
-    const manualOverrides = new Map(
-      (existingGoalRows ?? [])
-        .filter((row) => row.manual_goals_override !== null)
-        .map((row) => [row.player_id, row.manual_goals_override as number]),
-    );
-
-    await supabase.from("league_player_goals").delete().eq("league_id", league.id);
-
-    const playerIds = new Set([...totals.keys(), ...manualOverrides.keys()]);
-
-    if (playerIds.size) {
-      await supabase.from("league_player_goals").insert(
-        Array.from(playerIds).map((playerId) => ({
-          league_id: league.id,
-          player_id: playerId,
-          goals: manualOverrides.get(playerId) ?? totals.get(playerId) ?? 0,
-          manual_goals_override: manualOverrides.get(playerId) ?? null,
-        })),
-      );
-    }
-  }
 }
 
 async function revalidateAllLeagueViews() {

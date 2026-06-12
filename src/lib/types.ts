@@ -75,7 +75,37 @@ export type Player = {
   is_star: boolean;
   is_active: boolean;
   scorer_rank?: number | null;
+  api_football_player_id?: number | null;
   teams?: Team;
+};
+
+export type ScorerSuggestionStatus = "pending" | "applied" | "dismissed";
+
+export type MatchScorerSuggestion = {
+  id: string;
+  match_id: string;
+  team_id: string | null;
+  player_id: string | null;
+  api_player_id: number | null;
+  api_player_name: string;
+  goals: number;
+  is_own_goal: boolean;
+  status: ScorerSuggestionStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApiFootballSyncLog = {
+  id: string;
+  ran_at: string;
+  source: string;
+  ok: boolean;
+  checked: number;
+  updated: number;
+  skipped: number;
+  suggestions: number;
+  messages: string[];
+  error: string | null;
 };
 
 export type MatchScorer = {
