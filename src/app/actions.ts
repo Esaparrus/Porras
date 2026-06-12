@@ -857,6 +857,88 @@ export async function clearAdminMatchBundleAction(formData: FormData) {
   revalidatePath("/admin/results");
 }
 
+// Dispara el sync de API-Football a mano desde el panel admin. El fallback
+// manual sigue intacto: esto solo cierra partidos que la API marca finalizados
+// y deja los goleadores como sugerencias pendientes de confirmar.
+export async function runApiFootballSyncAction() {
+  await requireAdmin();
+  const supabase = createSupabaseAdminClient();
+
+  let summary: string;
+  try {
+    const { syncFinishedResultsFromApiFootball } = await import("@/lib/api-football");
+    const result = await syncFinishedResultsFromApiFootball(supabase, { source: "manual" });
+    summary = `${result.updated} actualizados · ${result.suggestions} goleadores sugeridos · ${result.skipped} saltados`;
+  } catch (error) {
+    summary = error instanceof Error ? error.message : "Error inesperado";
+    revalidatePath("/admin/results");
+    redirect(`/admin/results?sync=error&detail=${encodeURIComponent(summary)}`);
+  }
+
+  revalidatePath("/admin/results");
+  redirect(`/admin/results?sync=ok&detail=${encodeURIComponent(summary)}`);
+}
+
+// Confirma una sugerencia de goleador: escribe el gol en match_scorers (la
+// misma via que el flujo manual) y reagrega los totales de la liga.
+export async function applyScorerSuggestionAction(formData: FormData) {
+  const { user } = await requireAdmin();
+  const supabase = createSupabaseAdminClient();
+  const suggestionId = String(formData.get("suggestion_id") ?? "");
+  const playerId = String(formData.get("player_id") ?? "") || null;
+  if (!suggestionId) return;
+
+  const { data: suggestion } = await supabase
+    .from("match_scorer_suggestions")
+    .select("id, match_id, goals")
+    .eq("id", suggestionId)
+    .maybeSingle();
+
+  if (!suggestion) return;
+
+  if (!playerId) {
+    // Sin jugador no se puede aplicar: lo dejamos pendiente para asignar.
+    redirect("/admin/results?sync=needplayer");
+  }
+
+  const goals = Math.max(1, suggestion.goals ?? 1);
+  await supabase
+    .from("match_scorers")
+    .upsert(
+      { match_id: suggestion.match_id, player_id: playerId, goals },
+      { onConflict: "match_id,player_id" },
+    );
+
+  await supabase
+    .from("match_scorer_suggestions")
+    .update({ status: "applied", player_id: playerId, updated_at: new Date().toISOString() })
+    .eq("id", suggestionId);
+
+  await syncLeagueGoalTotalsFromMatchScorers(supabase);
+  await supabase.from("admin_logs").insert({
+    league_id: null,
+    admin_user_id: user.id,
+    action_type: "apply_scorer_suggestion",
+    description: `Goleador confirmado desde API para partido ${suggestion.match_id}`,
+  });
+  await recalculateAllLeagueScores();
+  revalidatePath("/admin/results");
+}
+
+export async function dismissScorerSuggestionAction(formData: FormData) {
+  await requireAdmin();
+  const supabase = createSupabaseAdminClient();
+  const suggestionId = String(formData.get("suggestion_id") ?? "");
+  if (!suggestionId) return;
+
+  await supabase
+    .from("match_scorer_suggestions")
+    .update({ status: "dismissed", updated_at: new Date().toISOString() })
+    .eq("id", suggestionId);
+
+  revalidatePath("/admin/results");
+}
+
 export async function saveGroupManualOrderAction(formData: FormData) {
   const { user } = await requireAdmin();
   const supabase = createSupabaseAdminClient();

@@ -1,0 +1,47 @@
+name: Sync World Cup results
+
+# Llama al endpoint de sincronizacion de forma periodica. Es el "motor" que
+# hace que el sync sea automatico: el codigo decide que mira (X minutos despues
+# del inicio de cada partido), este workflow solo dispara la comprobacion.
+#
+# Requiere dos secrets de repositorio (Settings -> Secrets and variables -> Actions):
+#   SYNC_URL    -> URL completa del endpoint, p.ej. https://tu-app.vercel.app/api/cron/sync-results
+#   CRON_SECRET -> el mismo valor que CRON_SECRET en las variables de entorno de la app
+#
+# Cadencia: cada 30 min (gratis dentro de los minutos de GitHub Actions).
+# Durante el Mundial se puede afinar la franja horaria si se quiere ahorrar.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+# Evita que se solapen dos ejecuciones.
+concurrency:
+  group: sync-results
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call sync endpoint
+        env:
+          SYNC_URL: ${{ secrets.SYNC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SYNC_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Faltan los secrets SYNC_URL o CRON_SECRET. Saltando."
+            exit 0
+          fi
+          response=$(curl -sS -m 120 -w "\n%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$SYNC_URL")
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n 1)
+          echo "HTTP $status"
+          echo "$body"
+          if [ "$status" -ge 400 ]; then
+            echo "El endpoint devolvio un error."
+            exit 1
+          fi

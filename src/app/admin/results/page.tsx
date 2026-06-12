@@ -5,8 +5,11 @@ import { AdminLayout } from "@/components/layouts";
 import { PlayerPicker } from "@/components/player-picker";
 import { TeamFlag } from "@/components/ui";
 import {
+  applyScorerSuggestionAction,
+  dismissScorerSuggestionAction,
   rejectPlayerSelectionRequestAction,
   resolvePlayerSelectionRequestAction,
+  runApiFootballSyncAction,
   setAdminScorerGoalsAction,
 } from "@/app/actions";
 import { STAGE_LABELS } from "@/lib/constants";
@@ -14,8 +17,10 @@ import { getActivePlayers, requireAdmin } from "@/lib/data";
 import { calculateBestThirdPlacedTeams, calculateRealGroupStandings } from "@/lib/scoring";
 import { getAdminBestThirdManualRanks } from "@/lib/world-cup";
 import type {
+  ApiFootballSyncLog,
   Match,
   MatchScorer,
+  MatchScorerSuggestion,
   Player,
   PlayerSelectionRequest,
   StandingRow,
@@ -100,8 +105,13 @@ function getSpainScheduleLabel(matchDate: string | null) {
   return SPAIN_DATE_TIME_FORMAT.format(new Date(matchDate));
 }
 
-export default async function AdminResultsPage() {
+export default async function AdminResultsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sync?: string; detail?: string }>;
+}) {
   const { supabase } = await requireAdmin();
+  const syncParams = await searchParams;
   const [
     { data: matchRows },
     { data: teamRows },
@@ -110,6 +120,8 @@ export default async function AdminResultsPage() {
     { data: requestRows },
     { data: scorerPredictionRows },
     { data: goalRows },
+    { data: suggestionRows },
+    { data: syncLogRows },
   ] = await Promise.all([
     supabase
       .from("matches")
@@ -125,6 +137,16 @@ export default async function AdminResultsPage() {
       .order("created_at", { ascending: false }),
     supabase.from("scorer_predictions").select("player_id"),
     supabase.from("league_player_goals").select("player_id, goals, manual_goals_override"),
+    supabase
+      .from("match_scorer_suggestions")
+      .select("*")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("api_football_sync_logs")
+      .select("*")
+      .order("ran_at", { ascending: false })
+      .limit(1),
   ]);
 
   const matches = (matchRows ?? []) as Match[];
@@ -132,6 +154,8 @@ export default async function AdminResultsPage() {
   const players = (playerRows ?? []) as Player[];
   const scorerData = (scorerRows ?? []) as MatchScorerRow[];
   const requests = (requestRows ?? []) as PlayerSelectionRequest[];
+  const suggestions = (suggestionRows ?? []) as MatchScorerSuggestion[];
+  const latestSyncLog = ((syncLogRows ?? []) as ApiFootballSyncLog[])[0] ?? null;
   const scorerPredictions = (scorerPredictionRows ?? []) as ScorerPredictionSummary[];
   const goalTotalsByPlayer = new Map<string, { goals: number; manualOverride: number | null }>();
 
@@ -256,6 +280,28 @@ export default async function AdminResultsPage() {
     });
   }
 
+  const teamById = new Map(teams.map((team) => [team.id, team]));
+  const matchById = new Map(matches.map((match) => [match.id, match]));
+  const syncBanner =
+    syncParams.sync === "ok"
+      ? { tone: "ok" as const, text: syncParams.detail ?? "Sincronización completada." }
+      : syncParams.sync === "error"
+        ? { tone: "error" as const, text: syncParams.detail ?? "No se pudo sincronizar." }
+        : syncParams.sync === "needplayer"
+          ? {
+              tone: "error" as const,
+              text: "Asigna un jugador antes de confirmar el goleador.",
+            }
+          : null;
+
+  function matchLabel(matchId: string) {
+    const match = matchById.get(matchId);
+    if (!match) return matchId;
+    const home = teamById.get(match.home_team_id ?? "")?.short_name ?? "?";
+    const away = teamById.get(match.away_team_id ?? "")?.short_name ?? "?";
+    return `#${match.match_number ?? "?"} ${home}-${away}`;
+  }
+
   return (
     <AdminLayout>
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -270,6 +316,38 @@ export default async function AdminResultsPage() {
           {matches.filter((match) => match.is_finished).length}/{matches.length} partidos cerrados
         </span>
       </div>
+
+      <section className="glass mt-6 rounded-3xl border border-[#ff7a1a]/30 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-black">Sincronización automática</h2>
+            <p className="mt-1 max-w-2xl text-sm text-slate-300">
+              Trae resultados finales desde API-Football. Nunca pisa lo que ya
+              cierras a mano y los goleadores quedan como sugerencias para
+              confirmar. El modo manual siempre es el respaldo.
+            </p>
+            <p className="mt-2 text-xs text-slate-400">
+              {latestSyncLog
+                ? `Última ejecución (${latestSyncLog.source}): ${getSpainScheduleLabel(latestSyncLog.ran_at) ?? "—"} · ${latestSyncLog.updated} actualizados · ${latestSyncLog.suggestions} goleadores${latestSyncLog.error ? ` · error: ${latestSyncLog.error}` : ""}`
+                : "Todavía no se ha ejecutado ninguna sincronización."}
+            </p>
+          </div>
+          <form action={runApiFootballSyncAction}>
+            <button className="btn-primary">Sincronizar ahora</button>
+          </form>
+        </div>
+        {syncBanner && (
+          <div
+            className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
+              syncBanner.tone === "ok"
+                ? "bg-emerald-500/15 text-emerald-200"
+                : "bg-red-500/15 text-red-200"
+            }`}
+          >
+            {syncBanner.text}
+          </div>
+        )}
+      </section>
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.65fr_0.95fr]">
         <div className="grid gap-6">
@@ -367,6 +445,69 @@ export default async function AdminResultsPage() {
         </div>
 
         <div className="grid content-start gap-6">
+          {suggestions.length > 0 && (
+            <section className="glass rounded-3xl border border-[#ff7a1a]/40 p-5">
+              <h2 className="text-2xl font-black">Goleadores sugeridos por la API</h2>
+              <p className="mt-2 text-sm text-slate-300">
+                Pendientes de confirmar. Revisa el jugador (autodetectado cuando
+                se puede) y aplícalo o descártalo. No suma nada hasta que lo
+                confirmes.
+              </p>
+              <div className="mt-4 grid gap-3">
+                {suggestions.map((suggestion) => (
+                  <div
+                    key={suggestion.id}
+                    className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-semibold">
+                        {suggestion.api_player_name}
+                        {suggestion.goals > 1 ? ` ×${suggestion.goals}` : ""}
+                        {suggestion.is_own_goal ? " (en propia)" : ""}
+                      </div>
+                      <span className="badge">{matchLabel(suggestion.match_id)}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-slate-400">
+                      {teamById.get(suggestion.team_id ?? "")?.name ?? "Equipo sin asignar"}
+                    </div>
+
+                    {suggestion.is_own_goal ? (
+                      <form
+                        action={dismissScorerSuggestionAction}
+                        className="mt-3"
+                      >
+                        <input type="hidden" name="suggestion_id" value={suggestion.id} />
+                        <button className="btn-secondary w-full">
+                          Descartar (gol en propia, no puntúa)
+                        </button>
+                      </form>
+                    ) : (
+                      <>
+                        <form
+                          action={applyScorerSuggestionAction}
+                          className="mt-3 grid gap-3"
+                        >
+                          <input type="hidden" name="suggestion_id" value={suggestion.id} />
+                          <PlayerPicker
+                            name="player_id"
+                            players={players}
+                            teams={teams}
+                            defaultValue={suggestion.player_id}
+                          />
+                          <button className="btn-primary">Confirmar goleador</button>
+                        </form>
+                        <form action={dismissScorerSuggestionAction} className="mt-2">
+                          <input type="hidden" name="suggestion_id" value={suggestion.id} />
+                          <button className="btn-secondary w-full">Descartar</button>
+                        </form>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           <section className="glass rounded-3xl p-5">
             <h2 className="text-2xl font-black">Clasificación de goleadores</h2>
             <div className="mt-2 text-sm text-slate-300">

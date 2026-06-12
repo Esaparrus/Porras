@@ -47,18 +47,38 @@ type ApiFootballFixture = {
   };
 };
 
+type ApiFootballEvent = {
+  team: { id: number; name: string };
+  player: { id: number | null; name: string | null };
+  type: string;
+  detail: string;
+};
+
 export type ApiFootballSyncResult = {
   ok: boolean;
   checked: number;
   updated: number;
   skipped: number;
+  suggestions: number;
   messages: string[];
 };
 
 const FINISHED_STATUS = new Set(["FT", "AET", "PEN"]);
-const GROUP_DELAY_MINUTES = 150;
-const KNOCKOUT_DELAY_MINUTES = 210;
-const MAX_LOOKBACK_MINUTES = 12 * 60;
+
+// Margenes configurables por entorno. Solo se mira un partido cuando ya ha
+// pasado ese tiempo desde el inicio, para no consultar la API en vano.
+const GROUP_DELAY_MINUTES = numberFromEnv("API_FOOTBALL_GROUP_DELAY_MINUTES", 150);
+const KNOCKOUT_DELAY_MINUTES = numberFromEnv("API_FOOTBALL_KNOCKOUT_DELAY_MINUTES", 210);
+// Ventana amplia (7 dias por defecto) para que una caida del cron no deje un
+// partido finalizado sin sincronizar para siempre. El fallback manual sigue ahi.
+const MAX_LOOKBACK_MINUTES = numberFromEnv("API_FOOTBALL_LOOKBACK_MINUTES", 7 * 24 * 60);
+
+function numberFromEnv(key: string, fallback: number) {
+  const raw = process.env[key];
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 function getApiFootballConfig() {
   const apiKey = process.env.API_FOOTBALL_KEY ?? process.env.FOOTBALL_API_KEY;
@@ -137,6 +157,96 @@ async function fetchFixturesByDate(date: string) {
   return payload.response ?? [];
 }
 
+async function fetchFixtureEvents(fixtureId: number) {
+  const { apiKey, baseUrl } = getApiFootballConfig();
+  const url = new URL("/fixtures/events", baseUrl);
+  url.searchParams.set("fixture", String(fixtureId));
+
+  const response = await fetch(url, {
+    cache: "no-store",
+    headers: { "x-apisports-key": apiKey },
+  });
+
+  if (!response.ok) {
+    throw new Error(`API-Football eventos respondio ${response.status}.`);
+  }
+
+  const payload = (await response.json()) as { response?: ApiFootballEvent[] };
+  return payload.response ?? [];
+}
+
+type ScorerLookupPlayer = {
+  id: string;
+  name: string;
+  team_id: string;
+  api_football_player_id?: number | null;
+};
+
+type ScorerSuggestionDraft = {
+  match_id: string;
+  team_id: string | null;
+  player_id: string | null;
+  api_player_id: number | null;
+  api_player_name: string;
+  goals: number;
+  is_own_goal: boolean;
+};
+
+// Convierte los eventos de gol de la API en sugerencias. No escribe goles:
+// solo deja propuestas para que el admin confirme (los autogoles no puntuan a
+// ningun goleador, asi que se marcan pero quedan sin jugador asignado).
+function buildScorerSuggestions(
+  matchId: string,
+  events: ApiFootballEvent[],
+  teamIdByApiTeamId: Map<number, string>,
+  playersByTeamId: Map<string, ScorerLookupPlayer[]>,
+): ScorerSuggestionDraft[] {
+  const drafts = new Map<string, ScorerSuggestionDraft>();
+
+  for (const event of events) {
+    if (event.type !== "Goal") continue;
+    if (event.detail === "Missed Penalty") continue;
+    const isOwnGoal = event.detail === "Own Goal";
+    const apiPlayerName = event.player?.name?.trim();
+    if (!apiPlayerName) continue;
+
+    const localTeamId = teamIdByApiTeamId.get(event.team.id) ?? null;
+    const key = `${apiPlayerName}::${isOwnGoal ? "og" : "g"}`;
+    const existing = drafts.get(key);
+    if (existing) {
+      existing.goals += 1;
+      continue;
+    }
+
+    let playerId: string | null = null;
+    if (!isOwnGoal && localTeamId) {
+      const candidates = playersByTeamId.get(localTeamId) ?? [];
+      const byApiId = event.player.id
+        ? candidates.find((player) => player.api_football_player_id === event.player.id)
+        : null;
+      const matched =
+        byApiId ??
+        candidates.find(
+          (player) => normalizeName(player.name) === normalizeName(apiPlayerName),
+        ) ??
+        null;
+      playerId = matched?.id ?? null;
+    }
+
+    drafts.set(key, {
+      match_id: matchId,
+      team_id: localTeamId,
+      player_id: playerId,
+      api_player_id: event.player.id ?? null,
+      api_player_name: apiPlayerName,
+      goals: 1,
+      is_own_goal: isOwnGoal,
+    });
+  }
+
+  return Array.from(drafts.values());
+}
+
 function findFixture(match: SyncableMatch, fixtures: ApiFootballFixture[]) {
   if (match.api_football_fixture_id) {
     return (
@@ -193,9 +303,58 @@ function getWinnerTeamId(match: SyncableMatch, fixture: ApiFootballFixture) {
 
 export async function syncFinishedResultsFromApiFootball(
   supabase: SupabaseClient,
-  now = new Date(),
+  options: { now?: Date; source?: string } = {},
 ): Promise<ApiFootballSyncResult> {
+  const now = options.now ?? new Date();
+  const source = options.source ?? "cron";
   const messages: string[] = [];
+
+  try {
+    const result = await runSync(supabase, now, messages);
+    await writeSyncLog(supabase, source, result, null);
+    return result;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Error inesperado";
+    await writeSyncLog(
+      supabase,
+      source,
+      { ok: false, checked: 0, updated: 0, skipped: 0, suggestions: 0, messages },
+      message,
+    );
+    throw error;
+  }
+}
+
+async function writeSyncLog(
+  supabase: SupabaseClient,
+  source: string,
+  result: ApiFootballSyncResult,
+  error: string | null,
+) {
+  // Best-effort: si la tabla de logs no existe aun, no rompemos el sync.
+  await supabase
+    .from("api_football_sync_logs")
+    .insert({
+      source,
+      ok: result.ok && !error,
+      checked: result.checked,
+      updated: result.updated,
+      skipped: result.skipped,
+      suggestions: result.suggestions,
+      messages: result.messages.slice(0, 50),
+      error,
+    })
+    .then(
+      () => undefined,
+      () => undefined,
+    );
+}
+
+async function runSync(
+  supabase: SupabaseClient,
+  now: Date,
+  messages: string[],
+): Promise<ApiFootballSyncResult> {
   const { data, error } = await supabase
     .from("matches")
     .select(
@@ -219,6 +378,7 @@ export async function syncFinishedResultsFromApiFootball(
       checked: 0,
       skipped: 0,
       updated: 0,
+      suggestions: 0,
       messages: ["No hay partidos candidatos para sincronizar."],
     };
   }
@@ -232,12 +392,13 @@ export async function syncFinishedResultsFromApiFootball(
   let checked = 0;
   let updated = 0;
   let skipped = 0;
+  const updatedMatches: { match: SyncableMatch; fixture: ApiFootballFixture }[] = [];
 
   for (const [date, matches] of byDate) {
     const fixtures = await fetchFixturesByDate(date);
-    checked += fixtures.length;
 
     for (const match of matches) {
+      checked += 1;
       const fixture = findFixture(match, fixtures);
       if (!fixture) {
         skipped += 1;
@@ -305,10 +466,16 @@ export async function syncFinishedResultsFromApiFootball(
       ]);
 
       updated += 1;
+      updatedMatches.push({ match, fixture });
       messages.push(
         `Actualizado partido ${match.match_number ?? match.id}: ${fixture.goals.home}-${fixture.goals.away}.`,
       );
     }
+  }
+
+  let suggestions = 0;
+  if (updatedMatches.length) {
+    suggestions = await syncScorerSuggestions(supabase, updatedMatches, messages);
   }
 
   if (updated > 0) {
@@ -321,6 +488,92 @@ export async function syncFinishedResultsFromApiFootball(
     checked,
     skipped,
     updated,
+    suggestions,
     messages,
   };
+}
+
+// Para cada partido recien cerrado, baja los goleadores de la API y los deja
+// como sugerencias pendientes. Nunca toca match_scorers directamente.
+async function syncScorerSuggestions(
+  supabase: SupabaseClient,
+  updatedMatches: { match: SyncableMatch; fixture: ApiFootballFixture }[],
+  messages: string[],
+): Promise<number> {
+  let total = 0;
+
+  for (const { match, fixture } of updatedMatches) {
+    let events: ApiFootballEvent[];
+    try {
+      events = await fetchFixtureEvents(fixture.fixture.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "error";
+      messages.push(
+        `Sin goleadores para partido ${match.match_number ?? match.id}: ${message}.`,
+      );
+      continue;
+    }
+
+    const homeTeam = getTeam(match.home_team);
+    const awayTeam = getTeam(match.away_team);
+    const teamIds = [match.home_team_id, match.away_team_id].filter(
+      (id): id is string => Boolean(id),
+    );
+
+    const { data: playerRows } = teamIds.length
+      ? await supabase
+          .from("players")
+          .select("id, name, team_id, api_football_player_id")
+          .in("team_id", teamIds)
+      : { data: [] as ScorerLookupPlayer[] };
+
+    const playersByTeamId = new Map<string, ScorerLookupPlayer[]>();
+    (playerRows ?? []).forEach((player) => {
+      const list = playersByTeamId.get(player.team_id) ?? [];
+      list.push(player);
+      playersByTeamId.set(player.team_id, list);
+    });
+
+    const teamIdByApiTeamId = new Map<number, string>();
+    if (homeTeam) teamIdByApiTeamId.set(fixture.teams.home.id, homeTeam.id);
+    if (awayTeam) teamIdByApiTeamId.set(fixture.teams.away.id, awayTeam.id);
+
+    const drafts = buildScorerSuggestions(
+      match.id,
+      events,
+      teamIdByApiTeamId,
+      playersByTeamId,
+    );
+
+    if (!drafts.length) continue;
+
+    // Solo inserta sugerencias nuevas: no pisa lo que el admin ya aplico o
+    // descarto para este partido.
+    const { data: existing } = await supabase
+      .from("match_scorer_suggestions")
+      .select("api_player_name")
+      .eq("match_id", match.id);
+    const seen = new Set((existing ?? []).map((row) => row.api_player_name));
+
+    const fresh = drafts.filter((draft) => !seen.has(draft.api_player_name));
+    if (!fresh.length) continue;
+
+    const { error: insertError } = await supabase
+      .from("match_scorer_suggestions")
+      .insert(fresh.map((draft) => ({ ...draft, status: "pending" })));
+
+    if (insertError) {
+      messages.push(
+        `No se pudieron guardar goleadores del partido ${match.match_number ?? match.id}: ${insertError.message}.`,
+      );
+      continue;
+    }
+
+    total += fresh.length;
+    messages.push(
+      `${fresh.length} goleador(es) sugeridos para partido ${match.match_number ?? match.id}.`,
+    );
+  }
+
+  return total;
 }
