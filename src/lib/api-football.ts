@@ -71,9 +71,11 @@ const FINISHED_STATUS = new Set(["FT", "AET", "PEN"]);
 // pasado ese tiempo desde el inicio, para no consultar la API en vano.
 const GROUP_DELAY_MINUTES = numberFromEnv("API_FOOTBALL_GROUP_DELAY_MINUTES", 150);
 const KNOCKOUT_DELAY_MINUTES = numberFromEnv("API_FOOTBALL_KNOCKOUT_DELAY_MINUTES", 210);
-// Ventana amplia (7 dias por defecto) para que una caida del cron no deje un
-// partido finalizado sin sincronizar para siempre. El fallback manual sigue ahi.
-const MAX_LOOKBACK_MINUTES = numberFromEnv("API_FOOTBALL_LOOKBACK_MINUTES", 7 * 24 * 60);
+// Ventana activa por partido: solo se consulta la API entre [inicio+margen] y
+// [inicio+esta ventana]. Un partido tarda ~2h, asi que 12h cubre prorrogas y
+// retrasos de sobra sin malgastar peticiones reintentando durante dias. Si un
+// partido no se cierra dentro de la ventana (raro), queda el modo manual.
+const MAX_LOOKBACK_MINUTES = numberFromEnv("API_FOOTBALL_LOOKBACK_MINUTES", 12 * 60);
 
 function numberFromEnv(key: string, fallback: number) {
   const raw = process.env[key];
@@ -589,17 +591,6 @@ async function syncScorerSuggestions(
   }
 
   for (const { match, fixture } of updatedMatches) {
-    let events: ApiFootballEvent[];
-    try {
-      events = await fetchFixtureEvents(fixture.fixture.id);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "error";
-      messages.push(
-        `Sin goleadores para partido ${match.match_number ?? match.id}: ${message}.`,
-      );
-      continue;
-    }
-
     const homeTeam = getTeam(match.home_team);
     const awayTeam = getTeam(match.away_team);
     const teamIds = [match.home_team_id, match.away_team_id].filter(
@@ -622,6 +613,21 @@ async function syncScorerSuggestions(
         list.push(player);
         playersByTeamId.set(player.team_id, list);
       });
+
+    // Si nadie ha elegido goleadores de estos dos equipos, no gastamos la
+    // peticion de eventos: ese partido no puede dar goles relevantes.
+    if (!playersByTeamId.size) continue;
+
+    let events: ApiFootballEvent[];
+    try {
+      events = await fetchFixtureEvents(fixture.fixture.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "error";
+      messages.push(
+        `Sin goleadores para partido ${match.match_number ?? match.id}: ${message}.`,
+      );
+      continue;
+    }
 
     const teamIdByApiTeamId = new Map<number, string>();
     if (homeTeam) teamIdByApiTeamId.set(fixture.teams.home.id, homeTeam.id);

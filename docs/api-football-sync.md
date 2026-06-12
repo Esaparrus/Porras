@@ -15,8 +15,10 @@ ya metio a mano.
 - Si la API no marca el partido como finalizado, no toca nada.
 - El `update` lleva un filtro `is_finished = false`: si ya cerraste el partido a
   mano, el sync **nunca** lo sobreescribe.
-- Ventana de seguridad amplia (`API_FOOTBALL_LOOKBACK_MINUTES`, 7 dias por
-  defecto) para que una caida del cron no deje un partido sin sincronizar.
+- Ventana activa por partido (`API_FOOTBALL_LOOKBACK_MINUTES`, 12 h por defecto):
+  solo se consulta la API mientras el partido esta dentro de esa ventana, para
+  no malgastar peticiones reintentando durante dias. Fuera de ella queda el
+  modo manual.
 
 ### Goleadores (modo propuesta)
 
@@ -35,7 +37,7 @@ CRON_SECRET=
 # Opcionales para afinar los margenes:
 # API_FOOTBALL_GROUP_DELAY_MINUTES=150
 # API_FOOTBALL_KNOCKOUT_DELAY_MINUTES=210
-# API_FOOTBALL_LOOKBACK_MINUTES=10080
+# API_FOOTBALL_LOOKBACK_MINUTES=720
 ```
 
 ## Migracion
