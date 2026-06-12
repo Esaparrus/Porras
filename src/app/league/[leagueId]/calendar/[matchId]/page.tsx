@@ -175,8 +175,8 @@ export default async function MatchCalendarDetailPage({
       <section className="mt-6 glass rounded-[2rem] p-6 sm:p-7">
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.9fr]">
           <div>
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-              <div className="text-right text-lg sm:text-2xl">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+              <div className="min-w-0 text-right text-lg sm:text-2xl">
                 <MatchTeamLabel team={match.home_team} placeholder={match.home_placeholder} />
               </div>
               <PredictionScorePill
@@ -184,7 +184,7 @@ export default async function MatchCalendarDetailPage({
                 awayScore={match.away_score}
                 className="bg-white/10 text-slate-200"
               />
-              <div className="text-lg sm:text-2xl">
+              <div className="min-w-0 text-lg sm:text-2xl">
                 <MatchTeamLabel team={match.away_team} placeholder={match.away_placeholder} />
               </div>
             </div>
@@ -245,12 +245,12 @@ export default async function MatchCalendarDetailPage({
               <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-black/20 p-5">
                 {comparePrediction && compareMeta ? (
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
                         <div className="text-xs font-black uppercase tracking-[0.18em] text-[#ffcf9f]">
                           Ha puesto
                         </div>
-                        <div className="mt-1 text-xl font-black text-white">
+                        <div className="mt-1 break-words text-xl font-black leading-tight text-white">
                           {compareMeta.avatarEmoji ? `${compareMeta.avatarEmoji} ` : ""}
                           {compareMeta.displayName}
                         </div>
@@ -310,14 +310,15 @@ export default async function MatchCalendarDetailPage({
                     key={score.key}
                     className="flex items-center justify-between gap-3 rounded-[1.4rem] border border-white/10 bg-black/20 px-4 py-3"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center">
                       <MatchPredictionScorePill
                         homeScore={score.homeScore}
                         awayScore={score.awayScore}
                         homeTeam={match.home_team}
                         awayTeam={match.away_team}
+                        className="shrink-0"
                       />
-                      <div>
+                      <div className="min-w-0">
                         <div className="text-sm font-black text-white">
                           {score.count} persona{score.count === 1 ? "" : "s"}
                         </div>

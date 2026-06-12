@@ -278,12 +278,14 @@ export function PredictionScorePill({
   return (
     <div
       className={cn(
-        "inline-flex items-center justify-center rounded-[1.15rem] border border-[#ff2bd6]/25 bg-[#ff2bd6]/12 font-black text-white",
+        "inline-grid grid-cols-[1fr_auto_1fr] items-center justify-center rounded-[1.15rem] border border-[#ff2bd6]/25 bg-[#ff2bd6]/12 font-black text-white",
         large ? "min-w-[132px] px-6 py-4 text-3xl" : "min-w-[74px] px-3 py-2 text-sm",
         className,
       )}
     >
-      {homeScore ?? "-"} <span className="mx-2 text-[#ff9deb]">-</span> {awayScore ?? "-"}
+      <span className="text-right">{homeScore ?? "-"}</span>
+      <span className="px-2 text-[#ff9deb]">-</span>
+      <span className="text-left">{awayScore ?? "-"}</span>
     </div>
   );
 }
@@ -306,15 +308,15 @@ export function MatchPredictionScorePill({
   return (
     <div
       className={cn(
-        "inline-flex items-center justify-center gap-3 rounded-[1.15rem] border border-[#ff2bd6]/25 bg-[#ff2bd6]/12 font-black text-white",
-        large ? "min-w-[176px] px-5 py-4 text-3xl" : "min-w-[112px] px-3 py-2 text-sm",
+        "inline-grid grid-cols-[auto_minmax(1.5rem,1fr)_auto_minmax(1.5rem,1fr)_auto] items-center justify-center rounded-[1.15rem] border border-[#ff2bd6]/25 bg-[#ff2bd6]/12 font-black text-white",
+        large ? "min-w-[176px] gap-3 px-5 py-4 text-3xl" : "min-w-[112px] gap-2 px-3 py-2 text-sm",
         className,
       )}
     >
       <CompactFlag team={homeTeam} />
-      <span>
-        {homeScore ?? "-"} <span className="mx-1.5 text-[#ff9deb]">-</span> {awayScore ?? "-"}
-      </span>
+      <span className="text-right leading-none">{homeScore ?? "-"}</span>
+      <span className="leading-none text-[#ff9deb]">-</span>
+      <span className="text-left leading-none">{awayScore ?? "-"}</span>
       <CompactFlag team={awayTeam} />
     </div>
   );

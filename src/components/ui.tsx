@@ -30,9 +30,9 @@ import { cn, getDisplayPlayerName, getTeamFlagImageUrl } from "@/lib/utils";
 export function TeamBadge({ team }: { team?: Team | null }) {
   if (!team) return <span className="text-slate-400">Por definir</span>;
   return (
-    <span className="inline-flex min-w-0 max-w-full items-center gap-2 font-semibold text-white">
+    <span className="inline-flex min-w-0 max-w-full items-center gap-2 font-semibold leading-tight text-white">
       <TeamFlag team={team} />
-      <span className="truncate">{team.name}</span>
+      <span className="min-w-0 max-w-full break-words">{team.name}</span>
     </span>
   );
 }
@@ -84,7 +84,7 @@ export function MatchTeamLabel({
   placeholder?: string | null;
 }) {
   if (team) return <TeamBadge team={team} />;
-  return <span className="min-w-0 truncate font-semibold text-slate-300">{placeholder ?? "Por definir"}</span>;
+  return <span className="min-w-0 max-w-full break-words font-semibold leading-tight text-slate-300">{placeholder ?? "Por definir"}</span>;
 }
 
 function MatchMeta({ match }: { match: Match }) {
