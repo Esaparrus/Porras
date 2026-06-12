@@ -870,9 +870,13 @@ export async function runApiFootballSyncAction() {
 
   let summary: string;
   try {
-    const { syncFinishedResultsFromApiFootball } = await import("@/lib/api-football");
-    const result = await syncFinishedResultsFromApiFootball(supabase, { source: "manual" });
-    summary = `${result.updated} partidos · ${result.scorersApplied} goleadores aplicados · ${result.suggestions} para revisar`;
+    const { syncResults } = await import("@/lib/results-sync");
+    const result = await syncResults(supabase, { source: "manual" });
+    const scorerPart =
+      result.scorersApplied || result.suggestions
+        ? ` · ${result.scorersApplied} goleadores aplicados · ${result.suggestions} para revisar`
+        : "";
+    summary = `${result.updated} partidos actualizados · ${result.skipped} saltados (${result.checked} comprobados)${scorerPart}`;
   } catch (error) {
     summary = error instanceof Error ? error.message : "Error inesperado";
     revalidatePath("/admin/results");

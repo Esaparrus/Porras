@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { syncFinishedResultsFromApiFootball } from "@/lib/api-football";
+import { syncResults } from "@/lib/results-sync";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const supabase = createSupabaseAdminClient();
-    const result = await syncFinishedResultsFromApiFootball(supabase);
+    const result = await syncResults(supabase, { source: "cron" });
     return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error inesperado";
