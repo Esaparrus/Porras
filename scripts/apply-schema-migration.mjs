@@ -26,6 +26,7 @@ try {
   await client.query(await readFile("supabase/ranking-daily-snapshots.sql", "utf8"));
   await client.query(await readFile("supabase/api-football-sync.sql", "utf8"));
   await client.query(await readFile("supabase/api-football-scorer-sync.sql", "utf8"));
+  await client.query(await readFile("supabase/add-api-goals.sql", "utf8"));
   await client.query(`
     update public.teams
     set flag_code = case short_name

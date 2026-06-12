@@ -22,18 +22,25 @@ export async function syncAllLeaguesPlayerGoalValue(
   }
 }
 
-// Reagrega los totales de goles por liga a partir de match_scorers, respetando
-// los overrides manuales que el admin haya fijado.
+// Reagrega los totales de goles por liga. Fuente por jugador, de mayor a menor
+// prioridad: override manual del admin -> goles por partido (match_scorers) ->
+// total de la API (players.api_goals). Asi el modo manual siempre manda y los
+// proveedores que solo dan totales (football-data) tambien alimentan la tabla.
 export async function syncLeagueGoalTotalsFromMatchScorers(supabase: SupabaseClient) {
-  const [{ data: leagues }, { data: scorerRows }] = await Promise.all([
+  const [{ data: leagues }, { data: scorerRows }, { data: apiGoalRows }] = await Promise.all([
     supabase.from("leagues").select("id"),
     supabase.from("match_scorers").select("player_id, goals"),
+    supabase.from("players").select("id, api_goals").not("api_goals", "is", null),
   ]);
 
   const totals = new Map<string, number>();
   (scorerRows ?? []).forEach((row) => {
     totals.set(row.player_id, (totals.get(row.player_id) ?? 0) + row.goals);
   });
+
+  const apiGoals = new Map<string, number>(
+    (apiGoalRows ?? []).map((row) => [row.id, row.api_goals as number]),
+  );
 
   for (const league of leagues ?? []) {
     const { data: existingGoalRows } = await supabase
@@ -48,14 +55,22 @@ export async function syncLeagueGoalTotalsFromMatchScorers(supabase: SupabaseCli
 
     await supabase.from("league_player_goals").delete().eq("league_id", league.id);
 
-    const playerIds = new Set([...totals.keys(), ...manualOverrides.keys()]);
+    const playerIds = new Set([
+      ...totals.keys(),
+      ...manualOverrides.keys(),
+      ...apiGoals.keys(),
+    ]);
 
     if (playerIds.size) {
       await supabase.from("league_player_goals").insert(
         Array.from(playerIds).map((playerId) => ({
           league_id: league.id,
           player_id: playerId,
-          goals: manualOverrides.get(playerId) ?? totals.get(playerId) ?? 0,
+          goals:
+            manualOverrides.get(playerId) ??
+            totals.get(playerId) ??
+            apiGoals.get(playerId) ??
+            0,
           manual_goals_override: manualOverrides.get(playerId) ?? null,
         })),
       );

@@ -872,10 +872,9 @@ export async function runApiFootballSyncAction() {
   try {
     const { syncResults } = await import("@/lib/results-sync");
     const result = await syncResults(supabase, { source: "manual" });
-    const scorerPart =
-      result.scorersApplied || result.suggestions
-        ? ` · ${result.scorersApplied} goleadores aplicados · ${result.suggestions} para revisar`
-        : "";
+    let scorerPart = "";
+    if (result.scorersApplied) scorerPart += ` · ${result.scorersApplied} goleadores`;
+    if (result.suggestions) scorerPart += ` · ${result.suggestions} goleadores para revisar`;
     summary = `${result.updated} partidos actualizados · ${result.skipped} saltados (${result.checked} comprobados)${scorerPart}`;
   } catch (error) {
     summary = error instanceof Error ? error.message : "Error inesperado";

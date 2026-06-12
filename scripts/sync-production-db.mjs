@@ -25,6 +25,7 @@ const SQL_FILES = [
   "player-selection-requests.sql",
   "api-football-sync.sql",
   "api-football-scorer-sync.sql",
+  "add-api-goals.sql",
   "seed.sql",
 ];
 
