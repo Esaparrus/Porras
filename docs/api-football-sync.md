@@ -1,9 +1,32 @@
 # Sincronizacion opcional de resultados y goleadores
 
-La app puede traer resultados finales y goleadores desde API-Football **sin
-sustituir el modo manual**. El flujo manual sigue siendo el respaldo: el sync
-solo cierra partidos que todavia no esten cerrados y nunca pisa lo que el admin
-ya metio a mano.
+La app puede traer resultados (y, segun proveedor, goleadores) **sin sustituir
+el modo manual**. El flujo manual sigue siendo el respaldo: el sync solo cierra
+partidos que todavia no esten cerrados y nunca pisa lo que el admin ya metio a
+mano.
+
+## Proveedores
+
+Se elige con `RESULTS_PROVIDER` (o se autodetecta: si hay `FOOTBALL_DATA_TOKEN`,
+se usa football-data).
+
+| Proveedor | Coste Mundial 2026 | Resultados | Goleadores |
+|-----------|--------------------|------------|------------|
+| `football-data` (football-data.org) | Gratis | Si (con algo de retraso) | No — manuales |
+| `api-football` (API-Football) | Plan de pago (Free no da 2026) | Si | Si, automaticos |
+
+### football-data.org (gratis, recomendado para 2026)
+
+```env
+RESULTS_PROVIDER=football-data
+FOOTBALL_DATA_TOKEN=tu-token
+FOOTBALL_DATA_BASE_URL=https://api.football-data.org/v4
+FOOTBALL_DATA_COMPETITION=WC
+```
+
+Empareja los partidos por el codigo FIFA de 3 letras (`tla`), asi que no necesita
+el script de mapeo. Los goleadores se siguen metiendo a mano (su plan gratis no
+los incluye).
 
 ## Que hace y cuando
 
