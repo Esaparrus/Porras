@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ApiFootballSyncResult } from "@/lib/api-football";
+import { syncLeagueGoalTotalsFromMatchScorers } from "@/lib/goal-totals";
 import { generateKnockoutFromResults } from "@/lib/world-cup";
 import { recalculateAllLeagueScores } from "@/app/actions";
 
@@ -34,6 +35,19 @@ type FootballDataMatch = {
   };
 };
 
+type FootballDataScorer = {
+  player: { name: string | null };
+  team: { tla: string | null };
+  goals: number | null;
+};
+
+type PickedPlayer = {
+  id: string;
+  name: string;
+  api_goals: number | null;
+  teams?: { short_name: string } | { short_name: string }[] | null;
+};
+
 const FINISHED_STATUS = new Set(["FINISHED", "AWARDED"]);
 const GROUP_DELAY_MINUTES = numberFromEnv("API_FOOTBALL_GROUP_DELAY_MINUTES", 150);
 const KNOCKOUT_DELAY_MINUTES = numberFromEnv("API_FOOTBALL_KNOCKOUT_DELAY_MINUTES", 210);
@@ -66,13 +80,67 @@ function matchDelayMinutes(stage: string) {
   return stage === "group" ? GROUP_DELAY_MINUTES : KNOCKOUT_DELAY_MINUTES;
 }
 
-function isCandidate(match: SyncableMatch, now: Date) {
-  if (match.is_finished || !match.match_date) return false;
+// Ventana activa: el partido ya empezo hace el margen y sigue dentro del limite.
+// Ignora is_finished (sirve tambien para refrescar goleadores tras cerrar).
+function isInActiveWindow(match: SyncableMatch, now: Date) {
+  if (!match.match_date) return false;
   const minutesSinceStart = (now.getTime() - new Date(match.match_date).getTime()) / 60_000;
   return (
     minutesSinceStart >= matchDelayMinutes(match.stage) &&
     minutesSinceStart <= MAX_LOOKBACK_MINUTES
   );
+}
+
+function isCandidate(match: SyncableMatch, now: Date) {
+  return !match.is_finished && isInActiveWindow(match, now);
+}
+
+function normalize(value: string) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]/gi, "")
+    .toLowerCase();
+}
+
+function nameTokens(value: string) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length > 1);
+}
+
+// Empareja un nombre contra candidatos {name}. Si hay ambiguedad devuelve null.
+function matchByName<T extends { name: string }>(candidates: T[], name: string): T | null {
+  const target = normalize(name);
+  const exact = candidates.filter((c) => normalize(c.name) === target);
+  if (exact.length === 1) return exact[0];
+
+  const tk = nameTokens(name);
+  const surname = tk[tk.length - 1];
+  if (!surname) return null;
+
+  const bySurname = candidates.filter((c) => {
+    const t = nameTokens(c.name);
+    return t[t.length - 1] === surname;
+  });
+  if (bySurname.length === 1) return bySurname[0];
+
+  if (bySurname.length > 1 && tk.length > 1) {
+    const first = tk[0];
+    const narrowed = bySurname.filter((c) =>
+      nameTokens(c.name).some((t) => t === first || t[0] === first[0]),
+    );
+    if (narrowed.length === 1) return narrowed[0];
+  }
+  return null;
+}
+
+function getShortName(player: PickedPlayer) {
+  const team = Array.isArray(player.teams) ? player.teams[0] : player.teams;
+  return team?.short_name ?? null;
 }
 
 async function fetchCompetitionMatches() {
@@ -88,6 +156,71 @@ async function fetchCompetitionMatches() {
 
   const payload = (await response.json()) as { matches?: FootballDataMatch[] };
   return payload.matches ?? [];
+}
+
+async function fetchScorers() {
+  const { token, baseUrl, competition } = getConfig();
+  const response = await fetch(`${baseUrl}/competitions/${competition}/scorers?limit=100`, {
+    cache: "no-store",
+    headers: { "X-Auth-Token": token },
+  });
+
+  if (!response.ok) {
+    throw new Error(`football-data goleadores respondio ${response.status}.`);
+  }
+
+  const payload = (await response.json()) as { scorers?: FootballDataScorer[] };
+  return payload.scorers ?? [];
+}
+
+// Actualiza el total de goles (players.api_goals) de los jugadores que la gente
+// ha apostado. Solo toca los que encuentra en el ranking; nunca pone a 0 a uno
+// que no aparezca (el plan gratis puede recortar la lista). Devuelve cuantos
+// totales cambiaron.
+async function syncScorerTotals(supabase: SupabaseClient, messages: string[]): Promise<number> {
+  const { data: predRows } = await supabase.from("scorer_predictions").select("player_id");
+  const pickedIds = Array.from(new Set((predRows ?? []).map((row) => row.player_id as string)));
+  if (!pickedIds.length) return 0;
+
+  const { data: playerRows } = await supabase
+    .from("players")
+    .select("id, name, api_goals, teams(short_name)")
+    .in("id", pickedIds);
+
+  let scorers: FootballDataScorer[];
+  try {
+    scorers = await fetchScorers();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "error";
+    messages.push(`No se pudieron leer goleadores: ${message}.`);
+    return 0;
+  }
+
+  let changed = 0;
+  for (const player of (playerRows ?? []) as PickedPlayer[]) {
+    const tla = getShortName(player);
+    if (!tla) continue;
+
+    const candidates = scorers
+      .filter((scorer) => scorer.team.tla === tla && scorer.player.name)
+      .map((scorer) => ({ name: scorer.player.name as string, goals: scorer.goals ?? 0 }));
+
+    const matched = matchByName(candidates, player.name);
+    if (!matched) continue;
+    if ((player.api_goals ?? -1) === matched.goals) continue;
+
+    const { error } = await supabase
+      .from("players")
+      .update({ api_goals: matched.goals })
+      .eq("id", player.id);
+
+    if (!error) {
+      changed += 1;
+      messages.push(`Goleador ${player.name}: ${matched.goals} goles.`);
+    }
+  }
+
+  return changed;
 }
 
 function findMatch(match: SyncableMatch, fixtures: FootballDataMatch[]) {
@@ -174,9 +307,11 @@ async function runSync(
     throw new Error(`No se pudieron leer partidos: ${error.message}`);
   }
 
-  const candidates = ((data ?? []) as SyncableMatch[]).filter((match) => isCandidate(match, now));
+  const allMatches = (data ?? []) as SyncableMatch[];
+  const inWindow = allMatches.filter((match) => isInActiveWindow(match, now));
 
-  if (!candidates.length) {
+  // Sin partidos en ventana no gastamos ninguna peticion.
+  if (!inWindow.length) {
     return {
       ok: true,
       checked: 0,
@@ -184,16 +319,18 @@ async function runSync(
       updated: 0,
       suggestions: 0,
       scorersApplied: 0,
-      messages: ["No hay partidos candidatos para sincronizar."],
+      messages: ["No hay partidos en ventana para sincronizar."],
     };
   }
 
-  // Una sola llamada trae todos los partidos de la competicion.
-  const fixtures = await fetchCompetitionMatches();
+  const candidates = inWindow.filter((match) => !match.is_finished);
 
   let checked = 0;
   let updated = 0;
   let skipped = 0;
+
+  // Resultados: solo si hay partidos sin cerrar.
+  const fixtures = candidates.length ? await fetchCompetitionMatches() : [];
 
   for (const match of candidates) {
     checked += 1;
@@ -244,10 +381,19 @@ async function runSync(
     );
   }
 
+  // Goleadores: refrescamos totales mientras haya partidos en ventana (el plan
+  // gratis publica los goles con algo de retraso, asi que conviene reintentar).
+  const scorersApplied = await syncScorerTotals(supabase, messages);
+
   if (updated > 0) {
     await generateKnockoutFromResults(supabase);
+  }
+  if (scorersApplied > 0) {
+    await syncLeagueGoalTotalsFromMatchScorers(supabase);
+  }
+  if (updated > 0 || scorersApplied > 0) {
     await recalculateAllLeagueScores();
   }
 
-  return { ok: true, checked, skipped, updated, suggestions: 0, scorersApplied: 0, messages };
+  return { ok: true, checked, skipped, updated, suggestions: 0, scorersApplied, messages };
 }

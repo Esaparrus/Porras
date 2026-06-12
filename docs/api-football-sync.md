@@ -12,7 +12,7 @@ se usa football-data).
 
 | Proveedor | Coste Mundial 2026 | Resultados | Goleadores |
 |-----------|--------------------|------------|------------|
-| `football-data` (football-data.org) | Gratis | Si (con algo de retraso) | No — manuales |
+| `football-data` (football-data.org) | Gratis | Si (con algo de retraso) | Si — totales por jugador |
 | `api-football` (API-Football) | Plan de pago (Free no da 2026) | Si | Si, automaticos |
 
 ### football-data.org (gratis, recomendado para 2026)
@@ -25,8 +25,10 @@ FOOTBALL_DATA_COMPETITION=WC
 ```
 
 Empareja los partidos por el codigo FIFA de 3 letras (`tla`), asi que no necesita
-el script de mapeo. Los goleadores se siguen metiendo a mano (su plan gratis no
-los incluye).
+el script de mapeo. Los goleadores se sincronizan por el ranking de maximos
+goleadores (`/competitions/WC/scorers`), que da el **total de goles por jugador**
+(lo que la porra necesita para puntuar). Solo actualiza a los jugadores que
+alguien ha apostado y el override manual del admin siempre manda.
 
 ## Que hace y cuando
 

@@ -600,3 +600,7 @@ for select using (public.is_admin());
 drop policy if exists "sync logs admin all" on public.api_football_sync_logs;
 create policy "sync logs admin all" on public.api_football_sync_logs
 for all using (public.is_admin()) with check (public.is_admin());
+
+-- Total de goles por jugador segun la API (football-data).
+alter table public.players
+  add column if not exists api_goals int;
