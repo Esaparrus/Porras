@@ -625,8 +625,6 @@ export function PredictionWorkflow({
 
   return (
     <form onSubmit={handleManualSubmit} className="space-y-8">
-      ) : null}
-
       <section id="grupos" className="glass scroll-mt-6 rounded-3xl p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
