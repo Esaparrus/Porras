@@ -167,17 +167,18 @@ function CalendarMatchLink({
         <div className="min-w-0 text-right">
           <MatchTeamLabel team={match.home_team} placeholder={match.home_placeholder} />
         </div>
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex flex-col items-center gap-0.5">
+          <span className="text-[9px] font-black uppercase tracking-[0.12em] text-[#ff2bd6]">Tu apuesta</span>
           <div className="rounded-xl bg-black/35 px-2 py-1 text-center font-black text-[#ff2bd6]">
             {prediction}
           </div>
           {hasResult && (
-            <div className="flex items-center gap-1">
-              <span className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">Real</span>
-              <span className="rounded-lg bg-white/8 px-1.5 py-0.5 text-[10px] font-black text-slate-300">
+            <>
+              <span className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">Real</span>
+              <div className="rounded-xl bg-white/8 px-2 py-1 text-center font-black text-slate-300">
                 {match.home_score}-{match.away_score}
-              </span>
-            </div>
+              </div>
+            </>
           )}
         </div>
         <div className="min-w-0">
