@@ -1,4 +1,4 @@
-﻿import { AdminMatchEditor } from "@/components/admin-match-editor";
+import { AdminMatchEditor } from "@/components/admin-match-editor";
 import { AdminBestThirdOrderEditor } from "@/components/admin-best-third-order-editor";
 import { AdminGroupOrderEditor } from "@/components/admin-group-order-editor";
 import { AdminLayout } from "@/components/layouts";
@@ -16,6 +16,8 @@ import { STAGE_LABELS } from "@/lib/constants";
 import { getActivePlayers, requireAdmin } from "@/lib/data";
 import { calculateBestThirdPlacedTeams, calculateRealGroupStandings } from "@/lib/scoring";
 import { getAdminBestThirdManualRanks } from "@/lib/world-cup";
+import Link from "next/link";
+import { AdminCollapsibleDate } from "@/components/admin-collapsible-date";
 import type {
   ApiFootballSyncLog,
   Match,
@@ -105,13 +107,23 @@ function getSpainScheduleLabel(matchDate: string | null) {
   return SPAIN_DATE_TIME_FORMAT.format(new Date(matchDate));
 }
 
+type Tab = "partidos" | "goleadores" | "grupos";
+
 export default async function AdminResultsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sync?: string; detail?: string }>;
+  searchParams: Promise<{ sync?: string; detail?: string; tab?: string; stage?: string }>;
 }) {
   const { supabase } = await requireAdmin();
   const syncParams = await searchParams;
+  const activeTab: Tab =
+    syncParams.tab === "goleadores"
+      ? "goleadores"
+      : syncParams.tab === "grupos"
+        ? "grupos"
+        : "partidos";
+  const activeStage = syncParams.stage ?? null;
+
   const [
     { data: matchRows },
     { data: teamRows },
@@ -250,8 +262,6 @@ export default async function AdminResultsPage({
     new Set(teams.map((team) => team.group_letter).filter(Boolean)),
   ).sort() as string[];
 
-  // Solo tiene sentido resolver empates de terceros cuando la fase de grupos ha
-  // terminado: antes, los "terceros" todavia pueden cambiar.
   const groupMatches = matches.filter((match) => match.stage === "group");
   const groupStageFinished =
     groupMatches.length > 0 && groupMatches.every((match) => match.is_finished);
@@ -267,7 +277,6 @@ export default async function AdminResultsPage({
       collectUnresolvedTie: (rows, meta) =>
         pushUniqueBestThirdTie(
           bestThirdTies,
-          // Prefill con el orden ya guardado (manual_order) y, si no, alfabetico.
           rows
             .slice()
             .sort(
@@ -302,21 +311,31 @@ export default async function AdminResultsPage({
     return `#${match.match_number ?? "?"} ${home}-${away}`;
   }
 
+  const tabs: { id: Tab; label: string; badge?: string }[] = [
+    {
+      id: "partidos",
+      label: "Partidos",
+      badge: `${matches.filter((m) => m.is_finished).length}/${matches.length}`,
+    },
+    {
+      id: "goleadores",
+      label: "Goleadores",
+      badge: suggestions.length > 0 ? `${suggestions.length} pendientes` : undefined,
+    },
+    {
+      id: "grupos",
+      label: "Grupos",
+      badge: bestThirdTies.length > 0 ? "empates" : undefined,
+    },
+  ];
+
   return (
     <AdminLayout>
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-4xl font-black">Resultados y goleadores</h1>
-          <p className="mt-2 max-w-4xl text-slate-300">
-            Los partidos están agrupados por fecha de España y los goleadores del admin
-            solo muestran jugadores que alguien lleva en sus apuestas.
-          </p>
-        </div>
-        <span className="badge">
-          {matches.filter((match) => match.is_finished).length}/{matches.length} partidos cerrados
-        </span>
+        <h1 className="text-4xl font-black">Resultados y goleadores</h1>
       </div>
 
+      {/* Sincronización — siempre visible */}
       <section className="glass mt-6 rounded-3xl border border-[#ff7a1a]/30 p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -324,7 +343,7 @@ export default async function AdminResultsPage({
             <p className="mt-1 max-w-2xl text-sm text-slate-300">
               Trae resultados finales desde API-Football. Nunca pisa lo que ya
               cierras a mano y los goleadores quedan como sugerencias para
-              confirmar. El modo manual siempre es el respaldo.
+              confirmar.
             </p>
             <p className="mt-2 text-xs text-slate-400">
               {latestSyncLog
@@ -349,54 +368,289 @@ export default async function AdminResultsPage({
         )}
       </section>
 
-      <section className="mt-6 grid gap-6 xl:grid-cols-[1.65fr_0.95fr]">
-        <div className="grid gap-6">
-          {orderedDateGroups.map(([dateKey, dateMatches]) => (
-            <section key={dateKey} className="grid gap-4">
-              <div className="sticky top-0 z-10 rounded-3xl border border-white/10 bg-slate-950/85 px-5 py-4 backdrop-blur">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-2xl font-black">
-                    {getSpainDateLabel(dateMatches[0]?.match_date ?? null)}
-                  </h2>
-                  <span className="badge">
-                    {dateMatches.filter((match) => match.is_finished).length}/{dateMatches.length}
-                  </span>
-                </div>
-              </div>
+      {/* Pestañas */}
+      <div className="mt-6 flex gap-2 border-b border-white/10 pb-0">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <Link
+              key={tab.id}
+              href={`/admin/results?tab=${tab.id}`}
+              className={`flex items-center gap-2 rounded-t-2xl px-5 py-3 text-sm font-bold transition-colors ${
+                isActive
+                  ? "bg-white/10 text-white"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              {tab.label}
+              {tab.badge && (
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    isActive ? "bg-[#ff7a1a]/30 text-[#ff7a1a]" : "bg-white/10 text-slate-300"
+                  }`}
+                >
+                  {tab.badge}
+                </span>
+              )}
+            </Link>
+          );
+        })}
+      </div>
 
-              {dateMatches.map((match) => {
-                const matchScorers = scorerRowsByMatch.get(match.id) ?? [];
-                const expandedScorers = matchScorers.flatMap((row) =>
-                  Array.from({ length: row.goals }, () => {
-                    const player = Array.isArray(row.players) ? row.players[0] : row.players;
-                    return {
-                      playerId: row.player_id,
-                      teamId: player?.team_id ?? "",
-                    };
-                  }),
-                );
+      {/* Pestaña: Partidos */}
+      {activeTab === "partidos" && (() => {
+        // Fases presentes ordenadas canónicamente
+        const stageOrder = ["group", "round_32", "round_16", "quarter_final", "semi_final", "third_place", "final"];
+        const presentStages = stageOrder.filter((s) => matches.some((m) => m.stage === s));
+        const currentStage = activeStage ?? presentStages[0] ?? "group";
+        const stageMatches = matches.filter((m) => m.stage === currentStage);
 
+        // Agrupar por fecha dentro de la fase activa
+        const stageMatchesByDate = stageMatches.reduce<Map<string, Match[]>>((groups, match) => {
+          const key = getSpainDateKey(match.match_date);
+          const current = groups.get(key) ?? [];
+          current.push(match);
+          groups.set(key, current);
+          return groups;
+        }, new Map());
+        const stageDateGroups = Array.from(stageMatchesByDate.entries()).sort(([a], [b]) => a.localeCompare(b));
+
+        return (
+          <div className="mt-6">
+            {/* Sub-pestañas de fase */}
+            <div className="flex flex-wrap gap-2 border-b border-white/10 pb-0">
+              {presentStages.map((stage) => {
+                const isActive = stage === currentStage;
+                const stageCount = matches.filter((m) => m.stage === stage);
+                const finished = stageCount.filter((m) => m.is_finished).length;
                 return (
-                  <AdminMatchEditor
-                    key={match.id}
-                    match={match}
-                    homePlayers={pickedPlayersByTeam.get(match.home_team_id ?? "") ?? []}
-                    awayPlayers={pickedPlayersByTeam.get(match.away_team_id ?? "") ?? []}
-                    homeScorerIds={expandedScorers
-                      .filter((row) => row.teamId === match.home_team_id)
-                      .map((row) => row.playerId)}
-                    awayScorerIds={expandedScorers
-                      .filter((row) => row.teamId === match.away_team_id)
-                      .map((row) => row.playerId)}
-                    leaderboard={leaderboard}
-                    stageLabel={STAGE_LABELS[match.stage]}
-                    scheduleLabel={getSpainScheduleLabel(match.match_date)}
-                  />
+                  <Link
+                    key={stage}
+                    href={`/admin/results?tab=partidos&stage=${stage}`}
+                    className={`flex items-center gap-2 rounded-t-2xl px-4 py-2.5 text-sm font-bold transition-colors ${
+                      isActive ? "bg-white/10 text-white" : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    {STAGE_LABELS[stage] ?? stage}
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        isActive ? "bg-[#ff7a1a]/30 text-[#ff7a1a]" : "bg-white/10 text-slate-300"
+                      }`}
+                    >
+                      {finished}/{stageCount.length}
+                    </span>
+                  </Link>
                 );
               })}
-            </section>
-          ))}
+            </div>
 
+            {/* Fechas colapsables */}
+            <div className="mt-6 grid gap-6">
+              {stageDateGroups.map(([dateKey, dateMatches]) => {
+                const allFinished = dateMatches.every((m) => m.is_finished);
+                const badge = `${dateMatches.filter((m) => m.is_finished).length}/${dateMatches.length}`;
+                return (
+                  <AdminCollapsibleDate
+                    key={dateKey}
+                    label={getSpainDateLabel(dateMatches[0]?.match_date ?? null)}
+                    badge={badge}
+                    defaultOpen={!allFinished}
+                  >
+                    {dateMatches.map((match) => {
+                      const matchScorers = scorerRowsByMatch.get(match.id) ?? [];
+                      const expandedScorers = matchScorers.flatMap((row) =>
+                        Array.from({ length: row.goals }, () => {
+                          const player = Array.isArray(row.players) ? row.players[0] : row.players;
+                          return { playerId: row.player_id, teamId: player?.team_id ?? "" };
+                        }),
+                      );
+                      return (
+                        <AdminMatchEditor
+                          key={match.id}
+                          match={match}
+                          homePlayers={pickedPlayersByTeam.get(match.home_team_id ?? "") ?? []}
+                          awayPlayers={pickedPlayersByTeam.get(match.away_team_id ?? "") ?? []}
+                          homeScorerIds={expandedScorers
+                            .filter((row) => row.teamId === match.home_team_id)
+                            .map((row) => row.playerId)}
+                          awayScorerIds={expandedScorers
+                            .filter((row) => row.teamId === match.away_team_id)
+                            .map((row) => row.playerId)}
+                          leaderboard={leaderboard}
+                          stageLabel={STAGE_LABELS[match.stage]}
+                          scheduleLabel={getSpainScheduleLabel(match.match_date)}
+                        />
+                      );
+                    })}
+                  </AdminCollapsibleDate>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Pestaña: Goleadores */}
+      {activeTab === "goleadores" && (
+        <div className="mt-6 grid gap-6 xl:grid-cols-2">
+          <div className="grid content-start gap-6">
+            {suggestions.length > 0 && (
+              <section className="glass rounded-3xl border border-[#ff7a1a]/40 p-5">
+                <h2 className="text-2xl font-black">Goleadores sugeridos por la API</h2>
+                <p className="mt-2 text-sm text-slate-300">
+                  Pendientes de confirmar. Revisa el jugador (autodetectado cuando
+                  se puede) y aplícalo o descártalo. No suma nada hasta que lo
+                  confirmes.
+                </p>
+                <div className="mt-4 grid gap-3">
+                  {suggestions.map((suggestion) => (
+                    <div
+                      key={suggestion.id}
+                      className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="font-semibold">
+                          {suggestion.api_player_name}
+                          {suggestion.goals > 1 ? ` ×${suggestion.goals}` : ""}
+                          {suggestion.is_own_goal ? " (en propia)" : ""}
+                        </div>
+                        <span className="badge">{matchLabel(suggestion.match_id)}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-slate-400">
+                        {teamById.get(suggestion.team_id ?? "")?.name ?? "Equipo sin asignar"}
+                      </div>
+
+                      {suggestion.is_own_goal ? (
+                        <form action={dismissScorerSuggestionAction} className="mt-3">
+                          <input type="hidden" name="suggestion_id" value={suggestion.id} />
+                          <button className="btn-secondary w-full">
+                            Descartar (gol en propia, no puntúa)
+                          </button>
+                        </form>
+                      ) : (
+                        <>
+                          <form
+                            action={applyScorerSuggestionAction}
+                            className="mt-3 grid gap-3"
+                          >
+                            <input type="hidden" name="suggestion_id" value={suggestion.id} />
+                            <PlayerPicker
+                              name="player_id"
+                              players={players}
+                              teams={teams}
+                              defaultValue={suggestion.player_id}
+                            />
+                            <button className="btn-primary">Confirmar goleador</button>
+                          </form>
+                          <form action={dismissScorerSuggestionAction} className="mt-2">
+                            <input type="hidden" name="suggestion_id" value={suggestion.id} />
+                            <button className="btn-secondary w-full">Descartar</button>
+                          </form>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section className="glass rounded-3xl p-5">
+              <h2 className="text-2xl font-black">Nombres manuales pendientes</h2>
+              <div className="mt-4 grid gap-4">
+                {requests.filter((request) => request.status !== "approved").length ? (
+                  requests
+                    .filter((request) => request.status !== "approved")
+                    .map((request) => (
+                      <div key={request.id} className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <div className="font-black">
+                              {request.profiles?.username ?? "Usuario"} pide validar:
+                            </div>
+                            <div className="mt-1 text-lg">
+                              {request.player_name}
+                              {request.teams?.name ? ` · ${request.teams.name}` : ""}
+                            </div>
+                            <div className="mt-1 text-sm text-slate-300">
+                              Campo: {request.field_key} · Liga {request.league_id}
+                            </div>
+                          </div>
+                          <span className="badge">{request.status}</span>
+                        </div>
+
+                        <form action={resolvePlayerSelectionRequestAction} className="mt-4 grid gap-3">
+                          <input type="hidden" name="request_id" value={request.id} />
+                          <PlayerPicker
+                            name="resolved_player_id"
+                            players={players}
+                            teams={teams}
+                            defaultValue={request.resolved_player_id}
+                          />
+                          <button className="btn-primary">Validar y asignar jugador</button>
+                        </form>
+
+                        <form action={rejectPlayerSelectionRequestAction} className="mt-3">
+                          <input type="hidden" name="request_id" value={request.id} />
+                          <button className="btn-secondary">Marcar para corrección manual</button>
+                        </form>
+                      </div>
+                    ))
+                ) : (
+                  <div className="text-sm text-slate-300">No hay solicitudes pendientes.</div>
+                )}
+              </div>
+            </section>
+          </div>
+
+          <section className="glass rounded-3xl p-5">
+            <h2 className="text-2xl font-black">Clasificación de goleadores</h2>
+            <div className="mt-2 text-sm text-slate-300">
+              Aparecen todos los jugadores elegidos por usuarios, aunque todavía lleven 0 goles.
+            </div>
+            <div className="mt-4 grid gap-2">
+              {leaderboard.length ? (
+                leaderboard.map((entry) => (
+                  <div
+                    key={entry.playerId}
+                    className="rounded-2xl bg-black/20 px-3 py-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 font-semibold">
+                          <TeamFlag team={entry.team} />
+                          <span>{entry.name}</span>
+                        </div>
+                        <div className="text-xs text-slate-300">
+                          {entry.teamName} · {entry.pickCount} eleg.
+                          {entry.manualOverride !== null ? " · manual" : ""}
+                        </div>
+                      </div>
+                      <strong className="text-2xl leading-none">{entry.goals}</strong>
+                    </div>
+                    <form action={setAdminScorerGoalsAction} className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+                      <input type="hidden" name="player_id" value={entry.playerId} />
+                      <input
+                        name="goals"
+                        type="number"
+                        min="0"
+                        defaultValue={entry.goals}
+                        className="field h-10 text-center"
+                      />
+                      <button className="btn-secondary h-10 px-3 py-0">Fijar</button>
+                    </form>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-slate-300">Todavía nadie ha elegido goleadores.</div>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Pestaña: Grupos */}
+      {activeTab === "grupos" && (
+        <div className="mt-6 grid gap-6">
           {bestThirdTies.length > 0 && (
             <section className="glass rounded-3xl border border-[#ff7a1a]/40 p-5">
               <h2 className="text-2xl font-black">Resolver empates de terceros</h2>
@@ -443,165 +697,7 @@ export default async function AdminResultsPage({
             </div>
           </section>
         </div>
-
-        <div className="grid content-start gap-6">
-          {suggestions.length > 0 && (
-            <section className="glass rounded-3xl border border-[#ff7a1a]/40 p-5">
-              <h2 className="text-2xl font-black">Goleadores sugeridos por la API</h2>
-              <p className="mt-2 text-sm text-slate-300">
-                Pendientes de confirmar. Revisa el jugador (autodetectado cuando
-                se puede) y aplícalo o descártalo. No suma nada hasta que lo
-                confirmes.
-              </p>
-              <div className="mt-4 grid gap-3">
-                {suggestions.map((suggestion) => (
-                  <div
-                    key={suggestion.id}
-                    className="rounded-2xl border border-white/10 bg-black/20 p-4"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="font-semibold">
-                        {suggestion.api_player_name}
-                        {suggestion.goals > 1 ? ` ×${suggestion.goals}` : ""}
-                        {suggestion.is_own_goal ? " (en propia)" : ""}
-                      </div>
-                      <span className="badge">{matchLabel(suggestion.match_id)}</span>
-                    </div>
-                    <div className="mt-1 text-xs text-slate-400">
-                      {teamById.get(suggestion.team_id ?? "")?.name ?? "Equipo sin asignar"}
-                    </div>
-
-                    {suggestion.is_own_goal ? (
-                      <form
-                        action={dismissScorerSuggestionAction}
-                        className="mt-3"
-                      >
-                        <input type="hidden" name="suggestion_id" value={suggestion.id} />
-                        <button className="btn-secondary w-full">
-                          Descartar (gol en propia, no puntúa)
-                        </button>
-                      </form>
-                    ) : (
-                      <>
-                        <form
-                          action={applyScorerSuggestionAction}
-                          className="mt-3 grid gap-3"
-                        >
-                          <input type="hidden" name="suggestion_id" value={suggestion.id} />
-                          <PlayerPicker
-                            name="player_id"
-                            players={players}
-                            teams={teams}
-                            defaultValue={suggestion.player_id}
-                          />
-                          <button className="btn-primary">Confirmar goleador</button>
-                        </form>
-                        <form action={dismissScorerSuggestionAction} className="mt-2">
-                          <input type="hidden" name="suggestion_id" value={suggestion.id} />
-                          <button className="btn-secondary w-full">Descartar</button>
-                        </form>
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <section className="glass rounded-3xl p-5">
-            <h2 className="text-2xl font-black">Clasificación de goleadores</h2>
-            <div className="mt-2 text-sm text-slate-300">
-              Aparecen todos los jugadores elegidos por usuarios, aunque todavía lleven 0 goles.
-            </div>
-            <div className="mt-4 grid max-h-[70vh] gap-2 overflow-y-auto pr-1">
-              {leaderboard.length ? (
-                leaderboard.map((entry) => (
-                  <div
-                    key={entry.playerId}
-                    className="rounded-2xl bg-black/20 px-3 py-3"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2 font-semibold">
-                          <TeamFlag team={entry.team} />
-                          <span>{entry.name}</span>
-                        </div>
-                        <div className="text-xs text-slate-300">
-                          {entry.teamName} · {entry.pickCount} eleg.
-                          {entry.manualOverride !== null ? " · manual" : ""}
-                        </div>
-                      </div>
-                      <strong className="text-2xl leading-none">{entry.goals}</strong>
-                    </div>
-                    <form action={setAdminScorerGoalsAction} className="mt-3 grid grid-cols-[1fr_auto] gap-2">
-                      <input type="hidden" name="player_id" value={entry.playerId} />
-                      <input
-                        name="goals"
-                        type="number"
-                        min="0"
-                        defaultValue={entry.goals}
-                        className="field h-10 text-center"
-                      />
-                      <button className="btn-secondary h-10 px-3 py-0">Fijar</button>
-                    </form>
-                  </div>
-                ))
-              ) : (
-                <div className="text-sm text-slate-300">Todavía nadie ha elegido goleadores.</div>
-              )}
-            </div>
-          </section>
-
-          <section className="glass rounded-3xl p-5">
-            <h2 className="text-2xl font-black">Nombres manuales pendientes</h2>
-            <div className="mt-4 grid gap-4">
-              {requests.filter((request) => request.status !== "approved").length ? (
-                requests
-                  .filter((request) => request.status !== "approved")
-                  .map((request) => (
-                    <div key={request.id} className="rounded-3xl border border-white/10 bg-black/20 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <div className="font-black">
-                            {request.profiles?.username ?? "Usuario"} pide validar:
-                          </div>
-                          <div className="mt-1 text-lg">
-                            {request.player_name}
-                            {request.teams?.name ? ` · ${request.teams.name}` : ""}
-                          </div>
-                          <div className="mt-1 text-sm text-slate-300">
-                            Campo: {request.field_key} · Liga {request.league_id}
-                          </div>
-                        </div>
-                        <span className="badge">{request.status}</span>
-                      </div>
-
-                      <form action={resolvePlayerSelectionRequestAction} className="mt-4 grid gap-3">
-                        <input type="hidden" name="request_id" value={request.id} />
-                        <PlayerPicker
-                          name="resolved_player_id"
-                          players={players}
-                          teams={teams}
-                          defaultValue={request.resolved_player_id}
-                        />
-                        <button className="btn-primary">Validar y asignar jugador</button>
-                      </form>
-
-                      <form action={rejectPlayerSelectionRequestAction} className="mt-3">
-                        <input type="hidden" name="request_id" value={request.id} />
-                        <button className="btn-secondary">Marcar para corrección manual</button>
-                      </form>
-                    </div>
-                  ))
-              ) : (
-                <div className="text-sm text-slate-300">No hay solicitudes pendientes.</div>
-              )}
-            </div>
-          </section>
-        </div>
-      </section>
+      )}
     </AdminLayout>
   );
 }
-
-
