@@ -149,6 +149,7 @@ function CalendarMatchLink({
   match: CalendarMatch;
 }) {
   const prediction = formatPrediction(match.myPrediction);
+  const hasResult = match.home_score !== null && match.away_score !== null;
 
   return (
     <Link
@@ -166,8 +167,18 @@ function CalendarMatchLink({
         <div className="min-w-0 text-right">
           <MatchTeamLabel team={match.home_team} placeholder={match.home_placeholder} />
         </div>
-        <div className="rounded-xl bg-black/35 px-2 py-1 text-center font-black text-[#ff2bd6]">
-          {prediction}
+        <div className="flex flex-col items-center gap-1">
+          <div className="rounded-xl bg-black/35 px-2 py-1 text-center font-black text-[#ff2bd6]">
+            {prediction}
+          </div>
+          {hasResult && (
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">Real</span>
+              <span className="rounded-lg bg-white/8 px-1.5 py-0.5 text-[10px] font-black text-slate-300">
+                {match.home_score}-{match.away_score}
+              </span>
+            </div>
+          )}
         </div>
         <div className="min-w-0">
           <MatchTeamLabel team={match.away_team} placeholder={match.away_placeholder} />
