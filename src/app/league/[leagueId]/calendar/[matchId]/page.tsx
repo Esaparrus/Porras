@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeftRight, BarChart3, CalendarDays, Users } from "lucide-react";
+import { ArrowLeftRight, BarChart3, CalendarDays } from "lucide-react";
 import { MatchPredictionScorePill, PredictionScorePill } from "@/components/match-calendar";
 import { UserLayout } from "@/components/layouts";
 import { MatchTeamLabel } from "@/components/ui";
+import { ExpandableScoreGroup } from "@/components/expandable-score-group";
 import { requireUser } from "@/lib/data";
 
 type SearchParams = Promise<{
@@ -126,14 +127,19 @@ export default async function MatchCalendarDetailPage({
 
       const key = `${prediction.predicted_home_score}-${prediction.predicted_away_score}`;
       const current = map.get(key);
+      const profile = prediction.profiles;
+      const displayName = profile?.display_name || profile?.username || "Jugador";
+      const avatarEmoji = profile?.avatar_emoji ?? null;
+      const users = [...(current?.users ?? []), { displayName, avatarEmoji }];
       map.set(key, {
         key,
         homeScore: prediction.predicted_home_score,
         awayScore: prediction.predicted_away_score,
-        count: (current?.count ?? 0) + 1,
+        count: users.length,
+        users,
       });
       return map;
-    }, new Map<string, { key: string; homeScore: number; awayScore: number; count: number }>()),
+    }, new Map<string, { key: string; homeScore: number; awayScore: number; count: number; users: { displayName: string; avatarEmoji: string | null }[] }>()),
   )
     .map(([, value]) => value)
     .sort((left, right) => {
@@ -306,11 +312,12 @@ export default async function MatchCalendarDetailPage({
             popularScores.length ? (
               <div className="mt-5 space-y-3">
                 {popularScores.map((score) => (
-                  <div
+                  <ExpandableScoreGroup
                     key={score.key}
-                    className="flex items-center justify-between gap-3 rounded-[1.4rem] border border-white/10 bg-black/20 px-4 py-3"
-                  >
-                    <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+                    homeScore={score.homeScore}
+                    awayScore={score.awayScore}
+                    users={score.users}
+                    homePill={
                       <MatchPredictionScorePill
                         homeScore={score.homeScore}
                         awayScore={score.awayScore}
@@ -318,17 +325,8 @@ export default async function MatchCalendarDetailPage({
                         awayTeam={match.away_team}
                         className="shrink-0"
                       />
-                      <div className="min-w-0">
-                        <div className="text-sm font-black text-white">
-                          {score.count} persona{score.count === 1 ? "" : "s"}
-                        </div>
-                        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                          han puesto este resultado
-                        </div>
-                      </div>
-                    </div>
-                    <Users className="h-5 w-5 text-[#27e7ff]" />
-                  </div>
+                    }
+                  />
                 ))}
               </div>
             ) : (
