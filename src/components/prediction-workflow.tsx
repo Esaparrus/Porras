@@ -108,7 +108,6 @@ export function PredictionWorkflow({
     matches: true,
     knockout: true,
   });
-  const [showTiebreakSessionNotice, setShowTiebreakSessionNotice] = useState(false);
   const [draft, setDraft] = useState<Record<string, DraftPrediction>>(() =>
     Object.fromEntries(
       matches.map((match) => {
@@ -459,16 +458,6 @@ export function PredictionWorkflow({
     };
   }, [draft, draftSnapshot, resolvedKnockoutMatchIds, tiebreakDraft]);
 
-  useEffect(() => {
-    if (!tiebreakPrompts.length) return;
-    const storageKey = `porras:tiebreak-notice:${leagueId}`;
-    if (window.sessionStorage.getItem(storageKey)) return;
-    window.sessionStorage.setItem(storageKey, "shown");
-    const timer = window.setTimeout(() => {
-      setShowTiebreakSessionNotice(true);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [leagueId, tiebreakPrompts.length]);
 
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const savePredictions = useCallback(async (mode: SaveMode) => {
@@ -636,25 +625,6 @@ export function PredictionWorkflow({
 
   return (
     <form onSubmit={handleManualSubmit} className="space-y-8">
-      {showTiebreakSessionNotice && tiebreakPrompts.length ? (
-        <section className="manual-tiebreak-session-notice">
-          <AlertCircle className="h-5 w-5 text-[#ff7a1a]" />
-          <div>
-            <h2>Tu porra necesita desempates manuales</h2>
-            <p>
-              Primero ordena los grupos empatados. Despues, si aparece el paso 2,
-              decide que mejores terceros pasan. Hasta resolverlo, esos equipos no
-              se mostraran en eliminatorias.
-            </p>
-          </div>
-          <button
-            type="button"
-            aria-label="Cerrar aviso de desempates"
-            onClick={() => setShowTiebreakSessionNotice(false)}
-          >
-            Cerrar
-          </button>
-        </section>
       ) : null}
 
       <section id="grupos" className="glass scroll-mt-6 rounded-3xl p-4 sm:p-5">
