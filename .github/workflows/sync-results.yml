@@ -8,9 +8,9 @@ name: Sync World Cup results
 #   SYNC_URL    -> URL completa del endpoint, p.ej. https://tu-app.vercel.app/api/cron/sync-results
 #   CRON_SECRET -> el mismo valor que CRON_SECRET en las variables de entorno de la app
 #
+# El cron automatico vive ahora en cron-job.org (mas puntual que GitHub Actions).
+# Aqui solo queda la ejecucion manual como respaldo.
 on:
-  schedule:
-    - cron: "3,13,23,33,43,53 * * * *"
   workflow_dispatch: {}
 
 # Evita que se solapen dos ejecuciones.
