@@ -8,12 +8,12 @@ name: Sync World Cup results
 #   SYNC_URL    -> URL completa del endpoint, p.ej. https://tu-app.vercel.app/api/cron/sync-results
 #   CRON_SECRET -> el mismo valor que CRON_SECRET en las variables de entorno de la app
 #
-# Cadencia: cada 10 min, evitando minutos redondos concurridos en GitHub Actions.
-# Durante el Mundial se puede afinar la franja horaria si se quiere ahorrar.
+# Cadencia: cada 10 min de 16:00 a 00:00 UTC (18:00-02:00 hora española),
+# que cubre todos los posibles horarios del Mundial 2026 en América.
 
 on:
   schedule:
-    - cron: "3,13,23,33,43,53 * * * *"
+    - cron: "3,13,23,33,43,53 16-23 * * *"
   workflow_dispatch: {}
 
 # Evita que se solapen dos ejecuciones.
