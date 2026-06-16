@@ -2,6 +2,7 @@ import {
   deleteLeagueUserAction,
   resetUserBlockAction,
   resetUserPasswordAction,
+  setCastigosAction,
   updateLeagueMemberPaymentStatusAction,
 } from "@/app/actions";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -27,6 +28,7 @@ type LeagueMemberRow = {
   user_id: string;
   joined_at: string | null;
   payment_status: "paid" | "pending" | null;
+  castigo_pending: boolean | null;
   profiles: Profile | Profile[] | null;
 };
 
@@ -243,6 +245,54 @@ export default async function AdminUsersPage({
         <StatCard label="Pagados" value={paymentSummary.paid} />
         <StatCard label="Pendientes" value={paymentSummary.pending} />
       </div>
+
+      {normalizedMembers.length ? (
+        <details className="glass mt-6 overflow-hidden rounded-2xl">
+          <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4 marker:hidden">
+            <div className="min-w-0">
+              <h2 className="text-lg font-black">😈 Castigos</h2>
+              <p className="text-sm text-slate-300">
+                Elige a quién le salta la pizarra al entrar a la liga.
+              </p>
+            </div>
+            <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-300">
+              {normalizedMembers.filter((m) => m.castigo_pending).length} activo(s)
+            </span>
+          </summary>
+          <form action={setCastigosAction} className="border-t border-white/10 p-4">
+            <input type="hidden" name="league_id" value={leagueId} />
+            <div className="grid gap-2 sm:grid-cols-2">
+              {normalizedMembers.map((member) => (
+                <label
+                  key={member.id}
+                  className="flex items-center gap-3 rounded-xl bg-black/20 px-3 py-2"
+                >
+                  <input
+                    type="checkbox"
+                    name="castigo_user"
+                    value={member.user_id}
+                    defaultChecked={Boolean(member.castigo_pending)}
+                    className="h-5 w-5 accent-[#ff2bd6]"
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate font-bold">
+                      {member.profile?.display_name ?? "Jugador"}
+                    </span>
+                    <span className="block truncate text-xs text-slate-400">
+                      @{member.profile?.username ?? "sin-usuario"}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-slate-400">
+              Marca a quién quieres castigar y guarda. Los que desmarques dejan de
+              tener castigo.
+            </p>
+            <button className="btn-primary mt-3">Guardar castigos</button>
+          </form>
+        </details>
+      ) : null}
 
       <div className="mt-6 grid gap-4">
         {normalizedMembers.length ? (

@@ -1235,6 +1235,45 @@ export async function deleteLeagueUserAction(formData: FormData) {
   revalidatePath(`/league/${leagueId}/profile`);
 }
 
+// Activa la broma del castigo a los usuarios seleccionados de una liga y la
+// quita al resto. La pizarra le saltara al entrar a la liga.
+export async function setCastigosAction(formData: FormData) {
+  await requireAdmin();
+  const supabase = createSupabaseAdminClient();
+  const leagueId = String(formData.get("league_id"));
+  const selected = formData.getAll("castigo_user").map(String).filter(Boolean);
+
+  await supabase
+    .from("league_members")
+    .update({ castigo_pending: false })
+    .eq("league_id", leagueId);
+
+  if (selected.length) {
+    await supabase
+      .from("league_members")
+      .update({ castigo_pending: true })
+      .eq("league_id", leagueId)
+      .in("user_id", selected);
+  }
+
+  revalidatePath(`/admin/leagues/${leagueId}/users`);
+  redirect(`/admin/leagues/${leagueId}/users?notice=${encodeURIComponent("Castigos actualizados")}`);
+}
+
+// La llama la pizarra cuando el usuario completa las lineas: quita su castigo en
+// esa liga y le deja entrar de verdad.
+export async function completeCastigoAction(leagueId: string) {
+  const { user } = await requireUser();
+  const supabase = createSupabaseAdminClient();
+  await supabase
+    .from("league_members")
+    .update({ castigo_pending: false })
+    .eq("league_id", leagueId)
+    .eq("user_id", user.id);
+  revalidatePath(`/league/${leagueId}`);
+  redirect(`/league/${leagueId}`);
+}
+
 export async function recalculateLeagueScoresAction(formData: FormData) {
   await requireAdmin();
   const leagueId = String(formData.get("league_id"));

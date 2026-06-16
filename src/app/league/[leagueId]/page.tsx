@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Eye, Pencil, ShieldCheck, ShieldX, Trophy } from "lucide-react";
 import { UserLayout } from "@/components/layouts";
 import { GroupStandingTable, ScoreBreakdownCard, StatCard } from "@/components/ui";
@@ -44,6 +45,9 @@ export default async function LeagueHomePage({
       .eq("user_id", user.id)
       .maybeSingle(),
   ]);
+
+  // Castigo activo: a la pizarra hasta que lo complete.
+  if (membership?.castigo_pending) redirect("/castigo");
 
   const position = (ranking ?? []).findIndex((row) => row.user_id === user.id) + 1;
   const teamRows = (teams ?? []) as Team[];

@@ -52,6 +52,7 @@ export type LeagueMember = {
   user_id: string;
   payment_status: LeaguePaymentStatus;
   joined_at: string;
+  castigo_pending: boolean;
 };
 
 export type Team = {
