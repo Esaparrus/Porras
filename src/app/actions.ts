@@ -1242,22 +1242,29 @@ export async function setCastigosAction(formData: FormData) {
   const supabase = createSupabaseAdminClient();
   const leagueId = String(formData.get("league_id"));
   const selected = formData.getAll("castigo_user").map(String).filter(Boolean);
+  const usersPath = `/admin/leagues/${leagueId}/users`;
 
-  await supabase
+  const clear = await supabase
     .from("league_members")
     .update({ castigo_pending: false })
     .eq("league_id", leagueId);
+  if (clear.error) {
+    redirect(`${usersPath}?error=${encodeURIComponent(`No se pudo guardar: ${clear.error.message}`)}`);
+  }
 
   if (selected.length) {
-    await supabase
+    const set = await supabase
       .from("league_members")
       .update({ castigo_pending: true })
       .eq("league_id", leagueId)
       .in("user_id", selected);
+    if (set.error) {
+      redirect(`${usersPath}?error=${encodeURIComponent(`No se pudo guardar: ${set.error.message}`)}`);
+    }
   }
 
-  revalidatePath(`/admin/leagues/${leagueId}/users`);
-  redirect(`/admin/leagues/${leagueId}/users?notice=${encodeURIComponent("Castigos actualizados")}`);
+  revalidatePath(usersPath);
+  redirect(`${usersPath}?notice=${encodeURIComponent(`Castigos guardados (${selected.length} activo(s))`)}`);
 }
 
 // La llama la pizarra cuando el usuario completa las lineas: quita su castigo en

@@ -69,10 +69,13 @@ function getLeagueMatchPredictions(
 
 export default async function AdminUsersPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ leagueId: string }>;
+  searchParams: Promise<{ notice?: string; error?: string }>;
 }) {
   const { leagueId } = await params;
+  const { notice, error } = await searchParams;
   const { supabase } = await requireAdmin();
   const [
     members,
@@ -239,6 +242,17 @@ export default async function AdminUsersPage({
       <p className="mt-2 text-sm text-slate-300">
         Quien se ha unido, cuando entro y si ya ha pagado la liga.
       </p>
+
+      {error ? (
+        <p className="mt-4 rounded-2xl bg-red-500/15 px-4 py-3 text-sm font-semibold text-red-100">
+          {error}
+        </p>
+      ) : null}
+      {notice ? (
+        <p className="mt-4 rounded-2xl bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-100">
+          {notice}
+        </p>
+      ) : null}
 
       <div className="mt-6 grid gap-4 md:grid-cols-3">
         <StatCard label="Usuarios" value={normalizedMembers.length} />
