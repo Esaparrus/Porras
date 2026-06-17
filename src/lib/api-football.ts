@@ -305,41 +305,86 @@ function buildScorerSuggestions(
   return Array.from(drafts.values());
 }
 
-function findFixture(match: SyncableMatch, fixtures: ApiFootballFixture[]) {
-  if (match.api_football_fixture_id) {
-    return (
-      fixtures.find(
-        (fixture) => fixture.fixture.id === match.api_football_fixture_id,
-      ) ?? null
-    );
-  }
+// Empareja un partido local con su fixture de la API. El emparejado es
+// independiente del orden: la API puede listar local/visitante al reves que
+// nosotros. `swapped` indica que el local de la API es nuestro visitante, para
+// que quien llama oriente bien marcador, ganador y goleadores.
+type FixtureMatch = { fixture: ApiFootballFixture; swapped: boolean };
 
+function isSwapped(
+  homeTeam: SyncableTeam,
+  awayTeam: SyncableTeam,
+  fixture: ApiFootballFixture,
+): boolean {
+  if (
+    homeTeam.api_football_team_id != null &&
+    awayTeam.api_football_team_id != null
+  ) {
+    return homeTeam.api_football_team_id === fixture.teams.away.id;
+  }
+  const homeNames = [homeTeam.name, homeTeam.short_name].map(normalizeName);
+  return homeNames.includes(normalizeName(fixture.teams.away.name));
+}
+
+function findFixture(
+  match: SyncableMatch,
+  fixtures: ApiFootballFixture[],
+): FixtureMatch | null {
   const homeTeam = getTeam(match.home_team);
   const awayTeam = getTeam(match.away_team);
+
+  if (match.api_football_fixture_id) {
+    const fixture = fixtures.find(
+      (item) => item.fixture.id === match.api_football_fixture_id,
+    );
+    if (!fixture) return null;
+    const swapped =
+      homeTeam && awayTeam ? isSwapped(homeTeam, awayTeam, fixture) : false;
+    return { fixture, swapped };
+  }
+
   if (!homeTeam || !awayTeam) return null;
 
   const byApiTeamIds = fixtures.find(
     (fixture) =>
-      homeTeam.api_football_team_id === fixture.teams.home.id &&
-      awayTeam.api_football_team_id === fixture.teams.away.id,
+      (homeTeam.api_football_team_id === fixture.teams.home.id &&
+        awayTeam.api_football_team_id === fixture.teams.away.id) ||
+      (homeTeam.api_football_team_id === fixture.teams.away.id &&
+        awayTeam.api_football_team_id === fixture.teams.home.id),
   );
-  if (byApiTeamIds) return byApiTeamIds;
+  if (byApiTeamIds) {
+    return { fixture: byApiTeamIds, swapped: isSwapped(homeTeam, awayTeam, byApiTeamIds) };
+  }
 
   const homeNames = [homeTeam.name, homeTeam.short_name].map(normalizeName);
   const awayNames = [awayTeam.name, awayTeam.short_name].map(normalizeName);
 
-  return (
-    fixtures.find(
-      (fixture) =>
-        homeNames.includes(normalizeName(fixture.teams.home.name)) &&
-        awayNames.includes(normalizeName(fixture.teams.away.name)),
-    ) ?? null
-  );
+  const byName = fixtures.find((fixture) => {
+    const fixtureHome = normalizeName(fixture.teams.home.name);
+    const fixtureAway = normalizeName(fixture.teams.away.name);
+    return (
+      (homeNames.includes(fixtureHome) && awayNames.includes(fixtureAway)) ||
+      (homeNames.includes(fixtureAway) && awayNames.includes(fixtureHome))
+    );
+  });
+  if (byName) {
+    return { fixture: byName, swapped: isSwapped(homeTeam, awayTeam, byName) };
+  }
+
+  return null;
 }
 
-function getWinnerTeamId(match: SyncableMatch, fixture: ApiFootballFixture) {
-  if (fixture.teams.home.winner) return match.home_team_id;
-  if (fixture.teams.away.winner) return match.away_team_id;
+function getWinnerTeamId(
+  match: SyncableMatch,
+  fixture: ApiFootballFixture,
+  swapped: boolean,
+) {
+  // El equipo "local" de la API es nuestro local salvo que el orden este invertido.
+  const apiHomeTeamId = swapped ? match.away_team_id : match.home_team_id;
+  const apiAwayTeamId = swapped ? match.home_team_id : match.away_team_id;
+
+  if (fixture.teams.home.winner) return apiHomeTeamId;
+  if (fixture.teams.away.winner) return apiAwayTeamId;
 
   if (
     fixture.fixture.status.short === "PEN" &&
@@ -347,13 +392,13 @@ function getWinnerTeamId(match: SyncableMatch, fixture: ApiFootballFixture) {
     fixture.score.penalty.away != null
   ) {
     return fixture.score.penalty.home > fixture.score.penalty.away
-      ? match.home_team_id
-      : match.away_team_id;
+      ? apiHomeTeamId
+      : apiAwayTeamId;
   }
 
   if (fixture.goals.home != null && fixture.goals.away != null) {
-    if (fixture.goals.home > fixture.goals.away) return match.home_team_id;
-    if (fixture.goals.away > fixture.goals.home) return match.away_team_id;
+    if (fixture.goals.home > fixture.goals.away) return apiHomeTeamId;
+    if (fixture.goals.away > fixture.goals.home) return apiAwayTeamId;
   }
 
   return null;
@@ -451,21 +496,26 @@ async function runSync(
   let checked = 0;
   let updated = 0;
   let skipped = 0;
-  const updatedMatches: { match: SyncableMatch; fixture: ApiFootballFixture }[] = [];
+  const updatedMatches: {
+    match: SyncableMatch;
+    fixture: ApiFootballFixture;
+    swapped: boolean;
+  }[] = [];
 
   for (const [date, matches] of byDate) {
     const fixtures = await fetchFixturesByDate(date);
 
     for (const match of matches) {
       checked += 1;
-      const fixture = findFixture(match, fixtures);
-      if (!fixture) {
+      const found = findFixture(match, fixtures);
+      if (!found) {
         skipped += 1;
         messages.push(
           `Sin equivalencia API para partido ${match.match_number ?? match.id}.`,
         );
         continue;
       }
+      const { fixture, swapped } = found;
 
       if (!FINISHED_STATUS.has(fixture.fixture.status.short)) {
         skipped += 1;
@@ -485,14 +535,20 @@ async function runSync(
 
       const homeTeam = getTeam(match.home_team);
       const awayTeam = getTeam(match.away_team);
-      const winnerTeamId = getWinnerTeamId(match, fixture);
+      // Orientamos el marcador a nuestro orden local/visitante.
+      const homeScore = swapped ? fixture.goals.away : fixture.goals.home;
+      const awayScore = swapped ? fixture.goals.home : fixture.goals.away;
+      // El equipo de la API que corresponde a cada lado nuestro.
+      const apiTeamForHome = swapped ? fixture.teams.away : fixture.teams.home;
+      const apiTeamForAway = swapped ? fixture.teams.home : fixture.teams.away;
+      const winnerTeamId = getWinnerTeamId(match, fixture, swapped);
       const { error: updateError } = await supabase
         .from("matches")
         .update({
           api_football_fixture_id: fixture.fixture.id,
           api_football_last_sync_at: now.toISOString(),
-          away_score: fixture.goals.away,
-          home_score: fixture.goals.home,
+          away_score: awayScore,
+          home_score: homeScore,
           is_finished: true,
           winner_team_id: winnerTeamId,
         })
@@ -511,23 +567,23 @@ async function runSync(
         homeTeam
           ? supabase
               .from("teams")
-              .update({ api_football_team_id: fixture.teams.home.id })
+              .update({ api_football_team_id: apiTeamForHome.id })
               .eq("id", homeTeam.id)
               .is("api_football_team_id", null)
           : Promise.resolve(),
         awayTeam
           ? supabase
               .from("teams")
-              .update({ api_football_team_id: fixture.teams.away.id })
+              .update({ api_football_team_id: apiTeamForAway.id })
               .eq("id", awayTeam.id)
               .is("api_football_team_id", null)
           : Promise.resolve(),
       ]);
 
       updated += 1;
-      updatedMatches.push({ match, fixture });
+      updatedMatches.push({ match, fixture, swapped });
       messages.push(
-        `Actualizado partido ${match.match_number ?? match.id}: ${fixture.goals.home}-${fixture.goals.away}.`,
+        `Actualizado partido ${match.match_number ?? match.id}: ${homeScore}-${awayScore}.`,
       );
     }
   }
@@ -575,7 +631,11 @@ function suggestionRow(draft: ScorerSuggestionDraft, status: string, playerId: s
 // maxima confianza se aplican solos; el resto queda como sugerencia para el admin.
 async function syncScorerSuggestions(
   supabase: SupabaseClient,
-  updatedMatches: { match: SyncableMatch; fixture: ApiFootballFixture }[],
+  updatedMatches: {
+    match: SyncableMatch;
+    fixture: ApiFootballFixture;
+    swapped: boolean;
+  }[],
   messages: string[],
 ): Promise<{ pending: number; applied: number }> {
   let pending = 0;
@@ -590,7 +650,7 @@ async function syncScorerSuggestions(
     return { pending, applied };
   }
 
-  for (const { match, fixture } of updatedMatches) {
+  for (const { match, fixture, swapped } of updatedMatches) {
     const homeTeam = getTeam(match.home_team);
     const awayTeam = getTeam(match.away_team);
     const teamIds = [match.home_team_id, match.away_team_id].filter(
@@ -629,9 +689,13 @@ async function syncScorerSuggestions(
       continue;
     }
 
+    // Asocia cada equipo de la API con nuestro equipo, respetando el orden real
+    // (la API puede tener local/visitante invertidos respecto a nosotros).
+    const apiTeamForHome = swapped ? fixture.teams.away : fixture.teams.home;
+    const apiTeamForAway = swapped ? fixture.teams.home : fixture.teams.away;
     const teamIdByApiTeamId = new Map<number, string>();
-    if (homeTeam) teamIdByApiTeamId.set(fixture.teams.home.id, homeTeam.id);
-    if (awayTeam) teamIdByApiTeamId.set(fixture.teams.away.id, awayTeam.id);
+    if (homeTeam) teamIdByApiTeamId.set(apiTeamForHome.id, homeTeam.id);
+    if (awayTeam) teamIdByApiTeamId.set(apiTeamForAway.id, awayTeam.id);
 
     // Solo nos quedamos con goles que casan con un jugador elegido. Lo demas
     // (jugadores no elegidos, goles en propia) no afecta a la porra: se ignora.

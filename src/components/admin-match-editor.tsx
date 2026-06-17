@@ -314,7 +314,7 @@ export function AdminMatchEditor({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-3">
-        <button className="btn-primary disabled:cursor-not-allowed disabled:opacity-50" disabled={!hasRequiredScorers}>
+        <button className="btn-primary">
           Guardar resultado y goleadores
         </button>
         <button type="submit" formAction={clearAdminMatchBundleAction} className="btn-secondary">
@@ -322,7 +322,7 @@ export function AdminMatchEditor({
         </button>
         {!hasRequiredScorers ? (
           <span className="self-center text-sm text-amber-100">
-            Selecciona un goleador por cada gol cuando haya candidatos elegidos por usuarios.
+            Quedan goles sin goleador asignado. Puedes guardar igualmente; los podrás completar después.
           </span>
         ) : null}
       </div>
