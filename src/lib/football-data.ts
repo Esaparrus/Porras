@@ -235,23 +235,46 @@ async function syncScorerTotals(supabase: SupabaseClient, messages: string[]): P
   return changed;
 }
 
-function findMatch(match: SyncableMatch, fixtures: FootballDataMatch[]) {
+// Empareja por TLA (codigo FIFA) sin importar el orden: football-data puede
+// listar local/visitante al reves que nosotros. `swapped` indica que su local
+// es nuestro visitante, para orientar marcador y ganador.
+type FootballDataFixtureMatch = { fixture: FootballDataMatch; swapped: boolean };
+
+function findMatch(
+  match: SyncableMatch,
+  fixtures: FootballDataMatch[],
+): FootballDataFixtureMatch | null {
   const homeTeam = getTeam(match.home_team);
   const awayTeam = getTeam(match.away_team);
   if (!homeTeam || !awayTeam) return null;
 
-  return (
-    fixtures.find(
-      (fixture) =>
-        fixture.homeTeam.tla === homeTeam.short_name &&
-        fixture.awayTeam.tla === awayTeam.short_name,
-    ) ?? null
+  const direct = fixtures.find(
+    (fixture) =>
+      fixture.homeTeam.tla === homeTeam.short_name &&
+      fixture.awayTeam.tla === awayTeam.short_name,
   );
+  if (direct) return { fixture: direct, swapped: false };
+
+  const reversed = fixtures.find(
+    (fixture) =>
+      fixture.homeTeam.tla === awayTeam.short_name &&
+      fixture.awayTeam.tla === homeTeam.short_name,
+  );
+  if (reversed) return { fixture: reversed, swapped: true };
+
+  return null;
 }
 
-function getWinnerTeamId(match: SyncableMatch, fixture: FootballDataMatch) {
-  if (fixture.score.winner === "HOME_TEAM") return match.home_team_id;
-  if (fixture.score.winner === "AWAY_TEAM") return match.away_team_id;
+function getWinnerTeamId(
+  match: SyncableMatch,
+  fixture: FootballDataMatch,
+  swapped: boolean,
+) {
+  // El local de football-data es nuestro local salvo que el orden este invertido.
+  const apiHomeTeamId = swapped ? match.away_team_id : match.home_team_id;
+  const apiAwayTeamId = swapped ? match.home_team_id : match.away_team_id;
+  if (fixture.score.winner === "HOME_TEAM") return apiHomeTeamId;
+  if (fixture.score.winner === "AWAY_TEAM") return apiAwayTeamId;
   return null;
 }
 
@@ -346,13 +369,14 @@ async function runSync(
 
   for (const match of candidates) {
     checked += 1;
-    const fixture = findMatch(match, fixtures);
+    const found = findMatch(match, fixtures);
 
-    if (!fixture) {
+    if (!found) {
       skipped += 1;
       messages.push(`Sin equivalencia en football-data para partido ${match.match_number ?? match.id}.`);
       continue;
     }
+    const { fixture, swapped } = found;
 
     if (!FINISHED_STATUS.has(fixture.status)) {
       skipped += 1;
@@ -368,13 +392,17 @@ async function runSync(
       continue;
     }
 
+    // Orientamos el marcador a nuestro orden local/visitante.
+    const homeScore = swapped ? fixture.score.fullTime.away : fixture.score.fullTime.home;
+    const awayScore = swapped ? fixture.score.fullTime.home : fixture.score.fullTime.away;
+
     const { error: updateError } = await supabase
       .from("matches")
       .update({
-        away_score: fixture.score.fullTime.away,
-        home_score: fixture.score.fullTime.home,
+        away_score: awayScore,
+        home_score: homeScore,
         is_finished: true,
-        winner_team_id: getWinnerTeamId(match, fixture),
+        winner_team_id: getWinnerTeamId(match, fixture, swapped),
       })
       .eq("id", match.id)
       .eq("is_finished", false);
@@ -389,7 +417,7 @@ async function runSync(
 
     updated += 1;
     messages.push(
-      `Actualizado partido ${match.match_number ?? match.id}: ${fixture.score.fullTime.home}-${fixture.score.fullTime.away}.`,
+      `Actualizado partido ${match.match_number ?? match.id}: ${homeScore}-${awayScore}.`,
     );
   }
 
