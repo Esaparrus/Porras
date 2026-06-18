@@ -1,4 +1,5 @@
 import { UserLayout } from "@/components/layouts";
+import { RankingShareButton, type ShareRow } from "@/components/ranking-share";
 import { RankingTable } from "@/components/ui";
 import {
   calculateLeaguePointProgress,
@@ -92,8 +93,29 @@ export default async function LeagueRankingPage({
     score,
   }));
 
+  const shareRows: ShareRow[] = rows.map((row, index) => ({
+    position: index + 1,
+    name: row.displayName,
+    avatarEmoji: row.avatarEmoji,
+    points: row.score.total_points,
+    prize: row.prize,
+    paid: row.paymentStatus === "paid",
+  }));
+
   return (
     <UserLayout leagueId={leagueId}>
+      <div className="mb-4 flex justify-end">
+        <RankingShareButton
+          leagueName={league?.name ?? "Clasificacion"}
+          rows={shareRows}
+          progress={{
+            pointsPercentage: progress.progressPercentage,
+            remainingPoints: progress.remainingPoints,
+            finishedMatches,
+            totalMatches,
+          }}
+        />
+      </div>
       <RankingTable
         leagueId={leagueId}
         rows={rows}
