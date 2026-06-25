@@ -15,7 +15,7 @@ import {
 } from "@/lib/knockout-bracket";
 import {
   calculateBestThirdPlacedTeams,
-  calculateGroupPredictionPoints,
+  calculateGroupTeamPointsBreakdown,
   calculateLiveKnockoutMatchPoints,
   calculateMatchPredictionPoints,
   calculatePredictedGroupStandings,
@@ -279,36 +279,26 @@ export default async function PlayerDetailPage({
     const realStandings = isCompleted
       ? calculateRealGroupStandings(teamRows, matchRows, letter)
       : [];
-    const points = isCompleted
-      ? calculateGroupPredictionPoints(
-          [predictedStandings],
-          [realStandings],
-          settings,
-          [true],
-          new Set(),
-        )
-      : 0;
+    const teamBreakdown = calculateGroupTeamPointsBreakdown(
+      predictedStandings,
+      realStandings,
+      settings,
+    );
     const teamPoints: Record<string, number> = {};
-    if (isCompleted && realStandings.length > 0) {
-      const realIndexById = new Map(realStandings.map((row, i) => [row.team.id, i]));
-      predictedStandings.forEach((row, predictedIndex) => {
-        const realIndex = realIndexById.get(row.team.id);
-        let pts = 0;
-        if (realIndex !== undefined) {
-          if (predictedIndex === realIndex) pts += settings.group_exact_position_points;
-          if (predictedIndex <= 1 && realIndex <= 1) pts += settings.group_qualified_team_points;
-          if (predictedIndex === 0 && realIndex === 0) pts += settings.group_winner_bonus_points;
-        }
-        teamPoints[row.team.id] = pts;
-      });
+    let points = 0;
+    for (const [teamId, breakdown] of Object.entries(teamBreakdown)) {
+      teamPoints[teamId] = breakdown.total;
+      points += breakdown.total;
     }
     return {
       letter,
       standings: predictedStandings,
+      realStandings,
       matches: groupMatches.filter((match) => match.groupLetter === letter),
       isCompleted,
       points,
       teamPoints,
+      teamBreakdown,
     };
   });
 

@@ -235,6 +235,53 @@ export function calculateGroupPredictionPoints(
   return points;
 }
 
+export type GroupTeamPointsBreakdown = {
+  exact: number; // acerto la posicion exacta del equipo
+  qualified: number; // el equipo termina entre los 2 primeros (clasificado)
+  winner: number; // bonus por acertar el 1o del grupo
+  total: number;
+};
+
+// Desglosa, equipo a equipo, de donde salen los puntos de grupo de un usuario
+// (posicion exacta, clasificado, lider). Sirve para la leyenda explicativa de la
+// vista de apuestas. Solo tiene sentido con el grupo terminado (real completa).
+export function calculateGroupTeamPointsBreakdown(
+  predictedStandings: StandingRow[],
+  realStandings: StandingRow[],
+  settings: Pick<
+    PointSettings,
+    | "group_exact_position_points"
+    | "group_qualified_team_points"
+    | "group_winner_bonus_points"
+  >,
+): Record<string, GroupTeamPointsBreakdown> {
+  const result: Record<string, GroupTeamPointsBreakdown> = {};
+  if (!realStandings.length) return result;
+
+  const realIndexById = new Map(
+    realStandings.map((row, index) => [row.team.id, index]),
+  );
+
+  predictedStandings.forEach((row, predictedIndex) => {
+    const realIndex = realIndexById.get(row.team.id);
+    let exact = 0;
+    let qualified = 0;
+    let winner = 0;
+    if (realIndex !== undefined) {
+      if (predictedIndex === realIndex) exact = settings.group_exact_position_points;
+      if (predictedIndex <= 1 && realIndex <= 1) {
+        qualified = settings.group_qualified_team_points;
+      }
+      if (predictedIndex === 0 && realIndex === 0) {
+        winner = settings.group_winner_bonus_points;
+      }
+    }
+    result[row.team.id] = { exact, qualified, winner, total: exact + qualified + winner };
+  });
+
+  return result;
+}
+
 export function calculateKnockoutPredictionPoints(
   predictions: Array<{ round: string; team_id: string }>,
   reached: Array<{ round: string; team_id: string }>,

@@ -38,13 +38,22 @@ type ScorerBet = {
   points: number;
 };
 
+type GroupTeamBreakdown = {
+  exact: number;
+  qualified: number;
+  winner: number;
+  total: number;
+};
+
 type Group = {
   letter: string;
   standings: StandingRow[];
+  realStandings: StandingRow[];
   matches: BetMatch[];
   isCompleted: boolean;
   points: number;
   teamPoints: Record<string, number>;
+  teamBreakdown: Record<string, GroupTeamBreakdown>;
 };
 
 type KnockoutRound = {
@@ -219,16 +228,35 @@ function GroupsTab({ groups, groupMatches }: { groups: Group[]; groupMatches: Be
                   </span>
                 )}
               </div>
-              <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-                <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-[#27e7ff]">
-                  Clasificación que prevé
+              {group.isCompleted ? (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border border-white/10 bg-black/30 p-3">
+                      <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-[#27e7ff]">
+                        Tu apuesta
+                      </div>
+                      <GroupStandingTable
+                        rows={group.standings}
+                        teamPoints={group.teamPoints}
+                      />
+                    </div>
+                    <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3">
+                      <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-emerald-300">
+                        Cómo acabó de verdad
+                      </div>
+                      <GroupStandingTable rows={group.realStandings} />
+                    </div>
+                  </div>
+                  <GroupPointsLegend group={group} />
+                </>
+              ) : (
+                <div className="rounded-xl border border-white/10 bg-black/30 p-3">
+                  <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-[#27e7ff]">
+                    Clasificación que prevé
+                  </div>
+                  <GroupStandingTable rows={group.standings} showBestThirdBadge />
                 </div>
-                <GroupStandingTable
-                  rows={group.standings}
-                  showBestThirdBadge={!group.isCompleted}
-                  teamPoints={group.isCompleted ? group.teamPoints : undefined}
-                />
-              </div>
+              )}
               <div className="mt-3 grid gap-2">
                 {group.matches.map((match) => (
                   <BetMatchCard key={match.id} match={match} />
@@ -257,6 +285,57 @@ function GroupsTab({ groups, groupMatches }: { groups: Group[]; groupMatches: Be
         </div>
       )}
     </section>
+  );
+}
+
+// Mini leyenda que explica, equipo a equipo, de dónde salen los puntos del grupo
+// (posición exacta, clasificado, líder), para que se entienda por qué uno suma 3,
+// otro 5 y otro 8.
+function GroupPointsLegend({ group }: { group: Group }) {
+  const scored = group.standings.filter(
+    (row) => (group.teamBreakdown[row.team.id]?.total ?? 0) > 0,
+  );
+
+  if (!scored.length) {
+    return (
+      <p className="mt-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-slate-400">
+        No has sumado puntos en este grupo: ningún equipo coincide en posición ni
+        clasificación con el resultado real.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
+      <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-300">
+        De dónde salen tus puntos
+      </div>
+      <ul className="space-y-1.5">
+        {scored.map((row) => {
+          const breakdown = group.teamBreakdown[row.team.id];
+          const parts: string[] = [];
+          if (breakdown?.exact) parts.push(`orden exacto +${breakdown.exact}`);
+          if (breakdown?.qualified) parts.push(`clasificado +${breakdown.qualified}`);
+          if (breakdown?.winner) parts.push(`líder de grupo +${breakdown.winner}`);
+          return (
+            <li
+              key={row.team.id}
+              className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]"
+            >
+              <TeamBadge team={row.team} />
+              <span className="rounded-full bg-emerald-400/15 px-1.5 py-0.5 font-black tabular-nums text-emerald-300">
+                +{breakdown?.total ?? 0}
+              </span>
+              <span className="text-slate-400">{parts.join(" · ")}</span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-2 text-[10px] leading-snug text-slate-500">
+        Orden exacto = acertaste su posición final. Clasificado = termina entre los
+        2 primeros.
+      </p>
+    </div>
   );
 }
 
