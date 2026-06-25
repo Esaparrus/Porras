@@ -44,6 +44,7 @@ type Group = {
   matches: BetMatch[];
   isCompleted: boolean;
   points: number;
+  teamPoints: Record<string, number>;
 };
 
 type KnockoutRound = {
@@ -222,7 +223,11 @@ function GroupsTab({ groups, groupMatches }: { groups: Group[]; groupMatches: Be
                 <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-[#27e7ff]">
                   Clasificación que prevé
                 </div>
-                <GroupStandingTable rows={group.standings} showBestThirdBadge={!group.isCompleted} />
+                <GroupStandingTable
+                  rows={group.standings}
+                  showBestThirdBadge={!group.isCompleted}
+                  teamPoints={group.isCompleted ? group.teamPoints : undefined}
+                />
               </div>
               <div className="mt-3 grid gap-2">
                 {group.matches.map((match) => (

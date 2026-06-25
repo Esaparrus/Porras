@@ -594,9 +594,11 @@ export function RankingTable({
 export function GroupStandingTable({
   rows,
   showBestThirdBadge,
+  teamPoints,
 }: {
   rows: StandingRow[];
   showBestThirdBadge?: boolean;
+  teamPoints?: Record<string, number>;
 }) {
   return (
     <table className="w-full text-sm">
@@ -610,27 +612,42 @@ export function GroupStandingTable({
         </tr>
       </thead>
       <tbody>
-        {rows.map((row, index) => (
-          <tr key={row.team.id} className="border-t border-white/10">
-            <td className="py-2">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#ff2bd6] px-2 text-[11px] font-black text-[#08111f]">
-                  {index + 1}
-                </span>
-                <TeamBadge team={row.team} />
-                {showBestThirdBadge && index === 2 && (
-                  <span className="ml-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-slate-400">
-                    PD
+        {rows.map((row, index) => {
+          const earned = teamPoints?.[row.team.id];
+          return (
+            <tr key={row.team.id} className="border-t border-white/10">
+              <td className="py-2">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#ff2bd6] px-2 text-[11px] font-black text-[#08111f]">
+                    {index + 1}
                   </span>
-                )}
-              </div>
-            </td>
-            <td className="text-center">{row.points}</td>
-            <td className="text-center">{row.goalsFor}</td>
-            <td className="text-center">{row.goalsAgainst}</td>
-            <td className="text-center">{row.goalDifference}</td>
-          </tr>
-        ))}
+                  <TeamBadge team={row.team} />
+                  {showBestThirdBadge && index === 2 && (
+                    <span className="ml-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-slate-400">
+                      PD
+                    </span>
+                  )}
+                  {earned != null && (
+                    <span
+                      className={cn(
+                        "ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-black tabular-nums",
+                        earned > 0
+                          ? "bg-emerald-400/15 text-emerald-300"
+                          : "bg-white/5 text-slate-500",
+                      )}
+                    >
+                      {earned > 0 ? `+${earned}` : "0"}
+                    </span>
+                  )}
+                </div>
+              </td>
+              <td className="text-center">{row.points}</td>
+              <td className="text-center">{row.goalsFor}</td>
+              <td className="text-center">{row.goalsAgainst}</td>
+              <td className="text-center">{row.goalDifference}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
