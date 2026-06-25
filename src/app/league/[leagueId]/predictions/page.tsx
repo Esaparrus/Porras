@@ -336,6 +336,7 @@ export default async function PredictionsPage({
         scorerMaxPoints={settings.scorer_max_points}
         resultsStarted={resultsStarted}
         awards={awards}
+        bestThirdPoints={settings.best_third_team_points}
       />
 
       {!locked && (

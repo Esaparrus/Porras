@@ -85,6 +85,7 @@ export function PlayerBetsView({
   scorerMaxPoints,
   resultsStarted,
   awards,
+  bestThirdPoints = 0,
 }: {
   displayName: string;
   avatarEmoji: string | null;
@@ -97,6 +98,7 @@ export function PlayerBetsView({
   scorerMaxPoints: number;
   resultsStarted: boolean;
   awards: Awards;
+  bestThirdPoints?: number;
 }) {
   const [tab, setTab] = useState<Tab>("grupos");
 
@@ -168,7 +170,11 @@ export function PlayerBetsView({
       </nav>
 
       {tab === "grupos" ? (
-        <GroupsTab groups={groups} groupMatches={groupMatches} />
+        <GroupsTab
+          groups={groups}
+          groupMatches={groupMatches}
+          bestThirdPoints={bestThirdPoints}
+        />
       ) : null}
       {tab === "eliminatorias" ? (
         <KnockoutTab rounds={knockoutRounds} champion={champion} />
@@ -185,8 +191,21 @@ export function PlayerBetsView({
   );
 }
 
-function GroupsTab({ groups, groupMatches }: { groups: Group[]; groupMatches: BetMatch[] }) {
+function GroupsTab({
+  groups,
+  groupMatches,
+  bestThirdPoints,
+}: {
+  groups: Group[];
+  groupMatches: BetMatch[];
+  bestThirdPoints: number;
+}) {
   const [mode, setMode] = useState<"grupos" | "fecha">("grupos");
+
+  // Los puntos por mejores terceros solo se reparten cuando han terminado TODOS
+  // los grupos (hay que comparar los 12 terceros entre sí).
+  const allGroupsCompleted = groups.length > 0 && groups.every((group) => group.isCompleted);
+  const thirdsPending = !allGroupsCompleted && bestThirdPoints > 0;
 
   const byDate = useMemo(() => groupMatchesByDay(groupMatches), [groupMatches]);
 
@@ -247,7 +266,11 @@ function GroupsTab({ groups, groupMatches }: { groups: Group[]; groupMatches: Be
                       <GroupStandingTable rows={group.realStandings} />
                     </div>
                   </div>
-                  <GroupPointsLegend group={group} />
+                  <GroupPointsLegend
+                    group={group}
+                    thirdsPending={thirdsPending}
+                    bestThirdPoints={bestThirdPoints}
+                  />
                 </>
               ) : (
                 <div className="rounded-xl border border-white/10 bg-black/30 p-3">
@@ -290,51 +313,68 @@ function GroupsTab({ groups, groupMatches }: { groups: Group[]; groupMatches: Be
 
 // Mini leyenda que explica, equipo a equipo, de dónde salen los puntos del grupo
 // (posición exacta, clasificado, líder), para que se entienda por qué uno suma 3,
-// otro 5 y otro 8.
-function GroupPointsLegend({ group }: { group: Group }) {
+// otro 5 y otro 8. Avisa también de los puntos de terceros aún por repartir.
+function GroupPointsLegend({
+  group,
+  thirdsPending,
+  bestThirdPoints,
+}: {
+  group: Group;
+  thirdsPending: boolean;
+  bestThirdPoints: number;
+}) {
   const scored = group.standings.filter(
     (row) => (group.teamBreakdown[row.team.id]?.total ?? 0) > 0,
   );
 
-  if (!scored.length) {
-    return (
-      <p className="mt-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-slate-400">
-        No has sumado puntos en este grupo: ningún equipo coincide en posición ni
-        clasificación con el resultado real.
-      </p>
-    );
-  }
+  const pendingNote = thirdsPending ? (
+    <p className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[11px] leading-snug text-amber-200">
+      ⏳ Aún quedan puntos por repartir: los 8 mejores terceros de todos los grupos
+      suman +{bestThirdPoints} cada uno. Quién pasa como tercero no se sabe hasta que
+      terminen todos los grupos.
+    </p>
+  ) : null;
 
   return (
-    <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
-      <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-300">
-        De dónde salen tus puntos
-      </div>
-      <ul className="space-y-1.5">
-        {scored.map((row) => {
-          const breakdown = group.teamBreakdown[row.team.id];
-          const parts: string[] = [];
-          if (breakdown?.exact) parts.push(`orden exacto +${breakdown.exact}`);
-          if (breakdown?.qualified) parts.push(`clasificado +${breakdown.qualified}`);
-          if (breakdown?.winner) parts.push(`líder de grupo +${breakdown.winner}`);
-          return (
-            <li
-              key={row.team.id}
-              className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]"
-            >
-              <TeamBadge team={row.team} />
-              <span className="rounded-full bg-emerald-400/15 px-1.5 py-0.5 font-black tabular-nums text-emerald-300">
-                +{breakdown?.total ?? 0}
-              </span>
-              <span className="text-slate-400">{parts.join(" · ")}</span>
-            </li>
-          );
-        })}
-      </ul>
-      <p className="mt-2 text-[10px] leading-snug text-slate-500">
-        Orden exacto = acertaste su posición final. Clasificado = termina entre los
-        2 primeros.
-      </p>
+    <div className="mt-3 space-y-2">
+      {scored.length ? (
+        <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+          <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-300">
+            De dónde salen tus puntos
+          </div>
+          <ul className="space-y-1.5">
+            {scored.map((row) => {
+              const breakdown = group.teamBreakdown[row.team.id];
+              const parts: string[] = [];
+              if (breakdown?.exact) parts.push(`orden exacto +${breakdown.exact}`);
+              if (breakdown?.qualified) parts.push(`clasificado +${breakdown.qualified}`);
+              if (breakdown?.winner) parts.push(`líder de grupo +${breakdown.winner}`);
+              return (
+                <li
+                  key={row.team.id}
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]"
+                >
+                  <TeamBadge team={row.team} />
+                  <span className="rounded-full bg-emerald-400/15 px-1.5 py-0.5 font-black tabular-nums text-emerald-300">
+                    +{breakdown?.total ?? 0}
+                  </span>
+                  <span className="text-slate-400">{parts.join(" · ")}</span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-2 text-[10px] leading-snug text-slate-500">
+            Orden exacto = acertaste su posición final. Clasificado = termina entre
+            los 2 primeros.
+          </p>
+        </div>
+      ) : (
+        <p className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-slate-400">
+          No has sumado puntos por posiciones en este grupo: ningún equipo coincide
+          en posición ni clasificación con el resultado real.
+        </p>
+      )}
+      {pendingNote}
     </div>
   );
 }

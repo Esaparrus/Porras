@@ -336,6 +336,7 @@ export default async function PlayerDetailPage({
         scorerMaxPoints={scorerMaxPoints}
         resultsStarted={resultsStarted}
         awards={awards}
+        bestThirdPoints={settings.best_third_team_points}
       />
     </UserLayout>
   );
