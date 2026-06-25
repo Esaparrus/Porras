@@ -313,7 +313,7 @@ export default async function PredictionsPage({
   const manualRequests = new Map(
     ((requestRows ?? []) as PlayerSelectionRequest[]).map((r) => [r.field_key, r]),
   );
-  const scorerByIndex = (scorerPredictions ?? []) as Array<{ player_id: string; is_captain?: boolean }>;
+  const scorerByIndex = (scorerPredictions ?? []) as Array<{ player_id: string }>;
   const displayName = profile?.display_name || profile?.username || "Mis apuestas";
   const avatarEmoji = profile?.avatar_emoji ?? null;
 
@@ -366,15 +366,6 @@ export default async function PredictionsPage({
                 scorerByIndex[2]?.player_id,
               ]}
             />
-            <label className="mt-4 block">
-              <span className="label">Capitán</span>
-              <PlayerPicker
-                name="captain_id"
-                players={players ?? []}
-                teams={teamRows}
-                defaultValue={scorerByIndex.find((row) => row.is_captain)?.player_id}
-              />
-            </label>
             <button className="btn-primary mt-5 w-full">Guardar goleadores</button>
           </form>
         </section>
