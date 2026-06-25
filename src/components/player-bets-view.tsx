@@ -42,6 +42,8 @@ type Group = {
   letter: string;
   standings: StandingRow[];
   matches: BetMatch[];
+  isCompleted: boolean;
+  points: number;
 };
 
 type KnockoutRound = {
@@ -199,15 +201,28 @@ function GroupsTab({ groups, groupMatches }: { groups: Group[]; groupMatches: Be
             <div key={group.letter} className={cn(PANEL, "p-4")}>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h2 className="text-lg font-black">Grupo {group.letter}</h2>
-                <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-slate-300">
-                  {group.matches.length} partidos
-                </span>
+                {group.isCompleted ? (
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-full px-3 py-1 text-[11px] font-black tabular-nums",
+                      group.points > 0
+                        ? "bg-emerald-400/15 text-emerald-200"
+                        : "bg-white/5 text-slate-500",
+                    )}
+                  >
+                    {group.points > 0 ? `+${group.points}` : "0"} pts
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-slate-300">
+                    {group.matches.length} partidos
+                  </span>
+                )}
               </div>
               <div className="rounded-xl border border-white/10 bg-black/30 p-3">
                 <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-[#27e7ff]">
                   Clasificación que prevé
                 </div>
-                <GroupStandingTable rows={group.standings} />
+                <GroupStandingTable rows={group.standings} showBestThirdBadge={!group.isCompleted} />
               </div>
               <div className="mt-3 grid gap-2">
                 {group.matches.map((match) => (
