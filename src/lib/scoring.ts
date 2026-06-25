@@ -562,44 +562,68 @@ type PlayedMatchRow = {
   is_finished?: boolean;
 };
 
-// Desempate FIFA (Mundial): primero criterios globales (diferencia de goles y
-// goles a favor) y solo despues el enfrentamiento directo entre los empatados.
+// Desempate FIFA (Mundial 2026): igualados a puntos, primero manda el
+// ENFRENTAMIENTO DIRECTO entre los implicados (puntos, diferencia y goles de
+// esos partidos) y solo si eso no separa se mira el global. Es el cambio clave
+// frente a Mundiales anteriores, donde la diferencia global iba antes.
 function sortStandingRows(
   rows: StandingRow[],
   playedMatches: PlayedMatchRow[],
   collectUnresolvedTie?: TiebreakCollector,
 ) {
-  const ordered = rows.slice().sort(compareOverallRows);
+  const ordered = rows.slice().sort(comparePoints);
 
-  return splitStandingGroups(ordered, compareOverallRows).flatMap((group) =>
+  return splitStandingGroups(ordered, comparePoints).flatMap((group) =>
     group.length > 1
-      ? breakTieGroup(group, playedMatches, collectUnresolvedTie)
+      ? rankTiedTeams(group, playedMatches, collectUnresolvedTie)
       : group,
   );
 }
 
-// Equipos empatados en puntos + diferencia de goles + goles a favor.
-// Se aplica el enfrentamiento directo y, si no separa, fair play / desempate manual.
-function breakTieGroup(
+// Equipos igualados a puntos. Orden FIFA 2026:
+//   1) enfrentamiento directo (puntos > diferencia > goles entre ellos)
+//   2) diferencia de goles global, goles global
+//   3) fair play y, si tampoco separa, orden oficial / desempate manual
+// Cada paso que separa parcialmente reaplica el procedimiento al subgrupo que
+// siga empatado (con su mini-tabla recalculada), tal y como exige la FIFA.
+function rankTiedTeams(
   tiedRows: StandingRow[],
   playedMatches: PlayedMatchRow[],
   collectUnresolvedTie?: TiebreakCollector,
 ): StandingRow[] {
-  const headToHeadRows = buildHeadToHeadTable(tiedRows, playedMatches);
-  const compare = (left: StandingRow, right: StandingRow) =>
-    compareHeadToHeadRows(left, right, headToHeadRows);
-  const ordered = tiedRows.slice().sort(compare);
-  const groups = splitStandingGroups(ordered, compare);
+  if (tiedRows.length <= 1) return tiedRows;
 
-  if (groups.length > 1) {
-    return groups.flatMap((group) =>
+  // Paso 1: enfrentamiento directo entre exactamente estos equipos.
+  const headToHeadRows = buildHeadToHeadTable(tiedRows, playedMatches);
+  const compareH2H = (left: StandingRow, right: StandingRow) =>
+    compareHeadToHeadRows(left, right, headToHeadRows);
+  const byHeadToHead = splitStandingGroups(
+    tiedRows.slice().sort(compareH2H),
+    compareH2H,
+  );
+  if (byHeadToHead.length > 1) {
+    return byHeadToHead.flatMap((group) =>
       group.length > 1
-        ? breakTieGroup(group, playedMatches, collectUnresolvedTie)
+        ? rankTiedTeams(group, playedMatches, collectUnresolvedTie)
         : group,
     );
   }
 
-  // El enfrentamiento directo no separa: queda fair play y, si tampoco, desempate manual.
+  // Paso 2: el directo no separa a nadie; pasa la diferencia y los goles globales.
+  const byOverall = splitStandingGroups(
+    tiedRows.slice().sort(compareOverallGoals),
+    compareOverallGoals,
+  );
+  if (byOverall.length > 1) {
+    return byOverall.flatMap((group) =>
+      group.length > 1
+        ? rankTiedTeams(group, playedMatches, collectUnresolvedTie)
+        : group,
+    );
+  }
+
+  // Paso 3: ni directo ni global separan: queda fair play y, si tampoco,
+  // el orden oficial (manual_order sincronizado de la API) o desempate manual.
   return resolveResidualTie(tiedRows, collectUnresolvedTie);
 }
 
@@ -639,9 +663,14 @@ function buildHeadToHeadTable(
   );
 }
 
-function compareOverallRows(left: StandingRow, right: StandingRow) {
+// Solo puntos: separa los bloques iniciales de igualados a puntos.
+function comparePoints(left: StandingRow, right: StandingRow) {
+  return right.points - left.points;
+}
+
+// Criterios globales (paso 2): diferencia de goles y goles a favor de todo el grupo.
+function compareOverallGoals(left: StandingRow, right: StandingRow) {
   return (
-    right.points - left.points ||
     right.goalDifference - left.goalDifference ||
     right.goalsFor - left.goalsFor
   );
