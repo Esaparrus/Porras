@@ -41,6 +41,18 @@ type FootballDataScorer = {
   goals: number | null;
 };
 
+type FootballDataStandingEntry = {
+  position: number;
+  team: { tla: string | null };
+};
+
+type FootballDataStandingGroup = {
+  stage: string;
+  type: string;
+  group: string | null;
+  table: FootballDataStandingEntry[];
+};
+
 type PickedPlayer = {
   id: string;
   name: string;
@@ -302,6 +314,90 @@ async function writeSyncLog(
     );
 }
 
+async function fetchCompetitionStandings() {
+  const { token, baseUrl, competition } = getConfig();
+  const response = await fetch(`${baseUrl}/competitions/${competition}/standings`, {
+    cache: "no-store",
+    headers: { "X-Auth-Token": token },
+  });
+
+  if (!response.ok) {
+    throw new Error(`football-data standings respondio ${response.status}.`);
+  }
+
+  const payload = (await response.json()) as { standings?: FootballDataStandingGroup[] };
+  return (payload.standings ?? []).filter((s) => s.type === "TOTAL" && s.group);
+}
+
+// Sincroniza el orden oficial de los grupos completos desde la API y lo guarda
+// en teams.manual_order. Solo actua sobre grupos donde todos los partidos estan
+// terminados; en grupos abiertos los desempates automaticos son suficientes.
+async function syncCompletedGroupOrder(
+  supabase: SupabaseClient,
+  messages: string[],
+): Promise<number> {
+  // Determina qué grupos tienen TODOS sus partidos terminados.
+  const { data: groupMatchRows } = await supabase
+    .from("matches")
+    .select("group_letter, is_finished")
+    .eq("stage", "group")
+    .not("group_letter", "is", null);
+
+  const matchesByGroup = new Map<string, Array<{ is_finished: boolean }>>();
+  for (const row of groupMatchRows ?? []) {
+    const letter = row.group_letter as string;
+    const list = matchesByGroup.get(letter) ?? [];
+    list.push({ is_finished: row.is_finished as boolean });
+    matchesByGroup.set(letter, list);
+  }
+
+  const completedGroups = new Set<string>();
+  for (const [letter, gMatches] of matchesByGroup) {
+    if (gMatches.length > 0 && gMatches.every((m) => m.is_finished)) {
+      completedGroups.add(letter);
+    }
+  }
+
+  if (!completedGroups.size) return 0;
+
+  // Leer equipos una sola vez.
+  const { data: teamRows } = await supabase.from("teams").select("id, short_name, group_letter");
+  const teams = (teamRows ?? []) as Array<{ id: string; short_name: string; group_letter: string | null }>;
+
+  let standings: FootballDataStandingGroup[];
+  try {
+    standings = await fetchCompetitionStandings();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "error";
+    messages.push(`Standings: no se pudieron leer (${msg}). Orden manual sin cambios.`);
+    return 0;
+  }
+
+  let updated = 0;
+  for (const standingGroup of standings) {
+    const letter = standingGroup.group?.replace(/^GROUP_/, "") ?? null;
+    if (!letter || !completedGroups.has(letter)) continue;
+
+    for (const entry of standingGroup.table) {
+      const tla = entry.team.tla;
+      if (!tla) continue;
+      const team = teams.find((t) => t.group_letter === letter && t.short_name === tla);
+      if (!team) continue;
+
+      const { error } = await supabase
+        .from("teams")
+        .update({ manual_order: entry.position })
+        .eq("id", team.id);
+
+      if (!error) updated += 1;
+    }
+
+    messages.push(`Standings grupo ${letter}: orden oficial aplicado desde API.`);
+  }
+
+  return updated;
+}
+
 export async function syncFinishedResultsFromFootballData(
   supabase: SupabaseClient,
   options: { now?: Date; source?: string } = {},
@@ -425,13 +521,17 @@ async function runSync(
   // gratis publica los goles con algo de retraso, asi que conviene reintentar).
   const scorersApplied = await syncScorerTotals(supabase, messages);
 
-  if (updated > 0) {
+  // Orden de grupos completos: sincronizamos el manual_order con la posicion
+  // oficial de la API para desempates correctos en grupos ya terminados.
+  const standingsUpdated = await syncCompletedGroupOrder(supabase, messages);
+
+  if (updated > 0 || standingsUpdated > 0) {
     await generateKnockoutFromResults(supabase);
   }
   if (scorersApplied > 0) {
     await syncLeagueGoalTotalsFromMatchScorers(supabase);
   }
-  if (updated > 0 || scorersApplied > 0) {
+  if (updated > 0 || scorersApplied > 0 || standingsUpdated > 0) {
     await recalculateAllLeagueScores();
   }
 
