@@ -591,7 +591,13 @@ export function RankingTable({
   );
 }
 
-export function GroupStandingTable({ rows }: { rows: StandingRow[] }) {
+export function GroupStandingTable({
+  rows,
+  showBestThirdBadge,
+}: {
+  rows: StandingRow[];
+  showBestThirdBadge?: boolean;
+}) {
   return (
     <table className="w-full text-sm">
       <thead className="text-xs uppercase text-slate-400">
@@ -612,6 +618,11 @@ export function GroupStandingTable({ rows }: { rows: StandingRow[] }) {
                   {index + 1}
                 </span>
                 <TeamBadge team={row.team} />
+                {showBestThirdBadge && index === 2 && (
+                  <span className="ml-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-slate-400">
+                    PD
+                  </span>
+                )}
               </div>
             </td>
             <td className="text-center">{row.points}</td>

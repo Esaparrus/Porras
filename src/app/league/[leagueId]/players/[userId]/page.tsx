@@ -15,9 +15,11 @@ import {
 } from "@/lib/knockout-bracket";
 import {
   calculateBestThirdPlacedTeams,
+  calculateGroupPredictionPoints,
   calculateLiveKnockoutMatchPoints,
   calculateMatchPredictionPoints,
   calculatePredictedGroupStandings,
+  calculateRealGroupStandings,
   withDefaultSettings,
 } from "@/lib/scoring";
 import type {
@@ -267,11 +269,34 @@ export default async function PlayerDetailPage({
     : null;
   const champion = championId ? (teamById.get(championId) ?? null) : null;
 
-  const groups = groupLetters.map((letter) => ({
-    letter,
-    standings: (standingsByGroup.get(letter) ?? []) as StandingRow[],
-    matches: groupMatches.filter((match) => match.groupLetter === letter),
-  }));
+  const groups = groupLetters.map((letter) => {
+    const groupMatchRows = matchRows.filter(
+      (match) => match.stage === "group" && match.group_letter === letter,
+    );
+    const isCompleted =
+      groupMatchRows.length > 0 && groupMatchRows.every((m) => m.is_finished);
+    const predictedStandings = (standingsByGroup.get(letter) ?? []) as StandingRow[];
+    const realStandings = isCompleted
+      ? calculateRealGroupStandings(teamRows, matchRows, letter)
+      : [];
+    const points = isCompleted
+      ? calculateGroupPredictionPoints(
+          [predictedStandings],
+          [realStandings],
+          settings,
+          [true],
+          new Set(),
+          new Set(),
+        )
+      : 0;
+    return {
+      letter,
+      standings: predictedStandings,
+      matches: groupMatches.filter((match) => match.groupLetter === letter),
+      isCompleted,
+      points,
+    };
+  });
 
   const scorers = ((scorerPredictions ?? []) as Array<{ players?: Player | null }>)
     .map((row) => row.players ?? null)
