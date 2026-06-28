@@ -427,7 +427,7 @@ function KnockoutTab({ rounds, champion }: { rounds: KnockoutRound[]; champion: 
   return (
     <section className="space-y-4">
       {champion ? (
-        <div className="flex items-center gap-3 rounded-2xl border border-[#f6c344]/40 bg-[#f6c344]/10 p-4">
+        <div className="flex items-center gap-3 rounded-2xl border border-[#f6c344]/50 bg-[#07111f]/90 p-4 shadow-[inset_0_0_60px_rgb(246_195_68/0.10)]">
           <Trophy className="h-7 w-7 text-[#f6c344]" />
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#f6c344]">
