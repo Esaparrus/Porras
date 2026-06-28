@@ -45,6 +45,28 @@ export const LOSER_SLOTS: Record<number, [number, number]> = {
   103: [101, 102],
 };
 
+// Distribución visual del cuadro tipo póster: dos mitades que convergen en la
+// final del centro. Compartida entre el formulario (prediction-workflow) y la
+// vista de solo lectura (player-bets-view) para que el árbol se dibuje igual.
+export type BracketColumn = {
+  stage: "round_32" | "round_16" | "quarter_final" | "semi_final";
+  matchNumbers: readonly number[];
+};
+
+export const LEFT_BRACKET_COLUMNS: readonly BracketColumn[] = [
+  { stage: "round_32", matchNumbers: [74, 77, 73, 75, 83, 84, 81, 82] },
+  { stage: "round_16", matchNumbers: [89, 90, 93, 94] },
+  { stage: "quarter_final", matchNumbers: [97, 98] },
+  { stage: "semi_final", matchNumbers: [101] },
+];
+
+export const RIGHT_BRACKET_COLUMNS: readonly BracketColumn[] = [
+  { stage: "semi_final", matchNumbers: [102] },
+  { stage: "quarter_final", matchNumbers: [99, 100] },
+  { stage: "round_16", matchNumbers: [91, 92, 95, 96] },
+  { stage: "round_32", matchNumbers: [76, 78, 79, 80, 86, 88, 85, 87] },
+];
+
 export type BracketEntrants = { homeTeam: Team | null; awayTeam: Team | null };
 
 // Predicción mínima necesaria para resolver un cruce: o el ganador marcado, o el marcador.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarDays, Grid2X2, ListTree, Star, Trophy } from "lucide-react";
+import { CalendarDays, Grid2X2, ListTree, Network, Star, Trophy } from "lucide-react";
 import {
   GroupStandingTable,
   MatchTeamLabel,
@@ -11,6 +11,11 @@ import {
   TeamFlag,
 } from "@/components/ui";
 import { STAGE_LABELS } from "@/lib/constants";
+import {
+  LEFT_BRACKET_COLUMNS,
+  RIGHT_BRACKET_COLUMNS,
+  type BracketColumn,
+} from "@/lib/knockout-bracket";
 import { cn } from "@/lib/utils";
 import type { Player, Score, Stage, StandingRow, Team } from "@/lib/types";
 
@@ -393,6 +398,18 @@ function GroupPointsLegend({
 }
 
 function KnockoutTab({ rounds, champion }: { rounds: KnockoutRound[]; champion: Team | null }) {
+  const [mode, setMode] = useState<"arbol" | "lista">("arbol");
+
+  const matchByNumber = useMemo(() => {
+    const map = new Map<number, BetMatch>();
+    rounds.forEach((round) =>
+      round.matches.forEach((match) => {
+        if (match.matchNumber != null) map.set(match.matchNumber, match);
+      }),
+    );
+    return map;
+  }, [rounds]);
+
   if (!rounds.length) {
     return <EmptyPanel text="Todavía no hay eliminatorias que mostrar." />;
   }
@@ -413,23 +430,191 @@ function KnockoutTab({ rounds, champion }: { rounds: KnockoutRound[]; champion: 
         </div>
       ) : null}
 
-      {rounds.map((round) => (
-        <div key={round.stage} className={cn(PANEL, "p-4")}>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-lg font-black">{STAGE_LABELS[round.stage] ?? round.stage}</h2>
-            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-slate-300">
-              {round.matches.length} cruces
-            </span>
+      <div className="flex items-center gap-2">
+        <ToggleButton active={mode === "arbol"} onClick={() => setMode("arbol")}>
+          <Network className="h-4 w-4" /> Árbol
+        </ToggleButton>
+        <ToggleButton active={mode === "lista"} onClick={() => setMode("lista")}>
+          <ListTree className="h-4 w-4" /> Lista
+        </ToggleButton>
+      </div>
+
+      {mode === "arbol" ? (
+        <BetBracket matchByNumber={matchByNumber} />
+      ) : (
+        rounds.map((round) => (
+          <div key={round.stage} className={cn(PANEL, "p-4")}>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-black">{STAGE_LABELS[round.stage] ?? round.stage}</h2>
+              <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-slate-300">
+                {round.matches.length} cruces
+              </span>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {round.matches.map((match) => (
+                <BetMatchCard key={match.id} match={match} />
+              ))}
+            </div>
           </div>
-          <div className="grid gap-2 md:grid-cols-2">
-            {round.matches.map((match) => (
-              <BetMatchCard key={match.id} match={match} />
-            ))}
-          </div>
-        </div>
-      ))}
+        ))
+      )}
     </section>
   );
+}
+
+// Cuadro tipo póster, igual que el del formulario de relleno pero en solo lectura:
+// dos mitades que convergen en la final, con las selecciones y el marcador que
+// apostó cada uno.
+function BetBracket({ matchByNumber }: { matchByNumber: Map<number, BetMatch> }) {
+  const finalMatch = matchByNumber.get(104);
+  const thirdPlaceMatch = matchByNumber.get(103);
+
+  return (
+    <div className="prediction-poster-shell mt-1">
+      <div className="prediction-poster-board">
+        <BetBracketSide
+          columns={LEFT_BRACKET_COLUMNS}
+          direction="left"
+          matchByNumber={matchByNumber}
+        />
+        <section className="prediction-poster-center">
+          <div>
+            <p className="text-xs font-black uppercase text-[#ff7a1a]">Fase final</p>
+            <h3>Final</h3>
+          </div>
+          {finalMatch ? <BetBracketCard match={finalMatch} /> : null}
+          <div className="prediction-poster-third">
+            <p>3.º y 4.º puesto</p>
+            {thirdPlaceMatch ? <BetBracketCard match={thirdPlaceMatch} /> : null}
+          </div>
+        </section>
+        <BetBracketSide
+          columns={RIGHT_BRACKET_COLUMNS}
+          direction="right"
+          matchByNumber={matchByNumber}
+        />
+      </div>
+    </div>
+  );
+}
+
+function BetBracketSide({
+  columns,
+  direction,
+  matchByNumber,
+}: {
+  columns: readonly BracketColumn[];
+  direction: "left" | "right";
+  matchByNumber: Map<number, BetMatch>;
+}) {
+  return (
+    <div className={`prediction-poster-side prediction-poster-side-${direction}`}>
+      {columns.map((column, index) => {
+        const columnMatches = column.matchNumbers
+          .map((matchNumber) => matchByNumber.get(matchNumber))
+          .filter((match): match is BetMatch => Boolean(match));
+
+        return (
+          <section
+            key={`${direction}-${column.stage}`}
+            className={`prediction-poster-column prediction-poster-column-${columnMatches.length}`}
+          >
+            <div className="prediction-round-title">
+              <span>{STAGE_LABELS[column.stage]}</span>
+            </div>
+            <div className={`prediction-poster-stack prediction-poster-stack-${columnMatches.length}`}>
+              {columnMatches.map((match) => (
+                <div
+                  key={match.id}
+                  className={`prediction-poster-card-wrap ${index === columns.length - 1 ? "prediction-poster-card-wrap-final" : ""}`}
+                >
+                  <BetBracketCard match={match} />
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function BetBracketCard({ match }: { match: BetMatch }) {
+  const hasBet = match.predictedHome !== null && match.predictedAway !== null;
+  const advanceId = match.advanceTeam?.id ?? null;
+
+  return (
+    <article className="prediction-match-card prediction-match-card-knockout">
+      <div className="mb-3">
+        <span className="text-xs font-black uppercase text-[#ff7a1a]">
+          Partido {match.matchNumber}
+        </span>
+      </div>
+      <BetBracketTeamLine
+        team={match.predictedHomeTeam}
+        placeholder={match.homePlaceholder}
+        score={match.predictedHome}
+        isWinner={Boolean(advanceId && match.predictedHomeTeam?.id === advanceId)}
+        hasBet={hasBet}
+      />
+      <BetBracketTeamLine
+        team={match.predictedAwayTeam}
+        placeholder={match.awayPlaceholder}
+        score={match.predictedAway}
+        isWinner={Boolean(advanceId && match.predictedAwayTeam?.id === advanceId)}
+        hasBet={hasBet}
+      />
+    </article>
+  );
+}
+
+function BetBracketTeamLine({
+  team,
+  placeholder,
+  score,
+  isWinner,
+  hasBet,
+}: {
+  team: Team | null;
+  placeholder: string | null;
+  score: number | null;
+  isWinner: boolean;
+  hasBet: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "prediction-score-line",
+        isWinner && "border-emerald-400/50 bg-emerald-400/10",
+      )}
+    >
+      <span className="min-w-0 text-sm">
+        {team ? (
+          <span className="prediction-team-code">
+            <TeamFlag team={team} className="prediction-team-code-flag" />
+            <span>{team.short_name}</span>
+          </span>
+        ) : (
+          <MatchTeamLabel placeholder={shortBracketPlaceholder(placeholder)} />
+        )}
+      </span>
+      <span
+        className={cn(
+          "text-center text-sm font-black tabular-nums",
+          isWinner ? "text-emerald-200" : hasBet ? "text-white" : "text-slate-600",
+        )}
+      >
+        {hasBet ? score : "—"}
+      </span>
+    </div>
+  );
+}
+
+function shortBracketPlaceholder(value: string | null) {
+  if (!value) return value;
+  return value
+    .replace(/Ganador partido\s+(\d+)/i, "Ganador P$1")
+    .replace(/Perdedor partido\s+(\d+)/i, "Perdedor P$1");
 }
 
 function ScorersTab({

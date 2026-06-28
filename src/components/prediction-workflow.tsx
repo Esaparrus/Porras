@@ -26,7 +26,9 @@ import {
   calculateThirdPlacedTeamRanking,
 } from "@/lib/scoring";
 import {
+  LEFT_BRACKET_COLUMNS,
   LOSER_SLOTS,
+  RIGHT_BRACKET_COLUMNS,
   ROUND_32_SLOTS,
   WINNER_SLOTS,
 } from "@/lib/knockout-bracket";
@@ -67,20 +69,6 @@ const KNOCKOUT_ROUNDS = [
   "semi_final",
   "third_place",
   "final",
-] as const;
-
-const LEFT_BRACKET_COLUMNS = [
-  { stage: "round_32", matchNumbers: [74, 77, 73, 75, 83, 84, 81, 82] },
-  { stage: "round_16", matchNumbers: [89, 90, 93, 94] },
-  { stage: "quarter_final", matchNumbers: [97, 98] },
-  { stage: "semi_final", matchNumbers: [101] },
-] as const;
-
-const RIGHT_BRACKET_COLUMNS = [
-  { stage: "semi_final", matchNumbers: [102] },
-  { stage: "quarter_final", matchNumbers: [99, 100] },
-  { stage: "round_16", matchNumbers: [91, 92, 95, 96] },
-  { stage: "round_32", matchNumbers: [76, 78, 79, 80, 86, 88, 85, 87] },
 ] as const;
 
 export function PredictionWorkflow({
