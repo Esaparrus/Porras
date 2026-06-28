@@ -13,7 +13,7 @@ import {
 } from "@/lib/knockout-bracket";
 import {
   NEXT_REACHED_STAGE,
-  buildRealReachedByStage,
+  buildPredictedReachedByStage,
   knockoutMarkerCounts,
   reachedPointsForStage,
 } from "@/lib/user-bracket";
@@ -204,21 +204,22 @@ export async function getPlayerBetsViewData(
     },
   );
 
-  // Equipos que de verdad alcanzan cada ronda (los que la juegan) y equipos ya
-  // eliminados (perdedores de cruces terminados). Sirven para avisar de los
-  // puntos que TODAVÍA puedes ganar si una de tus selecciones sigue pasando.
-  const realReachedByStage = buildRealReachedByStage(matchRows);
-  const eliminatedTeamIds = new Set<string>();
-  for (const match of matchRows) {
-    if (match.stage === "group" || !match.is_finished) continue;
-    const winner =
-      match.winner_team_id ??
-      ((match.home_score ?? 0) > (match.away_score ?? 0)
-        ? match.home_team_id
-        : match.away_team_id);
-    const loser = match.home_team_id === winner ? match.away_team_id : match.home_team_id;
-    if (loser) eliminatedTeamIds.add(loser);
-  }
+  // Cuadro previsto del usuario por ronda: qué selecciones colocó en cada stage.
+  // Con esto, sobre el cruce REAL que se juega, sabemos cuál de las dos selecciones
+  // que de verdad lo disputan te daría puntos de "selección clasificada" si pasa
+  // (porque la pusiste en la ronda siguiente). Es lo que TODAVÍA puedes ganar.
+  const finalMatch = matchRows.find((match) => match.match_number === 104);
+  const finalPrediction = finalMatch ? predictionByMatchId.get(finalMatch.id) : undefined;
+  const predictedChampionId = predictedAdvanceTeamId(knockoutEntrants.get(104), {
+    winnerId: finalPrediction?.predicted_winner_team_id ?? null,
+    homeScore: finalPrediction?.predicted_home_score ?? null,
+    awayScore: finalPrediction?.predicted_away_score ?? null,
+  });
+  const predictedReachedByStage = buildPredictedReachedByStage(
+    matchRows,
+    knockoutEntrants,
+    predictedChampionId,
+  );
 
   const toBetMatch = (match: Match): BetMatch => {
     const prediction = predictionByMatchId.get(match.id);
@@ -254,29 +255,29 @@ export async function getPlayerBetsViewData(
     const predictedHomeTeam = isKnockout ? (entrants?.homeTeam ?? null) : homeTeam;
     const predictedAwayTeam = isKnockout ? (entrants?.awayTeam ?? null) : awayTeam;
     const advanceTeam = advanceId ? (teamById.get(advanceId) ?? null) : null;
+    const realTeamsKnown =
+      isKnockout && match.home_team_id != null && match.away_team_id != null;
 
-    // Aviso prospectivo: si tu selección de este cruce (la que predijiste que
-    // avanza) sigue viva y todavía no ha llegado a la ronda siguiente, indica
-    // cuántos puntos de "selección clasificada" ganarías si pasa. No mostramos lo
-    // ya conseguido: eso ya está sumado en tu puntuación.
+    // Aviso prospectivo sobre el cruce REAL: de las dos selecciones que de verdad
+    // lo disputan, las que tú colocaste en la ronda siguiente te darían puntos de
+    // "selección clasificada" si pasan. Así sabes a quién apoyar en el partido real
+    // (aunque tu cuadro tuviera otras selecciones). No mostramos lo ya conseguido:
+    // eso ya está sumado en tu puntuación.
     const nextStage = isKnockout ? NEXT_REACHED_STAGE[match.stage] : undefined;
     const nextPoints = nextStage ? reachedPointsForStage(nextStage, settings) : 0;
-    const advanceStillAlive = Boolean(
-      advanceTeam &&
-        realReachedByStage.get(match.stage)?.has(advanceTeam.id) &&
-        !eliminatedTeamIds.has(advanceTeam.id) &&
-        !(nextStage && realReachedByStage.get(nextStage)?.has(advanceTeam.id)),
-    );
-    const advanceHint =
-      isKnockout && advanceTeam && nextStage && nextPoints > 0 && advanceStillAlive
-        ? {
-            points: nextPoints,
-            reason:
-              nextStage === "champion"
-                ? "proclamarse campeón"
-                : `clasificarse a ${(STAGE_LABELS[nextStage] ?? nextStage).toLowerCase()}`,
-          }
-        : null;
+    const nextReason =
+      nextStage === "champion"
+        ? "proclamarse campeón"
+        : nextStage
+          ? `clasificarse a ${(STAGE_LABELS[nextStage] ?? nextStage).toLowerCase()}`
+          : "";
+    const advanceHints =
+      realTeamsKnown && !match.is_finished && nextStage && nextPoints > 0
+        ? [match.home_team, match.away_team]
+            .filter((team): team is Team => Boolean(team))
+            .filter((team) => predictedReachedByStage.get(nextStage)?.has(team.id))
+            .map((team) => ({ team, points: nextPoints, reason: nextReason }))
+        : [];
 
     return {
       id: match.id,
@@ -300,12 +301,11 @@ export async function getPlayerBetsViewData(
       isFinished: match.is_finished,
       realHome: match.is_finished ? match.home_score : null,
       realAway: match.is_finished ? match.away_score : null,
-      realTeamsKnown: isKnockout
-        ? match.home_team_id != null && match.away_team_id != null
-        : true,
+      realTeamsKnown: isKnockout ? realTeamsKnown : true,
       markerCounts: isKnockout ? knockoutMarkerCounts(match, entrants) : true,
-      // Puntos que TODAVÍA puedes ganar si tu selección que avanza sigue pasando.
-      advanceHint,
+      // Puntos que TODAVÍA puedes ganar: selecciones del cruce real que colocaste
+      // en la ronda siguiente y aún pueden clasificarse pasando hoy.
+      advanceHints,
       points,
     };
   };
@@ -322,15 +322,7 @@ export async function getPlayerBetsViewData(
       .map(toBetMatch),
   })).filter((round) => round.matches.length > 0);
 
-  const finalMatch = matchRows.find((match) => match.match_number === 104);
-  const championId = finalMatch
-    ? predictedAdvanceTeamId(knockoutEntrants.get(104), {
-        winnerId: predictionByMatchId.get(finalMatch.id)?.predicted_winner_team_id ?? null,
-        homeScore: predictionByMatchId.get(finalMatch.id)?.predicted_home_score ?? null,
-        awayScore: predictionByMatchId.get(finalMatch.id)?.predicted_away_score ?? null,
-      })
-    : null;
-  const champion = championId ? (teamById.get(championId) ?? null) : null;
+  const champion = predictedChampionId ? (teamById.get(predictedChampionId) ?? null) : null;
 
   const groups = groupLetters.map((letter) => {
     const groupMatchRows = matchRows.filter(

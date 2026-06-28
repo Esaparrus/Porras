@@ -46,10 +46,10 @@ export type BetMatch = {
   // cuadro del usuario acierta ambas (entonces el marcador puntúa).
   realTeamsKnown: boolean;
   markerCounts: boolean;
-  // Aviso prospectivo: puntos que aún ganarías si tu selección que avanza
-  // (advanceTeam) sigue clasificándose. null si ya no aplica (ya pasó, eliminada,
-  // o ronda sin puntos).
-  advanceHint: { points: number; reason: string } | null;
+  // Aviso prospectivo sobre el cruce REAL: selecciones que de verdad lo juegan y
+  // que colocaste en la ronda siguiente; si pasan, ganas los puntos de "selección
+  // clasificada". Vacío si ninguna de las dos te suma o el cruce ya terminó.
+  advanceHints: Array<{ team: Team; points: number; reason: string }>;
   points: number;
 };
 
@@ -410,6 +410,16 @@ function KnockoutTab({ rounds, champion }: { rounds: KnockoutRound[]; champion: 
     return map;
   }, [rounds]);
 
+  // Lista: todos los cruces en orden de fecha, agrupados por día (igual que la
+  // vista "por fecha" de grupos), en vez de separados por ronda.
+  const knockoutByDate = useMemo(() => {
+    const all = rounds.flatMap((round) => round.matches);
+    const sorted = [...all].sort((a, b) =>
+      (a.matchDate ?? "").localeCompare(b.matchDate ?? ""),
+    );
+    return groupMatchesByDay(sorted);
+  }, [rounds]);
+
   if (!rounds.length) {
     return <EmptyPanel text="Todavía no hay eliminatorias que mostrar." />;
   }
@@ -442,21 +452,23 @@ function KnockoutTab({ rounds, champion }: { rounds: KnockoutRound[]; champion: 
       {mode === "arbol" ? (
         <BetBracket matchByNumber={matchByNumber} />
       ) : (
-        rounds.map((round) => (
-          <div key={round.stage} className={cn(PANEL, "p-4")}>
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-black">{STAGE_LABELS[round.stage] ?? round.stage}</h2>
-              <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-slate-300">
-                {round.matches.length} cruces
-              </span>
+        <div className="space-y-4">
+          {knockoutByDate.map((day) => (
+            <div key={day.label} className={cn(PANEL, "p-4")}>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="text-base font-black capitalize">{day.label}</h2>
+                <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-slate-300">
+                  {day.matches.length} cruces
+                </span>
+              </div>
+              <div className="grid gap-2 md:grid-cols-2">
+                {day.matches.map((match) => (
+                  <BetMatchCard key={match.id} match={match} />
+                ))}
+              </div>
             </div>
-            <div className="grid gap-2 md:grid-cols-2">
-              {round.matches.map((match) => (
-                <BetMatchCard key={match.id} match={match} />
-              ))}
-            </div>
-          </div>
-        ))
+          ))}
+        </div>
       )}
     </section>
   );
@@ -771,12 +783,26 @@ function BetMatchCard({ match }: { match: BetMatch }) {
         </div>
       ) : null}
 
-      {match.advanceHint && match.advanceTeam ? (
-        <div className="mt-2 flex items-center justify-center gap-1.5 text-[10px] font-bold text-emerald-200">
-          <span aria-hidden className="text-emerald-300">★</span>
-          <span>Si pasa</span>
-          <TeamFlag team={match.advanceTeam} />
-          <span>+{match.advanceHint.points} por {match.advanceHint.reason}</span>
+      {match.advanceHints.length ? (
+        <div className="mt-2 space-y-1">
+          {match.advanceHints.map((hint) => (
+            <div
+              key={hint.team.id}
+              className="flex items-center justify-center gap-1.5 text-[10px] font-bold text-emerald-200"
+            >
+              <span aria-hidden className="text-emerald-300">★</span>
+              <span>Si pasa</span>
+              <TeamFlag team={hint.team} />
+              <span>+{hint.points} por {hint.reason}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {showCounts && !match.isFinished ? (
+        <div className="mt-2 flex items-center justify-center gap-1.5 text-center text-[10px] font-bold text-emerald-200">
+          <span aria-hidden className="text-emerald-300">✓</span>
+          <span>Aciertas las dos selecciones: tu marcador puede puntuar.</span>
         </div>
       ) : null}
 
