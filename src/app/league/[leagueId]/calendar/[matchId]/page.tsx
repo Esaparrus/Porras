@@ -6,6 +6,23 @@ import { UserLayout } from "@/components/layouts";
 import { MatchTeamLabel } from "@/components/ui";
 import { ExpandableScoreGroup } from "@/components/expandable-score-group";
 import { requireUser } from "@/lib/data";
+import { buildUserKnockoutEntrants, knockoutMarkerCounts } from "@/lib/user-bracket";
+import type {
+  Match,
+  MatchPrediction,
+  PredictionTiebreakSelection,
+  Team,
+} from "@/lib/types";
+
+function groupByUserId<T extends { user_id: string }>(rows: T[]): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const row of rows) {
+    const list = map.get(row.user_id);
+    if (list) list.push(row);
+    else map.set(row.user_id, [row]);
+  }
+  return map;
+}
 
 type SearchParams = Promise<{
   compareUserId?: string | string[];
@@ -116,8 +133,81 @@ export default async function MatchCalendarDetailPage({
     ? compareOptions.find((option) => option.userId === comparePrediction.user_id) ?? null
     : null;
 
+  // En eliminatorias el marcador solo cuenta si el bracket del usuario coloca las
+  // dos selecciones que de verdad juegan este cruce. Reconstruimos el cuadro de
+  // cada participante para mostrar únicamente a quienes aciertan ambas (a mí
+  // siempre se me evalúa; al resto solo si las apuestas son visibles).
+  const isKnockout = match.stage !== "group";
+  const realTeamsKnown = match.home_team_id != null && match.away_team_id != null;
+  // Solo filtramos cuando ya se conocen las dos selecciones que juegan el cruce:
+  // antes de eso no hay un emparejamiento real contra el que comparar el cuadro.
+  const applyKnockoutFilter = isKnockout && realTeamsKnown;
+  let countingUserIds: Set<string> | null = null;
+  if (applyKnockoutFilter) {
+    const candidateIds = new Set<string>([user.id]);
+    if (visible) {
+      visiblePredictionRows.forEach((row) => candidateIds.add(row.user_id));
+    }
+
+    const [{ data: allTeams }, { data: allMatches }, { data: allPredictions }, { data: allTiebreaks }] =
+      await Promise.all([
+        supabase.from("teams").select("*"),
+        supabase.from("matches").select("*"),
+        visible
+          ? supabase.from("match_predictions").select("*").eq("league_id", leagueId)
+          : supabase
+              .from("match_predictions")
+              .select("*")
+              .eq("league_id", leagueId)
+              .eq("user_id", user.id),
+        visible
+          ? supabase.from("prediction_tiebreak_selections").select("*").eq("league_id", leagueId)
+          : supabase
+              .from("prediction_tiebreak_selections")
+              .select("*")
+              .eq("league_id", leagueId)
+              .eq("user_id", user.id),
+      ]);
+
+    const teamRows = (allTeams ?? []) as Team[];
+    const matchRows = (allMatches ?? []) as Match[];
+    const groupLetters = Array.from(
+      new Set(teamRows.map((team) => team.group_letter).filter(Boolean)),
+    ) as string[];
+    const predictionsByUser = groupByUserId((allPredictions ?? []) as MatchPrediction[]);
+    const tiebreaksByUser = groupByUserId(
+      (allTiebreaks ?? []) as PredictionTiebreakSelection[],
+    );
+    const matchNumber = match.match_number ?? 0;
+
+    countingUserIds = new Set<string>();
+    for (const candidate of candidateIds) {
+      const entrants = buildUserKnockoutEntrants({
+        teams: teamRows,
+        matches: matchRows,
+        predictions: predictionsByUser.get(candidate) ?? [],
+        tiebreakSelections: tiebreaksByUser.get(candidate) ?? [],
+        groupLetters,
+      });
+      if (knockoutMarkerCounts(match, entrants.get(matchNumber))) {
+        countingUserIds.add(candidate);
+      }
+    }
+  }
+
+  const ownMarkerHidden = applyKnockoutFilter && !countingUserIds?.has(user.id);
+  const compareMarkerHidden =
+    applyKnockoutFilter &&
+    comparePrediction != null &&
+    !countingUserIds?.has(comparePrediction.user_id);
+  const counting = countingUserIds;
+  const countingPredictionRows =
+    applyKnockoutFilter && counting
+      ? visiblePredictionRows.filter((row) => counting.has(row.user_id))
+      : visiblePredictionRows;
+
   const popularScores = Array.from(
-    visiblePredictionRows.reduce((map, prediction) => {
+    countingPredictionRows.reduce((map, prediction) => {
       if (
         prediction.predicted_home_score === null ||
         prediction.predicted_away_score === null
@@ -203,14 +293,21 @@ export default async function MatchCalendarDetailPage({
             <div className="text-xs font-black uppercase tracking-[0.18em] text-[#ffc4f3]">
               Tu resultado
             </div>
-            <MatchPredictionScorePill
-              homeScore={ownPrediction?.predicted_home_score}
-              awayScore={ownPrediction?.predicted_away_score}
-              homeTeam={match.home_team}
-              awayTeam={match.away_team}
-              large
-              className="mt-4"
-            />
+            {ownMarkerHidden ? (
+              <p className="mt-4 text-sm font-semibold text-slate-300">
+                Tu marcador no cuenta en este cruce: tu cuadro no enfrenta a estas dos
+                selecciones, así que no se muestra.
+              </p>
+            ) : (
+              <MatchPredictionScorePill
+                homeScore={ownPrediction?.predicted_home_score}
+                awayScore={ownPrediction?.predicted_away_score}
+                homeTeam={match.home_team}
+                awayTeam={match.away_team}
+                large
+                className="mt-4"
+              />
+            )}
           </div>
         </div>
       </section>
@@ -261,23 +358,32 @@ export default async function MatchCalendarDetailPage({
                           {compareMeta.displayName}
                         </div>
                       </div>
-                      <MatchPredictionScorePill
-                        homeScore={comparePrediction.predicted_home_score}
-                        awayScore={comparePrediction.predicted_away_score}
-                        homeTeam={match.home_team}
-                        awayTeam={match.away_team}
-                      />
+                      {compareMarkerHidden ? null : (
+                        <MatchPredictionScorePill
+                          homeScore={comparePrediction.predicted_home_score}
+                          awayScore={comparePrediction.predicted_away_score}
+                          homeTeam={match.home_team}
+                          awayTeam={match.away_team}
+                        />
+                      )}
                     </div>
-                    <div className="rounded-2xl border border-[#27e7ff]/20 bg-[#27e7ff]/8 px-4 py-3 text-sm font-semibold text-slate-200">
-                      Tu marcador frente al suyo:{" "}
-                      <span className="text-[#27e7ff]">
-                        {(ownPrediction?.predicted_home_score ?? "-")} - {(ownPrediction?.predicted_away_score ?? "-")}
-                      </span>{" "}
-                      vs{" "}
-                      <span className="text-[#ff9deb]">
-                        {comparePrediction.predicted_home_score ?? "-"} - {comparePrediction.predicted_away_score ?? "-"}
-                      </span>
-                    </div>
+                    {compareMarkerHidden ? (
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-slate-300">
+                        Su marcador no cuenta en este cruce: su cuadro no enfrenta a estas dos
+                        selecciones, así que no se muestra.
+                      </div>
+                    ) : ownMarkerHidden ? null : (
+                      <div className="rounded-2xl border border-[#27e7ff]/20 bg-[#27e7ff]/8 px-4 py-3 text-sm font-semibold text-slate-200">
+                        Tu marcador frente al suyo:{" "}
+                        <span className="text-[#27e7ff]">
+                          {(ownPrediction?.predicted_home_score ?? "-")} - {(ownPrediction?.predicted_away_score ?? "-")}
+                        </span>{" "}
+                        vs{" "}
+                        <span className="text-[#ff9deb]">
+                          {comparePrediction.predicted_home_score ?? "-"} - {comparePrediction.predicted_away_score ?? "-"}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <p className="text-sm text-slate-300">
@@ -331,7 +437,9 @@ export default async function MatchCalendarDetailPage({
               </div>
             ) : (
               <div className="mt-5 rounded-[1.6rem] border border-white/10 bg-black/20 p-5 text-sm text-slate-300">
-                Aun no hay resultados completos guardados por la gente para este partido.
+                {applyKnockoutFilter
+                  ? "Nadie tiene en su cuadro a estas dos selecciones en este cruce, así que todavía no hay marcadores que cuenten."
+                  : "Aun no hay resultados completos guardados por la gente para este partido."}
               </div>
             )
           ) : (

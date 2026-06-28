@@ -4,12 +4,19 @@ import Link from "next/link";
 import { useState } from "react";
 import { CalendarDays, Clock } from "lucide-react";
 import { STAGE_LABELS } from "@/lib/constants";
-import { MatchTeamLabel } from "@/components/ui";
-import type { Match, MatchPrediction } from "@/lib/types";
+import { MatchTeamLabel, TeamFlag } from "@/components/ui";
+import type { Match, MatchPrediction, Team } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export type CalendarMatch = Match & {
   myPrediction?: MatchPrediction | null;
+  // Eliminatoria cuyo cruce real no coincide con tu cuadro: tu marcador no cuenta,
+  // así que no se muestra el resultado que pusiste.
+  knockoutNoCount?: boolean;
+  // Selecciones que juegan este cruce y que tú colocaste en la ronda siguiente:
+  // si pasan, te llevas los puntos de "selección clasificada". `reason` nombra la
+  // ronda a la que se clasificarían (p. ej. "clasificarse a octavos").
+  advanceHints?: Array<{ team: Pick<Team, "flag_code" | "flag_emoji" | "short_name">; points: number; reason: string }>;
 };
 
 type CalendarCell = {
@@ -150,6 +157,8 @@ function CalendarMatchLink({
 }) {
   const prediction = formatPrediction(match.myPrediction);
   const hasResult = match.home_score !== null && match.away_score !== null;
+  const noCount = Boolean(match.knockoutNoCount);
+  const advanceHints = match.advanceHints ?? [];
 
   return (
     <Link
@@ -169,9 +178,19 @@ function CalendarMatchLink({
         </div>
         <div className="flex flex-col items-center gap-0.5">
           <span className="text-[9px] font-black uppercase tracking-[0.12em] text-[#ff2bd6]">Tu apuesta</span>
-          <div className="rounded-xl bg-black/35 px-2 py-1 text-center font-black text-[#ff2bd6]">
-            {prediction}
+          <div
+            className={cn(
+              "rounded-xl bg-black/35 px-2 py-1 text-center font-black",
+              noCount ? "text-slate-500" : "text-[#ff2bd6]",
+            )}
+          >
+            {noCount ? "—" : prediction}
           </div>
+          {noCount && (
+            <span className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+              No cuenta
+            </span>
+          )}
           {hasResult && (
             <>
               <span className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">Real</span>
@@ -185,6 +204,21 @@ function CalendarMatchLink({
           <MatchTeamLabel team={match.away_team} placeholder={match.away_placeholder} />
         </div>
       </div>
+      {advanceHints.length ? (
+        <div className="mt-2 space-y-1 border-t border-white/10 pt-2">
+          {advanceHints.map((hint) => (
+            <div
+              key={hint.team.short_name}
+              className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-200"
+            >
+              <span aria-hidden className="text-emerald-300">★</span>
+              <span>Si pasa</span>
+              <TeamFlag team={hint.team} />
+              <span>+{hint.points} por {hint.reason}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </Link>
   );
 }

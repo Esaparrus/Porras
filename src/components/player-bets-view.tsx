@@ -8,6 +8,7 @@ import {
   PlayerBadge,
   ScoreBreakdownCard,
   TeamBadge,
+  TeamFlag,
 } from "@/components/ui";
 import { STAGE_LABELS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,13 @@ export type BetMatch = {
   matchDate: string | null;
   homeTeam: Team | null;
   awayTeam: Team | null;
+  // Selecciones que el usuario colocó en este cruce (su cuadro). En eliminatorias
+  // se muestran estas, no las reales, para que vea lo que creía que iba a pasar.
+  predictedHomeTeam: Team | null;
+  predictedAwayTeam: Team | null;
+  // Equipos reales que disputan el cruce (se enseñan pequeños para ver el fallo).
+  realHomeTeam: Team | null;
+  realAwayTeam: Team | null;
   homePlaceholder: string | null;
   awayPlaceholder: string | null;
   predictedHome: number | null;
@@ -29,6 +37,14 @@ export type BetMatch = {
   isFinished: boolean;
   realHome: number | null;
   realAway: number | null;
+  // Eliminatoria: si ya se conocen las dos selecciones reales del cruce y si el
+  // cuadro del usuario acierta ambas (entonces el marcador puntúa).
+  realTeamsKnown: boolean;
+  markerCounts: boolean;
+  // Aviso prospectivo: puntos que aún ganarías si tu selección que avanza
+  // (advanceTeam) sigue clasificándose. null si ya no aplica (ya pasó, eliminada,
+  // o ronda sin puntos).
+  advanceHint: { points: number; reason: string } | null;
   points: number;
 };
 
@@ -70,6 +86,21 @@ type Awards = {
 
 type Tab = "grupos" | "eliminatorias" | "goleadores" | "premios";
 
+export type PlayerBetsViewProps = {
+  displayName: string;
+  avatarEmoji: string | null;
+  score: Score | null;
+  groups: Group[];
+  groupMatches: BetMatch[];
+  knockoutRounds: KnockoutRound[];
+  champion: Team | null;
+  scorers: ScorerBet[];
+  scorerMaxPoints: number;
+  resultsStarted: boolean;
+  awards: Awards;
+  bestThirdPoints?: number;
+};
+
 const PANEL =
   "rounded-2xl border border-white/10 bg-[#07111f]/90 shadow-2xl shadow-black/30 backdrop-blur-xl";
 
@@ -86,20 +117,7 @@ export function PlayerBetsView({
   resultsStarted,
   awards,
   bestThirdPoints = 0,
-}: {
-  displayName: string;
-  avatarEmoji: string | null;
-  score: Score | null;
-  groups: Group[];
-  groupMatches: BetMatch[];
-  knockoutRounds: KnockoutRound[];
-  champion: Team | null;
-  scorers: ScorerBet[];
-  scorerMaxPoints: number;
-  resultsStarted: boolean;
-  awards: Awards;
-  bestThirdPoints?: number;
-}) {
+}: PlayerBetsViewProps) {
   const [tab, setTab] = useState<Tab>("grupos");
 
   const tabs: Array<{ key: Tab; label: string; count: number }> = [
@@ -202,8 +220,6 @@ function GroupsTab({
 }) {
   const [mode, setMode] = useState<"grupos" | "fecha">("grupos");
 
-  // Los puntos por mejores terceros solo se reparten cuando han terminado TODOS
-  // los grupos (hay que comparar los 12 terceros entre sí).
   const allGroupsCompleted = groups.length > 0 && groups.every((group) => group.isCompleted);
   const thirdsPending = !allGroupsCompleted && bestThirdPoints > 0;
 
@@ -311,9 +327,6 @@ function GroupsTab({
   );
 }
 
-// Mini leyenda que explica, equipo a equipo, de dónde salen los puntos del grupo
-// (posición exacta, clasificado, líder), para que se entienda por qué uno suma 3,
-// otro 5 y otro 8. Avisa también de los puntos de terceros aún por repartir.
 function GroupPointsLegend({
   group,
   thirdsPending,
@@ -517,6 +530,11 @@ function BetMatchCard({ match }: { match: BetMatch }) {
   const isKnockout = match.stage !== "group";
   const hasReal = match.isFinished && match.realHome !== null && match.realAway !== null;
 
+  const homeTeam = isKnockout ? match.predictedHomeTeam : match.homeTeam;
+  const awayTeam = isKnockout ? match.predictedAwayTeam : match.awayTeam;
+  const showNoCount = isKnockout && match.realTeamsKnown && !match.markerCounts;
+  const showCounts = isKnockout && match.realTeamsKnown && match.markerCounts;
+
   return (
     <article className="rounded-xl border border-white/10 bg-black/25 p-3">
       <div className="mb-2 flex items-center justify-between gap-2 text-[11px] font-bold text-slate-400">
@@ -525,7 +543,7 @@ function BetMatchCard({ match }: { match: BetMatch }) {
       </div>
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
         <div className="flex min-w-0 justify-end text-right text-sm">
-          <MatchTeamLabel team={match.homeTeam} placeholder={match.homePlaceholder} />
+          <MatchTeamLabel team={homeTeam} placeholder={match.homePlaceholder} />
         </div>
         <div className="flex flex-col items-center gap-1">
           <div
@@ -536,7 +554,7 @@ function BetMatchCard({ match }: { match: BetMatch }) {
           >
             {hasBet ? `${match.predictedHome} - ${match.predictedAway}` : "— - —"}
           </div>
-          {hasReal ? (
+          {hasReal && !showNoCount ? (
             <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
               Real{" "}
               <span className="tabular-nums text-slate-200">
@@ -546,13 +564,46 @@ function BetMatchCard({ match }: { match: BetMatch }) {
           ) : null}
         </div>
         <div className="flex min-w-0 text-sm">
-          <MatchTeamLabel team={match.awayTeam} placeholder={match.awayPlaceholder} />
+          <MatchTeamLabel team={awayTeam} placeholder={match.awayPlaceholder} />
         </div>
       </div>
-      <div className="mt-2 flex items-center justify-center gap-2">
+
+      {showNoCount ? (
+        <div className="mt-2 rounded-lg border border-amber-400/25 bg-amber-400/10 px-2.5 py-1.5 text-[11px] font-bold leading-snug text-amber-200">
+          Este marcador no cuenta: no acertaste las dos selecciones de este cruce.
+          {match.realHomeTeam && match.realAwayTeam ? (
+            <div className="mt-1 flex flex-wrap items-center gap-1 font-semibold text-amber-100/80">
+              <span>Juega de verdad:</span>
+              <TeamFlag team={match.realHomeTeam} />
+              {hasReal ? (
+                <span>{match.realHome} - {match.realAway}</span>
+              ) : (
+                <span>vs</span>
+              )}
+              <TeamFlag team={match.realAwayTeam} />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {match.advanceHint && match.advanceTeam ? (
+        <div className="mt-2 flex items-center justify-center gap-1.5 text-[10px] font-bold text-emerald-200">
+          <span aria-hidden className="text-emerald-300">★</span>
+          <span>Si pasa</span>
+          <TeamFlag team={match.advanceTeam} />
+          <span>+{match.advanceHint.points} por {match.advanceHint.reason}</span>
+        </div>
+      ) : null}
+
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+        {showCounts ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-200/90">
+            ✓ Cuenta
+          </span>
+        ) : null}
         {isKnockout && match.advanceTeam ? (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/10 px-3 py-1 text-[11px] font-bold text-emerald-200">
-            Pasa: {match.advanceTeam.short_name}
+            Pasa: <TeamFlag team={match.advanceTeam} />
           </span>
         ) : null}
         {hasReal ? (

@@ -85,6 +85,14 @@ function winnerOf(
   return null;
 }
 
+// Id del equipo que el usuario predijo como ganador de un cruce (o null).
+export function predictedWinnerId(
+  entrants: BracketEntrants | undefined,
+  prediction: BracketPrediction | undefined,
+): string | null {
+  return winnerOf(entrants, prediction)?.id ?? null;
+}
+
 function loserOf(
   entrants: BracketEntrants | undefined,
   prediction: BracketPrediction | undefined,
