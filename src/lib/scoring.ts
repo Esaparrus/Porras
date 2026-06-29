@@ -336,16 +336,17 @@ export function calculateKnockoutReachedPoints(
   return calculateKnockoutPredictionPoints(predicted, reached, settings);
 }
 
-export function calculateLiveKnockoutMatchPoints(
+// Desglose de los puntos del marcador de una eliminatoria: bonus por acertar el
+// ganador del cruce (team-aware) y puntos del resultado (signo/diferencia/exacto,
+// solo si aciertas las dos selecciones). Fuente única para puntuar y para mostrar.
+export function calculateLiveKnockoutMatchBreakdown(
   prediction: MatchPrediction,
   match: Match,
   settings: PointSettings,
-  // Selecciones que el usuario colocó en este cruce (reconstruidas de su bracket).
-  // El marcador (signo/diferencia/exacto) SOLO puntúa si ambas coinciden con las
-  // que realmente juegan, en su posición. El bonus de ganador es team-aware aparte.
   predictedEntrants?: { homeTeamId: string | null; awayTeamId: string | null },
-) {
-  if (!match.is_finished) return 0;
+): { winner: number; result: number; resultExact: boolean; total: number } {
+  const empty = { winner: 0, result: 0, resultExact: false, total: 0 };
+  if (!match.is_finished) return empty;
   const roundValues: Record<
     string,
     { sign: number; winner: number; goalDifference: number; exact: number }
@@ -388,13 +389,13 @@ export function calculateLiveKnockoutMatchPoints(
     },
   };
   const values = roundValues[match.stage];
-  if (!values) return 0;
+  if (!values) return empty;
   const realWinner =
     match.winner_team_id ??
     ((match.home_score ?? 0) > (match.away_score ?? 0)
       ? match.home_team_id
       : match.away_team_id);
-  let total =
+  const winner =
     prediction.predicted_winner_team_id === realWinner ? values.winner : 0;
   // El marcador solo cuenta si las dos selecciones del cruce son las acertadas.
   const bothTeamsCorrect =
@@ -403,15 +404,35 @@ export function calculateLiveKnockoutMatchPoints(
     predictedEntrants.awayTeamId != null &&
     predictedEntrants.homeTeamId === match.home_team_id &&
     predictedEntrants.awayTeamId === match.away_team_id;
+  let result = 0;
+  let resultExact = false;
   if (bothTeamsCorrect) {
-    const result = calculateMatchPredictionPoints(prediction, match, {
+    const scored = calculateMatchPredictionPoints(prediction, match, {
       match_exact_score_points: values.exact,
       match_goal_difference_points: values.goalDifference,
       match_sign_points: values.sign,
     });
-    total += result.points;
+    result = scored.points;
+    resultExact = scored.exact;
   }
-  return total;
+  return { winner, result, resultExact, total: winner + result };
+}
+
+export function calculateLiveKnockoutMatchPoints(
+  prediction: MatchPrediction,
+  match: Match,
+  settings: PointSettings,
+  // Selecciones que el usuario colocó en este cruce (reconstruidas de su bracket).
+  // El marcador (signo/diferencia/exacto) SOLO puntúa si ambas coinciden con las
+  // que realmente juegan, en su posición. El bonus de ganador es team-aware aparte.
+  predictedEntrants?: { homeTeamId: string | null; awayTeamId: string | null },
+) {
+  return calculateLiveKnockoutMatchBreakdown(
+    prediction,
+    match,
+    settings,
+    predictedEntrants,
+  ).total;
 }
 
 export function getPredictedMatchWinner(prediction: MatchPrediction, match: Match) {

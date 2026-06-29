@@ -20,6 +20,7 @@ import {
 import {
   calculateBestThirdPlacedTeams,
   calculateGroupTeamPointsBreakdown,
+  calculateLiveKnockoutMatchBreakdown,
   calculateLiveKnockoutMatchPoints,
   calculateMatchPredictionPoints,
   calculatePredictedGroupStandings,
@@ -289,21 +290,50 @@ export async function getPlayerBetsViewData(
             .map((team) => ({ team, points: nextPoints, reason: nextReason }))
         : [];
 
-    // Una vez terminado el cruce REAL: si la selección que ganó (y por tanto pasa
-    // de fase) la colocaste tú en la ronda siguiente, ganas esos puntos por "pasa
-    // de fase" — aunque el marcador exacto no cuente por no acertar las dos
-    // selecciones. Es lo que de verdad se suma a tu total al acabar el partido.
-    let advanceEarned: { team: Team; points: number; reason: string } | null = null;
-    if (isKnockout && match.is_finished && realTeamsKnown && nextStage && nextPoints > 0) {
-      const winnerId = realFinishedWinnerId(match);
-      const winnerTeam = winnerId ? teamById.get(winnerId) ?? null : null;
-      if (winnerTeam && predictedReachedByStage.get(nextStage)?.has(winnerTeam.id)) {
-        advanceEarned = { team: winnerTeam, points: nextPoints, reason: nextReason };
+    // Desglose de los puntos de un cruce de eliminatoria ya terminado: de dónde
+    // sale cada punto, en el orden en que el usuario lo razona (primero pasar de
+    // fase, luego el marcador). El total es la suma de estas partes.
+    const pointsParts: Array<{ label: string; points: number; team: Team | null }> = [];
+    if (isKnockout && match.is_finished) {
+      // 1) Clasificación: si la selección real que GANÓ la colocaste en la ronda
+      //    siguiente, ganas los puntos por "pasa de fase" (aunque el marcador no
+      //    cuente por no acertar las dos selecciones). Esto NO lo trae el cálculo
+      //    del marcador (es un punto aparte), así que se suma al total del cruce.
+      if (realTeamsKnown && nextStage && nextPoints > 0) {
+        const winnerId = realFinishedWinnerId(match);
+        const winnerTeam = winnerId ? teamById.get(winnerId) ?? null : null;
+        if (winnerTeam && predictedReachedByStage.get(nextStage)?.has(winnerTeam.id)) {
+          pointsParts.push({
+            label:
+              nextStage === "champion"
+                ? "Campeón"
+                : `Clasificación a ${(STAGE_LABELS[nextStage] ?? nextStage).toLowerCase()}`,
+            points: nextPoints,
+            team: winnerTeam,
+          });
+          points += nextPoints;
+        }
+      }
+      // 2) Marcador: bonus por acertar quién pasa y puntos del resultado (estos
+      //    últimos solo si acertaste las dos selecciones del cruce). Ya está
+      //    incluido en `points` (calculateLiveKnockoutMatchPoints), solo lo desgloso.
+      if (prediction) {
+        const breakdown = calculateLiveKnockoutMatchBreakdown(prediction, match, settings, {
+          homeTeamId: entrants?.homeTeam?.id ?? null,
+          awayTeamId: entrants?.awayTeam?.id ?? null,
+        });
+        if (breakdown.winner > 0) {
+          pointsParts.push({ label: "Acertar el ganador del cruce", points: breakdown.winner, team: null });
+        }
+        if (breakdown.result > 0) {
+          pointsParts.push({
+            label: breakdown.resultExact ? "Resultado exacto" : "Resultado acertado",
+            points: breakdown.result,
+            team: null,
+          });
+        }
       }
     }
-    // El badge de puntos del cruce incluye lo del resultado exacto MÁS lo de "pasa
-    // de fase", para que al acabar el partido se vea el +N en vez de 0.
-    points += advanceEarned?.points ?? 0;
 
     return {
       id: match.id,
@@ -332,9 +362,9 @@ export async function getPlayerBetsViewData(
       // Puntos que TODAVÍA puedes ganar: selecciones del cruce real que colocaste
       // en la ronda siguiente y aún pueden clasificarse pasando hoy.
       advanceHints,
-      // Puntos por "pasa de fase" YA conseguidos en este cruce terminado (la
-      // selección real que ganó la tenías tú en la ronda siguiente).
-      advanceEarned,
+      // Desglose de los puntos ya conseguidos en este cruce terminado (clasificación,
+      // ganador del cruce, resultado). El total es la suma de estas partes.
+      pointsParts,
       points,
     };
   };

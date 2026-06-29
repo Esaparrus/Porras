@@ -50,9 +50,9 @@ export type BetMatch = {
   // que colocaste en la ronda siguiente; si pasan, ganas los puntos de "selección
   // clasificada". Vacío si ninguna de las dos te suma o el cruce ya terminó.
   advanceHints: Array<{ team: Team; points: number; reason: string }>;
-  // Puntos por "pasa de fase" ya conseguidos en este cruce terminado: la selección
-  // real que ganó la tenías colocada en la ronda siguiente.
-  advanceEarned: { team: Team; points: number; reason: string } | null;
+  // Desglose de los puntos ya conseguidos en un cruce terminado (clasificación,
+  // ganador del cruce, resultado). El total es la suma.
+  pointsParts: Array<{ label: string; points: number; team: Team | null }>;
   points: number;
 };
 
@@ -802,12 +802,31 @@ function BetMatchCard({ match }: { match: BetMatch }) {
         </div>
       ) : null}
 
-      {match.advanceEarned ? (
-        <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1.5 text-center text-[11px] font-bold text-emerald-200">
-          <span aria-hidden className="text-emerald-300">✓</span>
-          <span>Pasa</span>
-          <TeamFlag team={match.advanceEarned.team} />
-          <span>+{match.advanceEarned.points} por {match.advanceEarned.reason}</span>
+      {match.pointsParts.length ? (
+        <div className="mt-2 rounded-lg border border-emerald-400/25 bg-emerald-400/5 px-2.5 py-2 text-[11px]">
+          <div className="mb-1.5 text-[9px] font-black uppercase tracking-wide text-emerald-300/80">
+            Desglose de puntos
+          </div>
+          <ul className="space-y-1">
+            {match.pointsParts.map((part, index) => (
+              <li
+                key={`${part.label}-${index}`}
+                className="flex items-center justify-between gap-2 text-emerald-100"
+              >
+                <span className="flex min-w-0 items-center gap-1.5">
+                  {part.team ? <TeamFlag team={part.team} /> : null}
+                  <span className="truncate">{part.label}</span>
+                </span>
+                <span className="shrink-0 font-black tabular-nums text-emerald-200">
+                  +{part.points}
+                </span>
+              </li>
+            ))}
+            <li className="mt-1 flex items-center justify-between gap-2 border-t border-emerald-400/20 pt-1.5 font-black text-emerald-200">
+              <span>Total</span>
+              <span className="tabular-nums">{match.points} pts</span>
+            </li>
+          </ul>
         </div>
       ) : null}
 
@@ -829,7 +848,7 @@ function BetMatchCard({ match }: { match: BetMatch }) {
             Pasa: <TeamFlag team={match.advanceTeam} />
           </span>
         ) : null}
-        {hasReal ? (
+        {hasReal && !match.pointsParts.length ? (
           <span
             className={cn(
               "inline-flex items-center rounded-full px-3 py-1 text-[11px] font-black tabular-nums",
