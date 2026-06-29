@@ -164,27 +164,31 @@ function resolveGroupSlot(
 }
 
 async function fillWinnerRounds(supabase: SupabaseAdmin, matchByNumber: Map<number | null, Match>) {
+  // Rellena cada hueco de forma independiente: en cuanto se conoce el ganador (o
+  // perdedor) de un cruce de origen, esa selección se coloca en el partido destino
+  // sin esperar a que el cruce emparejado también termine. Así "llegar a ronda"
+  // cuenta en cuanto la selección se clasifica de verdad, no cuando acaba su rival.
+  const apply = async (
+    targetText: string,
+    homeTeamId: string | null,
+    awayTeamId: string | null,
+  ) => {
+    const update: { home_team_id?: string; away_team_id?: string } = {};
+    if (homeTeamId) update.home_team_id = homeTeamId;
+    if (awayTeamId) update.away_team_id = awayTeamId;
+    if (!update.home_team_id && !update.away_team_id) return;
+    await supabase.from("matches").update(update).eq("match_number", Number(targetText));
+  };
+
   for (const [targetText, [leftNumber, rightNumber]] of Object.entries(WINNER_SLOTS)) {
     const left = matchByNumber.get(leftNumber);
     const right = matchByNumber.get(rightNumber);
-    const homeTeamId = left ? getMatchWinner(left) : null;
-    const awayTeamId = right ? getMatchWinner(right) : null;
-    if (!homeTeamId || !awayTeamId) continue;
-    await supabase
-      .from("matches")
-      .update({ home_team_id: homeTeamId, away_team_id: awayTeamId })
-      .eq("match_number", Number(targetText));
+    await apply(targetText, left ? getMatchWinner(left) : null, right ? getMatchWinner(right) : null);
   }
 
   for (const [targetText, [leftNumber, rightNumber]] of Object.entries(LOSER_SLOTS)) {
     const left = matchByNumber.get(leftNumber);
     const right = matchByNumber.get(rightNumber);
-    const homeTeamId = left ? getMatchLoser(left) : null;
-    const awayTeamId = right ? getMatchLoser(right) : null;
-    if (!homeTeamId || !awayTeamId) continue;
-    await supabase
-      .from("matches")
-      .update({ home_team_id: homeTeamId, away_team_id: awayTeamId })
-      .eq("match_number", Number(targetText));
+    await apply(targetText, left ? getMatchLoser(left) : null, right ? getMatchLoser(right) : null);
   }
 }
