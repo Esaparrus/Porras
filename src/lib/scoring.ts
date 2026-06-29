@@ -395,15 +395,20 @@ export function calculateLiveKnockoutMatchBreakdown(
     ((match.home_score ?? 0) > (match.away_score ?? 0)
       ? match.home_team_id
       : match.away_team_id);
-  const winner =
-    prediction.predicted_winner_team_id === realWinner ? values.winner : 0;
-  // El marcador solo cuenta si las dos selecciones del cruce son las acertadas.
+  // Todo el marcador (bonus por acertar el ganador del cruce y signo/diferencia/
+  // exacto) solo cuenta si aciertas las DOS selecciones que de verdad juegan el
+  // cruce. Si no, ese cruce solo puede darte los puntos de "pasa de fase"
+  // (clasificación), que se reparten aparte.
   const bothTeamsCorrect =
     predictedEntrants != null &&
     predictedEntrants.homeTeamId != null &&
     predictedEntrants.awayTeamId != null &&
     predictedEntrants.homeTeamId === match.home_team_id &&
     predictedEntrants.awayTeamId === match.away_team_id;
+  const winner =
+    bothTeamsCorrect && prediction.predicted_winner_team_id === realWinner
+      ? values.winner
+      : 0;
   let result = 0;
   let resultExact = false;
   if (bothTeamsCorrect) {
