@@ -1,5 +1,6 @@
 import { RankingEvolutionChart } from "@/components/ranking-evolution-chart";
 import { requireUser } from "@/lib/data";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import {
   buildRankingEvolution,
   type RankingEvolutionMember,
@@ -25,7 +26,7 @@ export default async function LeagueRankingEvolutionPage({
     { data: matches },
     { data: teams },
     { data: settings },
-    { data: matchPredictions },
+    matchPredictions,
     { data: scorerPredictions },
     { data: awardPredictions },
     { data: tiebreakSelections },
@@ -43,7 +44,15 @@ export default async function LeagueRankingEvolutionPage({
       .select("*")
       .eq("league_id", leagueId)
       .maybeSingle(),
-    supabase.from("match_predictions").select("*").eq("league_id", leagueId),
+    // Paginado: las predicciones de toda la liga superan las 1000 filas; sin paginar
+    // se truncarían y la evolución del ranking saldría mal para parte de los jugadores.
+    fetchAllRows<MatchPrediction>((from, to) =>
+      supabase
+        .from("match_predictions")
+        .select("*")
+        .eq("league_id", leagueId)
+        .range(from, to),
+    ),
     supabase
       .from("scorer_predictions")
       .select("user_id, player_id")

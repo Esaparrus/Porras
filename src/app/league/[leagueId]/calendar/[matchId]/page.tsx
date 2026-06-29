@@ -7,6 +7,7 @@ import { MatchTeamLabel } from "@/components/ui";
 import { ExpandableScoreGroup } from "@/components/expandable-score-group";
 import { requireUser } from "@/lib/data";
 import { buildUserKnockoutEntrants, knockoutMarkerCounts } from "@/lib/user-bracket";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import type {
   Match,
   MatchPrediction,
@@ -149,24 +150,28 @@ export default async function MatchCalendarDetailPage({
       visiblePredictionRows.forEach((row) => candidateIds.add(row.user_id));
     }
 
-    const [{ data: allTeams }, { data: allMatches }, { data: allPredictions }, { data: allTiebreaks }] =
+    const [{ data: allTeams }, { data: allMatches }, allPredictions, allTiebreaks] =
       await Promise.all([
         supabase.from("teams").select("*"),
         supabase.from("matches").select("*"),
-        visible
-          ? supabase.from("match_predictions").select("*").eq("league_id", leagueId)
-          : supabase
-              .from("match_predictions")
-              .select("*")
-              .eq("league_id", leagueId)
-              .eq("user_id", user.id),
-        visible
-          ? supabase.from("prediction_tiebreak_selections").select("*").eq("league_id", leagueId)
-          : supabase
-              .from("prediction_tiebreak_selections")
-              .select("*")
-              .eq("league_id", leagueId)
-              .eq("user_id", user.id),
+        // Paginado: con muchos participantes las predicciones de la liga superan
+        // las 1000 filas y, truncadas, el cuadro de algunos usuarios saldría mal.
+        fetchAllRows<MatchPrediction>((from, to) => {
+          const query = supabase
+            .from("match_predictions")
+            .select("*")
+            .eq("league_id", leagueId)
+            .range(from, to);
+          return visible ? query : query.eq("user_id", user.id);
+        }),
+        fetchAllRows<PredictionTiebreakSelection>((from, to) => {
+          const query = supabase
+            .from("prediction_tiebreak_selections")
+            .select("*")
+            .eq("league_id", leagueId)
+            .range(from, to);
+          return visible ? query : query.eq("user_id", user.id);
+        }),
       ]);
 
     const teamRows = (allTeams ?? []) as Team[];
