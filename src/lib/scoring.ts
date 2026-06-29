@@ -344,8 +344,8 @@ export function calculateLiveKnockoutMatchBreakdown(
   match: Match,
   settings: PointSettings,
   predictedEntrants?: { homeTeamId: string | null; awayTeamId: string | null },
-): { winner: number; result: number; resultExact: boolean; total: number } {
-  const empty = { winner: 0, result: 0, resultExact: false, total: 0 };
+): { winner: number; sign: number; goalDifference: number; exact: number; total: number } {
+  const empty = { winner: 0, sign: 0, goalDifference: 0, exact: 0, total: 0 };
   if (!match.is_finished) return empty;
   const roundValues: Record<
     string,
@@ -409,18 +409,35 @@ export function calculateLiveKnockoutMatchBreakdown(
     bothTeamsCorrect && prediction.predicted_winner_team_id === realWinner
       ? values.winner
       : 0;
-  let result = 0;
-  let resultExact = false;
-  if (bothTeamsCorrect) {
-    const scored = calculateMatchPredictionPoints(prediction, match, {
-      match_exact_score_points: values.exact,
-      match_goal_difference_points: values.goalDifference,
-      match_sign_points: values.sign,
-    });
-    result = scored.points;
-    resultExact = scored.exact;
+  // Signo (1x2), diferencia y exacto. El signo es la puerta: si falla, no hay
+  // diferencia ni exacto. Mismo procedimiento que calculateMatchPredictionPoints,
+  // pero desglosado para poder mostrar cada concepto por separado.
+  let sign = 0;
+  let goalDifference = 0;
+  let exact = 0;
+  if (
+    bothTeamsCorrect &&
+    prediction.predicted_home_score != null &&
+    prediction.predicted_away_score != null &&
+    match.home_score != null &&
+    match.away_score != null
+  ) {
+    const predictedHome = prediction.predicted_home_score;
+    const predictedAway = prediction.predicted_away_score;
+    const signOk =
+      footballSign(predictedHome, predictedAway) ===
+      footballSign(match.home_score, match.away_score);
+    if (signOk) {
+      sign = values.sign;
+      if (predictedHome - predictedAway === match.home_score - match.away_score) {
+        goalDifference = values.goalDifference;
+      }
+      if (predictedHome === match.home_score && predictedAway === match.away_score) {
+        exact = values.exact;
+      }
+    }
   }
-  return { winner, result, resultExact, total: winner + result };
+  return { winner, sign, goalDifference, exact, total: winner + sign + goalDifference + exact };
 }
 
 export function calculateLiveKnockoutMatchPoints(

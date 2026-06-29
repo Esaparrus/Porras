@@ -325,12 +325,14 @@ export async function getPlayerBetsViewData(
         if (breakdown.winner > 0) {
           pointsParts.push({ label: "Acertar el ganador del cruce", points: breakdown.winner, team: null });
         }
-        if (breakdown.result > 0) {
-          pointsParts.push({
-            label: breakdown.resultExact ? "Resultado exacto" : "Resultado acertado",
-            points: breakdown.result,
-            team: null,
-          });
+        if (breakdown.sign > 0) {
+          pointsParts.push({ label: "Signo (1x2)", points: breakdown.sign, team: null });
+        }
+        if (breakdown.goalDifference > 0) {
+          pointsParts.push({ label: "Diferencia de goles", points: breakdown.goalDifference, team: null });
+        }
+        if (breakdown.exact > 0) {
+          pointsParts.push({ label: "Marcador exacto", points: breakdown.exact, team: null });
         }
       }
     }
