@@ -63,6 +63,16 @@ function predictedAdvanceTeamId(
   return null;
 }
 
+// Selección REAL que ganó (y por tanto pasa de fase) un cruce ya terminado.
+function realFinishedWinnerId(match: Match): string | null {
+  if (!match.is_finished) return null;
+  if (match.winner_team_id) return match.winner_team_id;
+  if (match.home_score == null || match.away_score == null) return null;
+  if (match.home_score > match.away_score) return match.home_team_id;
+  if (match.away_score > match.home_score) return match.away_team_id;
+  return null;
+}
+
 /**
  * Carga y arma todo lo que necesita `PlayerBetsView` para un usuario. Es la vista
  * de solo lectura de las apuestas (la que se ve al pinchar un usuario en el
@@ -279,6 +289,22 @@ export async function getPlayerBetsViewData(
             .map((team) => ({ team, points: nextPoints, reason: nextReason }))
         : [];
 
+    // Una vez terminado el cruce REAL: si la selección que ganó (y por tanto pasa
+    // de fase) la colocaste tú en la ronda siguiente, ganas esos puntos por "pasa
+    // de fase" — aunque el marcador exacto no cuente por no acertar las dos
+    // selecciones. Es lo que de verdad se suma a tu total al acabar el partido.
+    let advanceEarned: { team: Team; points: number; reason: string } | null = null;
+    if (isKnockout && match.is_finished && realTeamsKnown && nextStage && nextPoints > 0) {
+      const winnerId = realFinishedWinnerId(match);
+      const winnerTeam = winnerId ? teamById.get(winnerId) ?? null : null;
+      if (winnerTeam && predictedReachedByStage.get(nextStage)?.has(winnerTeam.id)) {
+        advanceEarned = { team: winnerTeam, points: nextPoints, reason: nextReason };
+      }
+    }
+    // El badge de puntos del cruce incluye lo del resultado exacto MÁS lo de "pasa
+    // de fase", para que al acabar el partido se vea el +N en vez de 0.
+    points += advanceEarned?.points ?? 0;
+
     return {
       id: match.id,
       matchNumber: match.match_number,
@@ -306,6 +332,9 @@ export async function getPlayerBetsViewData(
       // Puntos que TODAVÍA puedes ganar: selecciones del cruce real que colocaste
       // en la ronda siguiente y aún pueden clasificarse pasando hoy.
       advanceHints,
+      // Puntos por "pasa de fase" YA conseguidos en este cruce terminado (la
+      // selección real que ganó la tenías tú en la ronda siguiente).
+      advanceEarned,
       points,
     };
   };
