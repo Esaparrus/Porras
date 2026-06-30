@@ -41,6 +41,16 @@ type ApiFootballFixture = {
     away: number | null;
   };
   score: {
+    // Resultado al final del tiempo reglamentario (90'). Es el que cuenta para
+    // el marcador de la porra: la prórroga y los penaltis no suman al resultado.
+    fulltime?: {
+      home: number | null;
+      away: number | null;
+    };
+    extratime?: {
+      home: number | null;
+      away: number | null;
+    };
     penalty?: {
       home: number | null;
       away: number | null;
@@ -374,6 +384,19 @@ function findFixture(
   return null;
 }
 
+// Marcador que se guarda como resultado del partido: SIEMPRE el del tiempo
+// reglamentario (90'). En las eliminatorias, `fixture.goals` incluye los goles
+// de la prórroga y el resultado de los penaltis, así que ahí usamos
+// `score.fulltime`. El ganador del cruce (quién pasa) se resuelve aparte en
+// getWinnerTeamId, que sí mira penaltis.
+function getRegulationScore(fixture: ApiFootballFixture) {
+  const fulltime = fixture.score.fulltime;
+  if (fulltime && fulltime.home != null && fulltime.away != null) {
+    return { home: fulltime.home, away: fulltime.away };
+  }
+  return { home: fixture.goals.home, away: fixture.goals.away };
+}
+
 function getWinnerTeamId(
   match: SyncableMatch,
   fixture: ApiFootballFixture,
@@ -535,9 +558,11 @@ async function runSync(
 
       const homeTeam = getTeam(match.home_team);
       const awayTeam = getTeam(match.away_team);
-      // Orientamos el marcador a nuestro orden local/visitante.
-      const homeScore = swapped ? fixture.goals.away : fixture.goals.home;
-      const awayScore = swapped ? fixture.goals.home : fixture.goals.away;
+      // Resultado de los 90' (sin prórroga ni penaltis) orientado a nuestro
+      // orden local/visitante.
+      const regulation = getRegulationScore(fixture);
+      const homeScore = swapped ? regulation.away : regulation.home;
+      const awayScore = swapped ? regulation.home : regulation.away;
       // El equipo de la API que corresponde a cada lado nuestro.
       const apiTeamForHome = swapped ? fixture.teams.away : fixture.teams.home;
       const apiTeamForAway = swapped ? fixture.teams.home : fixture.teams.away;

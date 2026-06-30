@@ -31,7 +31,14 @@ type FootballDataMatch = {
   awayTeam: { tla: string | null; name: string };
   score: {
     winner: "HOME_TEAM" | "AWAY_TEAM" | "DRAW" | null;
+    duration?: "REGULAR" | "EXTRA_TIME" | "PENALTY_SHOOTOUT";
+    // OJO: en football-data, `fullTime` SUMA los goles de la prórroga y de la
+    // tanda de penaltis. Para la porra el marcador es el de los 90' reglamentarios,
+    // que viene en `regularTime` (solo presente cuando hubo prórroga/penaltis).
     fullTime: { home: number | null; away: number | null };
+    regularTime?: { home: number | null; away: number | null };
+    extraTime?: { home: number | null; away: number | null };
+    penalties?: { home: number | null; away: number | null };
   };
 };
 
@@ -482,15 +489,21 @@ async function runSync(
       continue;
     }
 
-    if (fixture.score.fullTime.home == null || fixture.score.fullTime.away == null) {
+    // Marcador de los 90' reglamentarios: si hubo prórroga/penaltis usamos
+    // `regularTime` (el `fullTime` incluiría esos goles). El ganador del cruce
+    // se resuelve aparte en getWinnerTeamId con `score.winner`, que sí cuenta
+    // prórroga y penaltis.
+    const regulation = fixture.score.regularTime ?? fixture.score.fullTime;
+
+    if (regulation.home == null || regulation.away == null) {
       skipped += 1;
       messages.push(`Partido ${match.match_number ?? match.id} finalizado sin marcador util.`);
       continue;
     }
 
     // Orientamos el marcador a nuestro orden local/visitante.
-    const homeScore = swapped ? fixture.score.fullTime.away : fixture.score.fullTime.home;
-    const awayScore = swapped ? fixture.score.fullTime.home : fixture.score.fullTime.away;
+    const homeScore = swapped ? regulation.away : regulation.home;
+    const awayScore = swapped ? regulation.home : regulation.away;
 
     const { error: updateError } = await supabase
       .from("matches")
