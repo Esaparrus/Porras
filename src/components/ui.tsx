@@ -944,7 +944,31 @@ export function PointsPhilosophyCard({ settings }: { settings: PointSettings }) 
   );
 }
 
+// Rondas y conceptos del marcador de eliminatoria. Si todas las rondas valen
+// igual (lo normal), la tabla "Cómo se puntúa" lo muestra una sola vez en vez
+// de repetir 24 filas idénticas.
+const KO_MARKER_ROUNDS = ["round_32", "round_16", "quarter", "semi", "third_place", "final"] as const;
+const KO_MARKER_CONCEPTS = [
+  ["sign_points", "Signo 1/X/2"],
+  ["goal_difference_points", "Diferencia de goles"],
+  ["exact_score_bonus", "Resultado exacto"],
+  ["winner_points", "Acertar quién pasa"],
+] as const;
+
+function knockoutMarkersAreUniform(settings: PointSettings) {
+  return KO_MARKER_CONCEPTS.every(([concept]) => {
+    const values = KO_MARKER_ROUNDS.map(
+      (round) => settings[`live_${round}_${concept}` as keyof PointSettings] as number,
+    );
+    return values.every((value) => value === values[0]);
+  });
+}
+
+const KNOCKOUT_MARKERS_TITLE = "Partidos de eliminatoria";
+
 export function PointRulesCard({ settings }: { settings: PointSettings }) {
+  const koUniform = knockoutMarkersAreUniform(settings);
+
   return (
     <div className="glass rounded-3xl p-5">
       <div className="flex items-center justify-between gap-3">
@@ -958,29 +982,56 @@ export function PointRulesCard({ settings }: { settings: PointSettings }) {
       </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-2">
-        {POINT_SETTING_GROUPS.map(([groupTitle, keys]) => (
-          <section key={groupTitle} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-            <h3 className="text-lg font-black">{groupTitle}</h3>
-            <div className="mt-3 grid gap-2 text-sm">
-              {keys.map((key) => (
-                <div
-                  key={key}
-                  className="rounded-2xl bg-white/5 px-3 py-2"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-slate-300">{POINT_SETTING_LABELS[key]}</span>
-                    <strong className="text-base text-white">{settings[key]} pts</strong>
-                  </div>
-                  {POINT_SETTING_NOTES[key] && (
-                    <p className="mt-1 text-xs leading-snug text-slate-400">
-                      {POINT_SETTING_NOTES[key]}
-                    </p>
-                  )}
+        {POINT_SETTING_GROUPS.map(([groupTitle, keys]) => {
+          // Caso normal: todas las rondas de eliminatoria valen lo mismo, así que
+          // mostramos el marcador una sola vez en lugar de repetir cada ronda.
+          if (groupTitle === KNOCKOUT_MARKERS_TITLE && koUniform) {
+            return (
+              <section key={groupTitle} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <h3 className="text-lg font-black">{groupTitle}</h3>
+                <p className="mt-1 text-xs leading-snug text-slate-400">
+                  Igual en todas las rondas (y que en la fase de grupos). El marcador solo cuenta si
+                  acertaste las dos selecciones del cruce; quién pasa de ronda se premia aparte en
+                  &quot;Cuadro inicial&quot;.
+                </p>
+                <div className="mt-3 grid gap-2 text-sm">
+                  {KO_MARKER_CONCEPTS.map(([concept, label]) => (
+                    <div key={concept} className="flex items-center justify-between gap-3 rounded-2xl bg-white/5 px-3 py-2">
+                      <span className="text-slate-300">{label}</span>
+                      <strong className="text-base text-white">
+                        {settings[`live_round_32_${concept}` as keyof PointSettings]} pts
+                      </strong>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </section>
-        ))}
+              </section>
+            );
+          }
+
+          return (
+            <section key={groupTitle} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <h3 className="text-lg font-black">{groupTitle}</h3>
+              <div className="mt-3 grid gap-2 text-sm">
+                {keys.map((key) => (
+                  <div
+                    key={key}
+                    className="rounded-2xl bg-white/5 px-3 py-2"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-slate-300">{POINT_SETTING_LABELS[key]}</span>
+                      <strong className="text-base text-white">{settings[key]} pts</strong>
+                    </div>
+                    {POINT_SETTING_NOTES[key] && (
+                      <p className="mt-1 text-xs leading-snug text-slate-400">
+                        {POINT_SETTING_NOTES[key]}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          );
+        })}
       </div>
     </div>
   );

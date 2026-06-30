@@ -156,9 +156,9 @@ export const POINT_SETTING_NOTES: Partial<
   live_third_place_winner_points:
     "0 a propósito: el acierto del 3.er puesto ya se premia en 'Tercer puesto'. Aquí solo cuenta el marcador (si acertaste el cruce).",
   live_final_winner_points:
-    "0 a propósito: acertar al campeón se paga en 'Campeón del torneo'. En la final solo cuenta el marcador, pero reforzado.",
+    "0 a propósito: acertar al campeón se paga en 'Campeón del torneo'. En la final solo cuenta el marcador.",
   live_final_exact_score_bonus:
-    "La final es el partido que más puntúa: clavar su marcador da el bonus más alto (si acertaste a los dos finalistas).",
+    "Solo cuenta si acertaste a los dos finalistas. Puntúa igual que el marcador de cualquier otra ronda.",
   scorer_max_points: "Tope de puntos que puedes sumar acertando goleadores, por muchos goles que metan.",
 };
 
